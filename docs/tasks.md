@@ -64,7 +64,7 @@ These stop and think rather than build. Do not blow through them.
 
 **Do this first.** Cheap, high leverage, everything else depends on it.
 
-- [ ] **T098** — Create monorepo skeleton (android/ desktop/ backend/ infra/ docs/)  
+- [x] **T098** — Create monorepo skeleton (android/ desktop/ backend/ infra/ docs/)  
   `P0` `S`
   - START HERE — ten tasks below depend on it. `android/` `desktop/` `backend/` `infra/` `docs/` `.github/`. Monorepo, not three repos, so the shared contract and fixture corpus live with everything that consumes them.
 - [ ] **T099** — Root CLAUDE.md  
@@ -79,7 +79,7 @@ These stop and think rather than build. Do not blow through them.
 - [x] **T102** — backend/CLAUDE.md  
   `P0` `S` · after: T098
   - Isolated worker (state the 2026-11-10 deadline), Cosmos partition key + RU budget, rev assignment rules, Notes.Shared is the contract — do not duplicate DTOs.
-- [ ] **T103** — Commit design doc + task list into docs/  
+- [x] **T103** — Commit design doc + task list into docs/  
   `P0` `S` · after: T098
   - `docs/design.md` and `docs/tasks.md`. Claude Code reads local files and cannot see Todoist. **This file is the operational source of truth; Todoist is the dashboard.**
 - [ ] **T104** — .gitignore, .editorconfig, .gitattributes  
