@@ -70,13 +70,13 @@ These stop and think rather than build. Do not blow through them.
 - [ ] **T099** — Root CLAUDE.md  
   `P0` `S` · after: T098
   - Auto-loaded into every Claude Code session. Project summary; **CURRENT PHASE** (keep updated — highest-value line in the file); pointers to `docs/design.md` and `docs/tasks.md`; the hard constraints below; commit convention.
-- [ ] **T100** — android/CLAUDE.md  
+- [x] **T100** — android/CLAUDE.md  
   `P0` `S` · after: T098
   - Kotlin/Compose conventions, Room patterns, T0–T3 tier rules, MediaPipe GPU-backend + LoRA constraints, target device.
-- [ ] **T101** — desktop/CLAUDE.md  
+- [x] **T101** — desktop/CLAUDE.md  
   `P0` `S` · after: T098
   - C# conventions, MVVM via CommunityToolkit.Mvvm, EF Core patterns, *UI never awaits the network*, outbox-in-same-transaction invariant.
-- [ ] **T102** — backend/CLAUDE.md  
+- [x] **T102** — backend/CLAUDE.md  
   `P0` `S` · after: T098
   - Isolated worker (state the 2026-11-10 deadline), Cosmos partition key + RU budget, rev assignment rules, Notes.Shared is the contract — do not duplicate DTOs.
 - [ ] **T103** — Commit design doc + task list into docs/  
