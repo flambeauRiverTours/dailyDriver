@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../Notes.Shared/Notes.Shared.csproj" />
+  <Project Path="Notes.Functions.csproj" />
+</Solution>

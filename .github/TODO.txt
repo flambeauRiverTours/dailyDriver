@@ -1,0 +1,1 @@
+This folder will contain GitHub workflows/PR template stuff
