@@ -28,7 +28,7 @@ messages, ADRs, and the design doc.
 | `L` | 3+ days |
 | `after:` | Hard prerequisites |
 
-**Commit format:** `<type>(<scope>): T0xx <summary>` — e.g. `feat(desktop): T052 scaffold WPF project`
+**Commit format:** `<type>(<scope>): Txxx <summary>` — e.g. `feat(desktop): T052 scaffold WPF project`
 
 ## Hard constraints — do not violate without an ADR
 
@@ -91,7 +91,7 @@ These stop and think rather than build. Do not blow through them.
 - [x] **T106** — ADR directory + backfill decisions already made  
   `P0` `M` · after: T098
   - `docs/adr/`. Backfill: WPF over Avalonia/WinUI, MediaPipe over llama.cpp, Markdown over rich-text JSON, conflict-copies over plain LWW, monorepo over split repos. These are the questions an interviewer asks.
-- [ ] **T107** — PR template + commit convention referencing task IDs  
+- [x] **T107** — PR template + commit convention referencing task IDs  
   `P1` `S` · after: T098
   - `feat(desktop): T052 scaffold WPF project`. *AZ-400 D1: traceability.*
 - [ ] **T108** — Branch strategy + protection rules  
