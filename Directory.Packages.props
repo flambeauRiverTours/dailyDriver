@@ -1,0 +1,15 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <!-- One <PackageVersion> entry per NuGet package used anywhere in the solution.
+       Individual .csproj files reference the package by name only (no Version attribute) —
+       the version here is the single source of truth for Notes.Shared, Notes.Functions,
+       and Notes.Desktop alike. Add entries as real dependencies land (EF Core, MSAL.NET,
+       CommunityToolkit.Mvvm, Markdig, the Cosmos SDK, xUnit, ...) rather than pre-guessing them. -->
+  <ItemGroup>
+  </ItemGroup>
+
+</Project>

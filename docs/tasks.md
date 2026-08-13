@@ -85,7 +85,7 @@ These stop and think rather than build. Do not blow through them.
 - [x] **T104** — .gitignore, .editorconfig, .gitattributes  
   `P1` `S` · after: T098
   - `.editorconfig` matters more than usual — stops the IDE and Claude Code fighting over formatting across two languages.
-- [ ] **T105** — Directory.Build.props + Central Package Management  
+- [x] **T105** — Directory.Build.props + Central Package Management  
   `P1` `S` · after: T098
   - `Directory.Packages.props` with `ManagePackageVersionsCentrally`. *AZ-400 D3: package management.*
 - [ ] **T106** — ADR directory + backfill decisions already made  
