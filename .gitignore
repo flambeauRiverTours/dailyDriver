@@ -1,0 +1,17 @@
+# .NET build outputs (backend/ + desktop/) — android/ has its own .gitignore for Gradle output
+[Bb]in/
+[Oo]bj/
+*.user
+
+# Visual Studio
+.vs/
+
+# Azure Functions local secrets — connection strings live here, never commit
+local.settings.json
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/

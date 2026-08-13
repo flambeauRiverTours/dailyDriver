@@ -82,7 +82,7 @@ These stop and think rather than build. Do not blow through them.
 - [x] **T103** — Commit design doc + task list into docs/  
   `P0` `S` · after: T098
   - `docs/design.md` and `docs/tasks.md`. Claude Code reads local files and cannot see Todoist. **This file is the operational source of truth; Todoist is the dashboard.**
-- [ ] **T104** — .gitignore, .editorconfig, .gitattributes  
+- [x] **T104** — .gitignore, .editorconfig, .gitattributes  
   `P1` `S` · after: T098
   - `.editorconfig` matters more than usual — stops the IDE and Claude Code fighting over formatting across two languages.
 - [ ] **T105** — Directory.Build.props + Central Package Management  

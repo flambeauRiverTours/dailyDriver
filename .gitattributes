@@ -1,0 +1,17 @@
+# Windows-only project (see docs/design.md non-goals) — normalize text to CRLF on checkout,
+# matching .editorconfig's end_of_line=crlf. Keeping these two files in agreement is the point:
+# disagreement here is exactly the kind of formatting-only diff noise .editorconfig exists to avoid.
+* text=auto eol=crlf
+
+# Bash scripts must stay LF regardless of platform — CRLF breaks the shebang line
+*.sh text eol=lf
+/gradlew text eol=lf
+/gradlew.bat text eol=crlf
+
+# Binary — never touch line endings, never diff, never attempt a text merge
+*.png binary
+*.webp binary
+*.jpg binary
+*.jar binary
+*.pdf binary
+*.pfx binary
