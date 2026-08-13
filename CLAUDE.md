@@ -22,4 +22,4 @@ These are easy to get wrong by defaulting to the more common/tutorial answer. Do
 
 ## Commits
 
-Reference the task ID from `docs/tasks.md` (format `T0xx`), e.g. `T098 · Create monorepo skeleton`.
+Reference the task ID from `docs/tasks.md` (format `Txxx`), e.g. `T098 · Create monorepo skeleton`.

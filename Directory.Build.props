@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- Auto-imported by every .csproj under this directory (backend/, desktop/) — MSBuild convention,
+       no <Import> needed anywhere. Keeps the C# projects from drifting on basic settings. -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

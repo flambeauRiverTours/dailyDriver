@@ -1,0 +1,45 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Markdown: trailing whitespace is a hard line break, not clutter — do not strip it
+[*.md]
+trim_trailing_whitespace = false
+
+# C# (backend + desktop)
+[*.cs]
+indent_size = 4
+dotnet_sort_system_directives_first = true
+csharp_new_line_before_open_brace = all
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+
+# XAML (WPF)
+[*.xaml]
+indent_size = 4
+
+# Kotlin + Gradle Kotlin DSL
+[*.{kt,kts}]
+indent_size = 4
+ij_kotlin_imports_layout = ascii
+
+# Android/XML resources
+[*.xml]
+indent_size = 4
+
+# JSON / YAML — 2-space is the near-universal convention for these formats
+[*.{json,yml,yaml}]
+indent_size = 2
+
+# Bash scripts must stay LF even on this Windows-only project — CRLF breaks the shebang
+[*.sh]
+end_of_line = lf
+
+[gradlew]
+end_of_line = lf

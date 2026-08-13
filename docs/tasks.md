@@ -28,7 +28,7 @@ messages, ADRs, and the design doc.
 | `L` | 3+ days |
 | `after:` | Hard prerequisites |
 
-**Commit format:** `<type>(<scope>): T0xx <summary>` — e.g. `feat(desktop): T052 scaffold WPF project`
+**Commit format:** `<type>(<scope>): Txxx <summary>` — e.g. `feat(desktop): T052 scaffold WPF project`
 
 ## Hard constraints — do not violate without an ADR
 
@@ -64,34 +64,34 @@ These stop and think rather than build. Do not blow through them.
 
 **Do this first.** Cheap, high leverage, everything else depends on it.
 
-- [ ] **T098** — Create monorepo skeleton (android/ desktop/ backend/ infra/ docs/)  
+- [x] **T098** — Create monorepo skeleton (android/ desktop/ backend/ infra/ docs/)  
   `P0` `S`
   - START HERE — ten tasks below depend on it. `android/` `desktop/` `backend/` `infra/` `docs/` `.github/`. Monorepo, not three repos, so the shared contract and fixture corpus live with everything that consumes them.
 - [ ] **T099** — Root CLAUDE.md  
   `P0` `S` · after: T098
   - Auto-loaded into every Claude Code session. Project summary; **CURRENT PHASE** (keep updated — highest-value line in the file); pointers to `docs/design.md` and `docs/tasks.md`; the hard constraints below; commit convention.
-- [ ] **T100** — android/CLAUDE.md  
+- [x] **T100** — android/CLAUDE.md  
   `P0` `S` · after: T098
   - Kotlin/Compose conventions, Room patterns, T0–T3 tier rules, MediaPipe GPU-backend + LoRA constraints, target device.
-- [ ] **T101** — desktop/CLAUDE.md  
+- [x] **T101** — desktop/CLAUDE.md  
   `P0` `S` · after: T098
   - C# conventions, MVVM via CommunityToolkit.Mvvm, EF Core patterns, *UI never awaits the network*, outbox-in-same-transaction invariant.
-- [ ] **T102** — backend/CLAUDE.md  
+- [x] **T102** — backend/CLAUDE.md  
   `P0` `S` · after: T098
   - Isolated worker (state the 2026-11-10 deadline), Cosmos partition key + RU budget, rev assignment rules, Notes.Shared is the contract — do not duplicate DTOs.
-- [ ] **T103** — Commit design doc + task list into docs/  
+- [x] **T103** — Commit design doc + task list into docs/  
   `P0` `S` · after: T098
   - `docs/design.md` and `docs/tasks.md`. Claude Code reads local files and cannot see Todoist. **This file is the operational source of truth; Todoist is the dashboard.**
-- [ ] **T104** — .gitignore, .editorconfig, .gitattributes  
+- [x] **T104** — .gitignore, .editorconfig, .gitattributes  
   `P1` `S` · after: T098
   - `.editorconfig` matters more than usual — stops the IDE and Claude Code fighting over formatting across two languages.
-- [ ] **T105** — Directory.Build.props + Central Package Management  
+- [x] **T105** — Directory.Build.props + Central Package Management  
   `P1` `S` · after: T098
   - `Directory.Packages.props` with `ManagePackageVersionsCentrally`. *AZ-400 D3: package management.*
-- [ ] **T106** — ADR directory + backfill decisions already made  
+- [x] **T106** — ADR directory + backfill decisions already made  
   `P0` `M` · after: T098
   - `docs/adr/`. Backfill: WPF over Avalonia/WinUI, MediaPipe over llama.cpp, Markdown over rich-text JSON, conflict-copies over plain LWW, monorepo over split repos. These are the questions an interviewer asks.
-- [ ] **T107** — PR template + commit convention referencing task IDs  
+- [x] **T107** — PR template + commit convention referencing task IDs  
   `P1` `S` · after: T098
   - `feat(desktop): T052 scaffold WPF project`. *AZ-400 D1: traceability.*
 - [ ] **T108** — Branch strategy + protection rules  
