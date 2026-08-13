@@ -94,7 +94,7 @@ These stop and think rather than build. Do not blow through them.
 - [x] **T107** — PR template + commit convention referencing task IDs  
   `P1` `S` · after: T098
   - `feat(desktop): T052 scaffold WPF project`. *AZ-400 D1: traceability.*
-- [ ] **T108** — Branch strategy + protection rules  
+- [x] **T108** — Branch strategy + protection rules  
   `P0` `M` · after: T098
   - Trunk-based, short-lived branches. Protect `main`: require PR, require status checks, no direct pushes — even solo. *AZ-400 D2.*
 - [ ] **T109** — DECIDE: Azure Boards vs Todoist for work-item traceability  
