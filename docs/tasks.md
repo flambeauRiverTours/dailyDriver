@@ -88,7 +88,7 @@ These stop and think rather than build. Do not blow through them.
 - [x] **T105** — Directory.Build.props + Central Package Management  
   `P1` `S` · after: T098
   - `Directory.Packages.props` with `ManagePackageVersionsCentrally`. *AZ-400 D3: package management.*
-- [ ] **T106** — ADR directory + backfill decisions already made  
+- [x] **T106** — ADR directory + backfill decisions already made  
   `P0` `M` · after: T098
   - `docs/adr/`. Backfill: WPF over Avalonia/WinUI, MediaPipe over llama.cpp, Markdown over rich-text JSON, conflict-copies over plain LWW, monorepo over split repos. These are the questions an interviewer asks.
 - [ ] **T107** — PR template + commit convention referencing task IDs  
