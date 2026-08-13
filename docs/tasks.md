@@ -97,10 +97,11 @@ These stop and think rather than build. Do not blow through them.
 - [x] **T108** — Branch strategy + protection rules  
   `P0` `M` · after: T098
   - Trunk-based, short-lived branches. Protect `main`: require PR, require status checks, no direct pushes — even solo. *AZ-400 D2.*
-- [ ] **T109** — DECIDE: Azure Boards vs Todoist for work-item traceability  
+- [x] **T109** — DECIDE: Azure Boards vs Todoist for work-item traceability  
   `P1` `S`
   - AZ-400 D1 wants commit→work-item→build linkage; Todoist can't do it. Suggested compromise: mirror only the *active* section into Boards, then judge whether it earned the duplication.
-- [ ] **T110** — README skeleton  
+  - **Decision (2026-08-13):** Stick with Todoist only, for now — not standing up the Boards mirror. Accepts the AZ-400 D1 commit→work-item→build gap rather than paying for a second system to close it; `Txxx` in commits/PRs/tasks.md remains the actual traceability mechanism in daily use. Revisit if AZ-400 study reaches D1 and the gap needs to be demonstrated hands-on rather than just reasoned about.
+- [x] **T110** — README skeleton  
   `P1` `S` · after: T098
   - Stub now, fill in T088.
 
