@@ -47,4 +47,38 @@ class ShellViewModelTest {
 
         assertEquals(6, viewModel.transcript.entries.size)
     }
+
+    @Test
+    fun `changing input does not affect the transcript until submit`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onInputChange("chrome")
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+        assertEquals("chrome", viewModel.input)
+    }
+
+    @Test
+    fun `submitting twice in a row with no new input does not duplicate entries`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("chrome")
+        viewModel.onSubmit()
+        val sizeAfterFirstSubmit = viewModel.transcript.entries.size
+
+        viewModel.onSubmit() // input is already "" — the real-world double-tap-Go case
+
+        assertEquals(sizeAfterFirstSubmit, viewModel.transcript.entries.size)
+    }
+
+    @Test
+    fun `submitting produces an input entry followed by an output entry`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("chrome")
+
+        viewModel.onSubmit()
+
+        val entries = viewModel.transcript.entries
+        assertTrue(entries[0] is TranscriptEntry.Input)
+        assertTrue(entries[1] is TranscriptEntry.Output)
+    }
 }

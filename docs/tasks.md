@@ -128,7 +128,9 @@ Daily-drivable as your real home screen, zero ML.
   - IME auto-open via `FocusRequester` + `windowSoftInputMode="adjustResize"` + `imePadding()`. Added `androidx.lifecycle:lifecycle-viewmodel-compose` to the version catalog.
   - Dark-only forced at the `DailyDriverTheme(darkTheme = true, dynamicColor = false)` call site, **not** in the theme itself — stripping the light palette and Material You out of `Theme.kt` is still T005's job.
   - Submitting appends a placeholder output line (`no command pipeline yet (T006)`); the real cascade replaces it at T006/T010.
-  - **Verified:** 15 unit tests pass, `assembleDebug` succeeds. **Not** verified on-device — IME behaviour, insets, and legibility need a real run (see T017).
+  - **On-device check (2026-08-14):** IME opens correctly, insets/padding correct, `❯` renders correctly on the S20 FE.
+  - **Follow-up critical pass:** disabled IME autocorrect on the input field (`autoCorrectEnabled = false`) — load-bearing, not cosmetic, since T0 is exact-match and silent autocorrect would make aliases/reserved commands miss unpredictably. Added `ShellTestTags` (test-tag anchors for future Compose UI tests, per the semantics-over-text-matching convention in `android/CLAUDE.md`). Fixed an inline fully-qualified `SolidColor` reference. Added 5 tests: `Transcript` internal-whitespace preservation and receiver-immutability; `ShellViewModel` input-without-submit is inert, double-submit doesn't duplicate, submit produces Input-then-Output structurally.
+  - **Verified:** 16 unit tests pass (was 11), `assembleDebug` succeeds.
 - [ ] **T005** — Dark-only theme tokens  
   `P1` `S` · after: T004
   - No light palette exists by design.

@@ -41,6 +41,23 @@ class TranscriptTest {
     }
 
     @Test
+    fun `record preserves internal whitespace, only trims the edges`() {
+        val transcript = Transcript().record("  chrome  --flag  ", "output")
+
+        assertEquals("chrome  --flag", transcript.entries.first().text)
+    }
+
+    @Test
+    fun `record does not mutate the receiver`() {
+        val original = Transcript().record("first", "1")
+        val originalEntries = original.entries
+
+        original.record("second", "2")
+
+        assertEquals(originalEntries, original.entries)
+    }
+
+    @Test
     fun `blank input is ignored entirely`() {
         val empty = Transcript()
 

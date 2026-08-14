@@ -25,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
@@ -32,6 +34,16 @@ import androidx.compose.ui.unit.dp
 
 /** The prompt glyph, shown on the input line and on every recorded command in the scrollback. */
 private const val PROMPT = "❯"
+
+/**
+ * Stable anchors for Compose UI tests (androidx.compose.ui.test), per the "semantics/test tags
+ * rather than brittle text matching" convention in android/CLAUDE.md. Nothing consumes these yet
+ * — they exist so the first UI test doesn't also have to invent them.
+ */
+internal object ShellTestTags {
+    const val TRANSCRIPT_LIST = "shell_transcript_list"
+    const val INPUT_FIELD = "shell_input_field"
+}
 
 /**
  * The launcher surface: scrollback transcript above, input line pinned at the bottom.
@@ -75,7 +87,8 @@ fun ShellScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                .testTag(ShellTestTags.TRANSCRIPT_LIST),
             verticalArrangement = Arrangement.Bottom,
         ) {
             items(transcript.entries) { entry ->
@@ -126,10 +139,15 @@ private fun InputLine(
             onValueChange = onValueChange,
             textStyle = textStyle,
             singleLine = true,
-            cursorBrush = androidx.compose.ui.graphics.SolidColor(textStyle.color),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+            cursorBrush = SolidColor(textStyle.color),
+            // autoCorrectEnabled = false is load-bearing, not cosmetic: T0 is exact-match against
+            // aliases and reserved commands (:apps, :note, ...) — IME autocorrect silently mangling
+            // a command mid-type would make T0 miss and fall through to T1/T2 for no visible reason.
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, autoCorrectEnabled = false),
             keyboardActions = KeyboardActions(onGo = { onSubmit() }),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(ShellTestTags.INPUT_FIELD),
         )
     }
 }
