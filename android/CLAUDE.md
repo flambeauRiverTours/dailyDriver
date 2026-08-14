@@ -2,13 +2,13 @@
 
 Registered as the device HOME activity: a single full-screen Compose surface (scrollback transcript + input line) that replaces the home screen and routes input through the T0–T3 command pipeline. Room is the local source of truth for notes, checklists, and aliases. See root [`../CLAUDE.md`](../CLAUDE.md) for project-wide constraints and [`../docs/design.md`](../docs/design.md) §4 for the full design.
 
-Current state: default Android Studio scaffold only (`com.example.dailydriver`, `minSdk 24` / `compileSdk 35`, Compose + Material3, no Room or MediaPipe dependencies yet). Nothing below is implemented yet — this file is the spec for T001 onward.
+Current state: default Android Studio scaffold (`com.example.dailydriver`, `minSdk`/`targetSdk`/`compileSdk` all pinned to 33, Compose + Material3, no Room or MediaPipe dependencies yet). Nothing below is implemented yet — this file is the spec for T001 onward.
 
 ## Target device
 
-**Not yet pinned.** T001 must choose and record the one target device here; every latency/memory/battery benchmark in the project cites it. Do not write device-specific code (GPU backend assumptions, memory budgets) until this line is filled in.
+**Samsung Galaxy S20 FE — Android 13 (API 33).** Pinned at T001; every latency/memory/battery benchmark in the project cites this device. `minSdk`/`targetSdk`/`compileSdk` are all set to 33 to match it exactly — no broader compatibility is a project goal, so there's no reason to target anything else.
 
-`<device> — <chipset> — Android <version>` *(fill in at T001)*
+Chipset not yet confirmed — the S20 FE ships with either Snapdragon 865 (5G variant) or Exynos 990 depending on region, and that distinction matters once GPU-backend LoRA work starts (T037). Confirm and record which variant this unit is before that spike.
 
 ## Testing — TDD is the default workflow
 
