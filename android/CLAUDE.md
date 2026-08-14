@@ -4,6 +4,8 @@ Registered as the device HOME activity: a single full-screen Compose surface (sc
 
 Current state: `com.example.dailydriver`, `minSdk`/`targetSdk` pinned to 33, `compileSdk` at 36 (see note below), Compose + Material3. `apps/` package (T003) has the app index — not yet wired into an Activity. No Room or MediaPipe dependencies yet.
 
+**Running Gradle from the command line just works** — no `JAVA_HOME=` override needed. The system-wide `JAVA_HOME` on this machine points at JDK 11, which AGP 8.10 rejects (requires 17+), but `~/.gradle/gradle.properties` (machine-local, outside this repo, not something a fresh clone gets) pins `org.gradle.java.home` to Android Studio's bundled JBR. If a fresh environment hits "Android Gradle plugin requires Java 17," that's this setting missing, not a project problem — same fix, or point `JAVA_HOME` at a real JDK 17+.
+
 ## Target device
 
 **Samsung Galaxy S20 FE 5G, model SM-G781V — Snapdragon 865 — Android 13 (API 33).** Pinned at T001; every latency/memory/battery benchmark in the project cites this device. `minSdk`/`targetSdk` are set to 33 to match it exactly — no broader compatibility is a project goal, so there's no reason to target a wider runtime range.

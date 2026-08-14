@@ -1,12 +1,10 @@
 *.iml
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+# Solo project — no value in sharing IDE project state, and it drifts on every Android Studio
+# session (deploymentTargetSelector.xml, gradle.xml, appInsightsSettings.xml, inspectionProfiles/
+# all changed across this project's history without any real change behind them).
+.idea/
 .DS_Store
 /build
 /captures

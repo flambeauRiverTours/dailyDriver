@@ -85,6 +85,7 @@ These stop and think rather than build. Do not blow through them.
 - [x] **T104** — .gitignore, .editorconfig, .gitattributes  
   `P1` `S` · after: T098
   - `.editorconfig` matters more than usual — stops the IDE and Claude Code fighting over formatting across two languages.
+  - **Follow-up (process-efficiency pass, 2026-08-14):** `android/.idea/` was still tracked and kept drifting every Android Studio session (`deploymentTargetSelector.xml`, `gradle.xml` changed on nearly every commit in this project's history; `appInsightsSettings.xml`, `inspectionProfiles/` showed up untracked). Solo project, no value in sharing IDE state — added a blanket `.idea/` line to `android/.gitignore` and untracked the 10 files that were still committed, same `git rm -r --cached` approach as the `obj/`/`.vs/` cleanup this task already did for the .NET projects.
 - [x] **T105** — Directory.Build.props + Central Package Management  
   `P1` `S` · after: T098
   - `Directory.Packages.props` with `ManagePackageVersionsCentrally`. *AZ-400 D3: package management.*
