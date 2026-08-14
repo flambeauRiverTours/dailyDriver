@@ -131,9 +131,12 @@ Daily-drivable as your real home screen, zero ML.
   - **On-device check (2026-08-14):** IME opens correctly, insets/padding correct, `❯` renders correctly on the S20 FE.
   - **Follow-up critical pass:** disabled IME autocorrect on the input field (`autoCorrectEnabled = false`) — load-bearing, not cosmetic, since T0 is exact-match and silent autocorrect would make aliases/reserved commands miss unpredictably. Added `ShellTestTags` (test-tag anchors for future Compose UI tests, per the semantics-over-text-matching convention in `android/CLAUDE.md`). Fixed an inline fully-qualified `SolidColor` reference. Added 5 tests: `Transcript` internal-whitespace preservation and receiver-immutability; `ShellViewModel` input-without-submit is inert, double-submit doesn't duplicate, submit produces Input-then-Output structurally.
   - **Verified:** 16 unit tests pass (was 11), `assembleDebug` succeeds.
-- [ ] **T005** — Dark-only theme tokens  
+- [x] **T005** — Dark-only theme tokens  
   `P1` `S` · after: T004
   - No light palette exists by design.
+  - `Color.kt`: deliberate token set (background/surface/onBackground/onSurface/onSurfaceVariant/primary/secondary/tertiary), no literal `#000000`/`#FFFFFF` anywhere — house style per explicit request, near-black/near-white tones instead. `Theme.kt`: dropped `darkTheme`/`dynamicColor` params entirely (there is exactly one theme now), removed Material You dynamic color and the light `ColorScheme`.
+  - Found and fixed while in here: `themes.xml` (the pre-Compose XML theme controlling window background) was still inheriting `android:Theme.Material.Light.NoActionBar` — a real light palette causing a white flash on cold launch, not just a Compose-level gap. Switched to the non-Light Material parent with `windowBackground`/`colorBackground` explicitly set to match `Color.kt`'s `Background` token — the platform's default dark parent alone uses literal black, which would've just traded the white flash for a pure-black one. Also removed unused scaffold colors (`purple_*`, `teal_*`, literal `black`/`white`) from `colors.xml`.
+  - **Verified:** `assembleDebug` + all 16 unit tests pass. **Not verified on-device** — cold-launch flash and actual on-screen color rendering need a real run.
 - [ ] **T011** — Launch app by package intent  
   `P0` `S` · after: T003
 - [ ] **T012** — Open all-apps list view  

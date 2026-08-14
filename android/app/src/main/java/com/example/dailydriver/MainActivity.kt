@@ -14,9 +14,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            // Dark-only, no dynamic colour (design doc §4.1). Forced here rather than in the theme
-            // itself — stripping the light palette and Material You out of DailyDriverTheme is T005.
-            DailyDriverTheme(darkTheme = true, dynamicColor = false) {
+            DailyDriverTheme {
                 val viewModel: ShellViewModel = viewModel()
                 ShellScreen(
                     transcript = viewModel.transcript,
