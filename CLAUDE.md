@@ -4,7 +4,7 @@ Personal-use side project: an Android CLI-style home-screen launcher backed by a
 
 ## CURRENT PHASE
 
-**Phase 0 — Launcher shell.** Monorepo skeleton just created (`android/`, `desktop/`, `backend/`, `infra/`, `docs/`); no application code yet. Exit criterion: daily-drivable as the real home screen with T0/T1/T3 only, zero ML. Update this line as phases complete — see `docs/design.md` §9 for the full phase table.
+**Phase 0 — Launcher shell.** Monorepo scaffolding (section 01) complete. CLI shell (T001–T005) and app launching (T011–T013) built and on-device verified on the S20 FE, including a working `:apps` browse view — filter-as-you-type, tap/Enter/auto-launch, bottom-anchored — but that's a one-off command recognizer pulled forward at T012, not the general pipeline: T140 (dispatcher) + T141–T145 (per-command), T007 (aliases), T008–T010 (T1/T3), T014 (training-data log) are all still open. Not yet installed as the daily driver (T017). Exit criterion: daily-drivable as the real home screen with T0/T1/T3 only, zero ML. Update this line as phases complete — see `docs/design.md` §9 for the full phase table.
 
 ## Docs
 
