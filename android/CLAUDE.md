@@ -2,11 +2,13 @@
 
 Registered as the device HOME activity: a single full-screen Compose surface (scrollback transcript + input line) that replaces the home screen and routes input through the T0–T3 command pipeline. Room is the local source of truth for notes, checklists, and aliases. See root [`../CLAUDE.md`](../CLAUDE.md) for project-wide constraints and [`../docs/design.md`](../docs/design.md) §4 for the full design.
 
-Current state: default Android Studio scaffold (`com.example.dailydriver`, `minSdk`/`targetSdk`/`compileSdk` all pinned to 33, Compose + Material3, no Room or MediaPipe dependencies yet). Nothing below is implemented yet — this file is the spec for T001 onward.
+Current state: `com.example.dailydriver`, `minSdk`/`targetSdk` pinned to 33, `compileSdk` at 36 (see note below), Compose + Material3. `apps/` package (T003) has the app index — not yet wired into an Activity. No Room or MediaPipe dependencies yet.
 
 ## Target device
 
-**Samsung Galaxy S20 FE 5G, model SM-G781V — Snapdragon 865 — Android 13 (API 33).** Pinned at T001; every latency/memory/battery benchmark in the project cites this device. `minSdk`/`targetSdk`/`compileSdk` are all set to 33 to match it exactly — no broader compatibility is a project goal, so there's no reason to target anything else.
+**Samsung Galaxy S20 FE 5G, model SM-G781V — Snapdragon 865 — Android 13 (API 33).** Pinned at T001; every latency/memory/battery benchmark in the project cites this device. `minSdk`/`targetSdk` are set to 33 to match it exactly — no broader compatibility is a project goal, so there's no reason to target a wider runtime range.
+
+`compileSdk` is 36, not 33 — it's a build-time-only setting (which API surface the compiler sees), independent of the runtime `minSdk`/`targetSdk` above. Already-present AndroidX dependencies (`core-ktx` among them) hard-require `compileSdk 36`; keep it at whatever the newest dependency needs, and don't conflate it with the device-pinning decision when adding future dependencies.
 
 SM-G781V is the Verizon 5G variant, which ships with Snapdragon 865 — relevant once GPU-backend LoRA work starts (T037), since the Exynos 990 variant of this phone (the international 4G-only SM-G780F) is a different chipset with different GPU/LoRA behavior.
 
