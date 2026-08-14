@@ -8,9 +8,10 @@ import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 
 /**
- * Queries PackageManager for launchable apps and keeps [AppIndex] current. No `<queries>`
- * manifest entry is needed to see other apps' packages — apps holding a CATEGORY_HOME activity
- * (registered in T002) are automatically exempt from Android 11+'s package-visibility filtering.
+ * Queries PackageManager for launchable apps and keeps [AppIndex] current. Requires the
+ * `<queries>` declaration in AndroidManifest.xml (ACTION_MAIN + CATEGORY_LAUNCHER) to see other
+ * apps' packages at all on API 30+ — there is no automatic visibility exemption for
+ * CATEGORY_HOME/launcher apps, despite an earlier version of this comment claiming otherwise.
  */
 class AppIndexRepository(private val context: Context) {
 

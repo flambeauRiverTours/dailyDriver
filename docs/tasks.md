@@ -121,7 +121,8 @@ Daily-drivable as your real home screen, zero ML.
 - [x] **T003** — Build app index from PackageManager  
   `P0` `M` · after: T001
   - Cache it; refresh on package install/uninstall broadcast.
-  - `AppEntry`/`AppIndex` (pure, unit-tested) + `AppIndexRepository` (PackageManager query + dynamically-registered package-change `BroadcastReceiver`, `RECEIVER_NOT_EXPORTED` required by targetSdk 33). No `<queries>` manifest entry needed — CATEGORY_HOME apps are auto-exempt from package-visibility filtering. Not yet wired into an Activity/Application lifecycle owner — that lands with T004/T012.
+  - `AppEntry`/`AppIndex` (pure, unit-tested) + `AppIndexRepository` (PackageManager query + dynamically-registered package-change `BroadcastReceiver`, `RECEIVER_NOT_EXPORTED` required by targetSdk 33). Not yet wired into an Activity/Application lifecycle owner — that lands with T004/T012.
+  - **Correction (device-target audit, 2026-08-14):** the claim that "CATEGORY_HOME apps are auto-exempt from package-visibility filtering" was wrong — checked against developer.android.com's actual package-visibility docs and found no such exemption exists. `android:lint`'s `QueryPermissionsNeeded` check caught the consequence. Fixed with a real `<queries>` declaration in `AndroidManifest.xml` (`ACTION_MAIN` + `CATEGORY_LAUNCHER`, matching what `AppIndexRepository` actually queries) rather than relying on a nonexistent exemption.
 - [x] **T004** — CLI shell UI: scrollback + input line, IME auto-open  
   `P0` `M` · after: T002
   - `shell/` package: `TranscriptEntry` (sealed Input/Output) + `Transcript` (immutable, pure, unit-tested — blank input ignored, input trimmed) + `ShellViewModel` (Compose state; ViewModel lifetime deliberately matches the "cleared on process death" rule) + `ShellScreen` (stateless, `LazyColumn` bottom-anchored, `BasicTextField` input line, `❯` prompt, monospace).
