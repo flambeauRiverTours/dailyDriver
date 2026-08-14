@@ -113,7 +113,7 @@ Daily-drivable as your real home screen, zero ML.
 - [x] **T001** — Create Android project (Compose, pinned min/target SDK)  
   `P0` `S`
   - Pin the ONE target device here; all benchmarks cite it.
-  - **Target device (2026-08-14):** Samsung Galaxy S20 FE, Android 13 (API 33). `minSdk`/`targetSdk`/`compileSdk` pinned to 33 in `android/app/build.gradle.kts` to match. Chipset variant (Snapdragon 865 vs. Exynos 990) not yet confirmed — needed before T037.
+  - **Target device (2026-08-14):** Samsung Galaxy S20 FE 5G, model SM-G781V (Snapdragon 865), Android 13 (API 33). `minSdk`/`targetSdk`/`compileSdk` pinned to 33 in `android/app/build.gradle.kts` to match.
 - [ ] **T002** — Register HOME activity intent filters  
   `P0` `S` · after: T001
   - `ACTION_MAIN` + `CATEGORY_HOME` + `CATEGORY_DEFAULT`.

@@ -6,8 +6,8 @@ plugins {
 
 android {
     namespace = "com.example.dailydriver"
-    // Pinned to the one target device (Samsung Galaxy S20 FE, Android 13 / API 33) — see
-    // android/CLAUDE.md. No broader compatibility is a goal here, so min/target/compile all match it.
+    // Pinned to the one target device (Samsung Galaxy S20 FE 5G, SM-G781V, Android 13 / API 33) —
+    // see android/CLAUDE.md. No broader compatibility is a goal here, so min/target/compile all match it.
     compileSdk = 33
 
     defaultConfig {

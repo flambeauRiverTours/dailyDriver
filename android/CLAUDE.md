@@ -6,9 +6,9 @@ Current state: default Android Studio scaffold (`com.example.dailydriver`, `minS
 
 ## Target device
 
-**Samsung Galaxy S20 FE — Android 13 (API 33).** Pinned at T001; every latency/memory/battery benchmark in the project cites this device. `minSdk`/`targetSdk`/`compileSdk` are all set to 33 to match it exactly — no broader compatibility is a project goal, so there's no reason to target anything else.
+**Samsung Galaxy S20 FE 5G, model SM-G781V — Snapdragon 865 — Android 13 (API 33).** Pinned at T001; every latency/memory/battery benchmark in the project cites this device. `minSdk`/`targetSdk`/`compileSdk` are all set to 33 to match it exactly — no broader compatibility is a project goal, so there's no reason to target anything else.
 
-Chipset not yet confirmed — the S20 FE ships with either Snapdragon 865 (5G variant) or Exynos 990 depending on region, and that distinction matters once GPU-backend LoRA work starts (T037). Confirm and record which variant this unit is before that spike.
+SM-G781V is the Verizon 5G variant, which ships with Snapdragon 865 — relevant once GPU-backend LoRA work starts (T037), since the Exynos 990 variant of this phone (the international 4G-only SM-G780F) is a different chipset with different GPU/LoRA behavior.
 
 ## Testing — TDD is the default workflow
 
