@@ -127,7 +127,7 @@ Daily-drivable as your real home screen, zero ML.
   - `shell/` package: `TranscriptEntry` (sealed Input/Output) + `Transcript` (immutable, pure, unit-tested — blank input ignored, input trimmed) + `ShellViewModel` (Compose state; ViewModel lifetime deliberately matches the "cleared on process death" rule) + `ShellScreen` (stateless, `LazyColumn` bottom-anchored, `BasicTextField` input line, `❯` prompt, monospace).
   - IME auto-open via `FocusRequester` + `windowSoftInputMode="adjustResize"` + `imePadding()`. Added `androidx.lifecycle:lifecycle-viewmodel-compose` to the version catalog.
   - Dark-only forced at the `DailyDriverTheme(darkTheme = true, dynamicColor = false)` call site, **not** in the theme itself — stripping the light palette and Material You out of `Theme.kt` is still T005's job.
-  - Submitting appends a placeholder output line (`no command pipeline yet (T006)`); the real cascade replaces it at T006/T010.
+  - Submitting appends a placeholder output line (`no command pipeline yet (T006)`); the real cascade replaces it starting at T140 (T006 split into T140–T145 below).
   - **On-device check (2026-08-14):** IME opens correctly, insets/padding correct, `❯` renders correctly on the S20 FE.
   - **Follow-up critical pass:** disabled IME autocorrect on the input field (`autoCorrectEnabled = false`) — load-bearing, not cosmetic, since T0 is exact-match and silent autocorrect would make aliases/reserved commands miss unpredictably. Added `ShellTestTags` (test-tag anchors for future Compose UI tests, per the semantics-over-text-matching convention in `android/CLAUDE.md`). Fixed an inline fully-qualified `SolidColor` reference. Added 5 tests: `Transcript` internal-whitespace preservation and receiver-immutability; `ShellViewModel` input-without-submit is inert, double-submit doesn't duplicate, submit produces Input-then-Output structurally.
   - **Verified:** 16 unit tests pass (was 11), `assembleDebug` succeeds.
@@ -143,7 +143,8 @@ Daily-drivable as your real home screen, zero ML.
 - [ ] **T012** — Open all-apps list view  
   `P1` `M` · after: T003
 - [ ] **T013** — Open Settings via intents  
-  `P1` `S` · after: T006
+  `P1` `S`
+  - The intent-launching mechanism itself — no dependency on the T0 parser existing yet. T142 wires this in as `:settings`.
 - [ ] **T015** — BACK/HOME key behaviour  
   `P1` `S` · after: T004, T020
   - BACK is a no-op at the prompt, but **closes the editor overlay** when open — the only state where BACK does anything. HOME re-focuses input.
@@ -159,10 +160,27 @@ Daily-drivable as your real home screen, zero ML.
 
 Tiered cascade. **The SLM is not the front door.**
 
-- [ ] **T006** — T0 reserved command parser (:apps :settings :note :alias)  
-  `P0` `M` · after: T004
+- [ ] **T140** — T0 dispatcher: exact-match router + T1 fallthrough  
+  `P0` `S` · after: T004
+  - **Replaces T006** (2026-08-14) — was one lump task for all reserved commands; split into one task per command (T141–T145 below) so each can land independently instead of all-or-nothing.
+  - The mechanism itself: recognize a leading `:` (or a bare `?` — see T145), hold a small registry of reserved-command handlers, dispatch on exact match, fall through to T1 when nothing matches. T141–T145 all plug into this; none of them make sense before it exists.
+- [ ] **T141** — `:apps` reserved command  
+  `P1` `S` · after: T140, T012
+  - Routes to the all-apps list view T012 builds.
+- [ ] **T142** — `:settings` reserved command  
+  `P1` `S` · after: T140, T013
+  - Routes to the Settings intent T013 builds.
+- [ ] **T143** — `:note` reserved command  
+  `P1` `S` · after: T140, T020
+  - Opens the editor overlay. Design doc §4.6 also shows `note standup` (space-separated, with a name argument) as the worked example — confirm whether bare `:note` and `note <name>` are the same command or two before building this; the design doc doesn't fully reconcile the colon-prefix table (§4.2) against the prose example (§4.6).
+- [ ] **T144** — `:alias` reserved command  
+  `P1` `S` · after: T140, T007
+  - Lists stored aliases (§4.7). Distinct from T007's user-alias *resolution* (typing `gm` and having it resolve) — this is the no-argument `:alias` listing what's defined.
+- [ ] **T145** — `:help` / `?` reserved command  
+  `P1` `S` · after: T140
+  - **New — not in the original design doc's reserved-command list.** Two aliases, `:help` and a bare `?`, route to the same handler. Owns the actual help text; T010's T3 fallback reuses this content rather than defining its own copy when nothing else matches.
 - [ ] **T007** — Alias store (Room) + T0 resolution  
-  `P1` `M` · after: T006
+  `P1` `M` · after: T140
   - Device-local, not synced.
 - [ ] **T008** — T1 fuzzy matcher (edit distance + prefix/acronym boost)  
   `P0` `L` · after: T003
@@ -170,8 +188,8 @@ Tiered cascade. **The SLM is not the front door.**
 - [ ] **T009** — T1 confidence thresholding + short-circuit  
   `P0` `M` · after: T008
 - [ ] **T010** — T3 fallback handler + help output  
-  `P0` `S` · after: T009
-  - The safety net that makes the SLM shippable.
+  `P0` `S` · after: T009, T145
+  - The safety net that makes the SLM shippable. Reuses T145's help content rather than defining its own — same text whether the user typed `:help` explicitly or fell through to T3 with no match.
 - [ ] **T014** — Log (raw_input, resolved_intent) for every T0/T1 hit  
   `P0` `S` · after: T009
   - **THIS IS TRAINING DATA.** Do it now or section 12 has nothing real to learn from.

@@ -28,7 +28,7 @@ class ShellViewModel : ViewModel() {
     }
 
     private companion object {
-        /** Placeholder until the T0–T3 cascade lands (T006 onward). */
-        const val NO_PIPELINE_YET = "no command pipeline yet (T006)"
+        /** Placeholder until the T0–T3 cascade lands (T140 onward). */
+        const val NO_PIPELINE_YET = "no command pipeline yet (T140)"
     }
 }
