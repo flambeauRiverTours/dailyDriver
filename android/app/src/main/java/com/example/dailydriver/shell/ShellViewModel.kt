@@ -42,10 +42,21 @@ class ShellViewModel : ViewModel() {
     }
 
     fun onSubmit() {
-        // Selection in apps mode happens by tapping a row (AppListView), not by submitting —
-        // submitting here would otherwise record ":apps chrome" as a bogus command.
+        // In apps mode, ShellScreen intercepts Enter to launch a sole match before this is
+        // reached; anything that gets here has no unique target, so it's a no-op rather than
+        // recording ":apps chrome" as a bogus command.
         if (appsCommand != null) return
         transcript = transcript.record(input, NO_PIPELINE_YET)
+        input = ""
+    }
+
+    /**
+     * Leaves apps mode after an app has been opened, by any route (tap, Enter, or the typing-pause
+     * auto-launch). Clearing the input is load-bearing: were it left at `:apps chrome`, returning
+     * to the launcher — or a rotation, which rebuilds the composition — would re-trigger
+     * auto-launch on the still-unique match and bounce straight back out of the launcher.
+     */
+    fun onAppLaunched() {
         input = ""
     }
 

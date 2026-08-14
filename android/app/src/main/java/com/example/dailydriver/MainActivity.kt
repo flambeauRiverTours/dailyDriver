@@ -55,7 +55,11 @@ class MainActivity : AppCompatActivity() {
                     // next keystroke or transcript update. Acceptable for T012; revisit if it's
                     // ever actually noticeable.
                     apps = appIndexRepository.apps,
-                    onAppClick = { appLauncher.launch(it.packageName) },
+                    onAppClick = { app ->
+                        appLauncher.launch(app.packageName)
+                        // Leave apps mode on the way out — see ShellViewModel.onAppLaunched.
+                        viewModel.onAppLaunched()
+                    },
                 )
             }
         }

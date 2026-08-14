@@ -34,9 +34,14 @@ import androidx.compose.ui.unit.dp
 import com.example.dailydriver.apps.AppEntry
 import com.example.dailydriver.apps.AppsCommand
 import com.example.dailydriver.apps.filteredBy
+import com.example.dailydriver.apps.soleAutoLaunchTarget
+import kotlinx.coroutines.delay
 
 /** The prompt glyph, shown on the input line and on every recorded command in the scrollback. */
 private const val PROMPT = "❯"
+
+/** How long typing must be idle before a uniquely-matched app opens on its own. */
+private const val AUTO_LAUNCH_DELAY_MS = 1_000L
 
 /**
  * Stable anchors for Compose UI tests (androidx.compose.ui.test), per the "semantics/test tags
@@ -84,6 +89,24 @@ fun ShellScreen(
         }
     }
 
+    val filteredApps = remember(apps, appsCommand) {
+        appsCommand?.let { apps.filteredBy(it.query) }.orEmpty()
+    }
+    // Hoisted out of the apps-mode branch below because Enter needs it too, not just the timer.
+    val autoLaunchTarget = remember(filteredApps, appsCommand) {
+        appsCommand?.let { filteredApps.soleAutoLaunchTarget(it.query) }
+    }
+
+    // Auto-launch after a pause in typing. Keyed on the query and not just the target: "chr",
+    // "chro" and "chrom" all resolve to the same app, so keying on the target alone would leave
+    // the original timer running and fire mid-word. Re-keying per keystroke cancels and restarts
+    // it, which is what "a one second pause" actually means.
+    LaunchedEffect(autoLaunchTarget, appsCommand?.query) {
+        val target = autoLaunchTarget ?: return@LaunchedEffect
+        delay(AUTO_LAUNCH_DELAY_MS)
+        onAppClick(target)
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -93,7 +116,6 @@ fun ShellScreen(
             .padding(horizontal = 12.dp),
     ) {
         if (appsCommand != null) {
-            val filteredApps = remember(apps, appsCommand) { apps.filteredBy(appsCommand.query) }
             AppListView(
                 apps = filteredApps,
                 onAppClick = onAppClick,
@@ -120,7 +142,10 @@ fun ShellScreen(
         InputLine(
             value = input,
             onValueChange = onInputChange,
-            onSubmit = onSubmit,
+            // Enter opens a uniquely-matched app immediately rather than waiting out the pause;
+            // with no unique match it falls through to the normal submit, which no-ops in apps
+            // mode rather than recording ":apps ca" as a command.
+            onSubmit = { autoLaunchTarget?.let(onAppClick) ?: onSubmit() },
             textStyle = monospace,
             modifier = Modifier
                 .fillMaxWidth()

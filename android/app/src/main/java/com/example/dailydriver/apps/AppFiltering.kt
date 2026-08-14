@@ -10,3 +10,14 @@ fun List<AppEntry>.filteredBy(query: String): List<AppEntry> {
     if (trimmed.isEmpty()) return this
     return filter { it.label.contains(trimmed, ignoreCase = true) }
 }
+
+/**
+ * The app to open automatically when a filter narrows to exactly one result — via Enter, or after
+ * a brief typing pause. Null means don't auto-launch.
+ *
+ * The blank-[query] guard matters: bare `:apps` on a device with a single installed app would
+ * otherwise launch it the instant you finished typing the command, when what you asked for was to
+ * browse. Auto-launch is only ever a response to *filtering down* to one result.
+ */
+fun List<AppEntry>.soleAutoLaunchTarget(query: String): AppEntry? =
+    if (query.isBlank()) null else singleOrNull()

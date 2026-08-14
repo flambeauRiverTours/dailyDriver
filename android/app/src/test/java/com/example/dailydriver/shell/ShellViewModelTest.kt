@@ -145,6 +145,30 @@ class ShellViewModelTest {
     }
 
     @Test
+    fun `launching an app exits apps mode by clearing the input`() {
+        // Required for correctness, not tidiness: if the input stayed ":apps chrome", returning
+        // to the launcher (or a rotation, which recreates the composition) would re-fire the
+        // auto-launch effect and relaunch the same app, with no way back to the prompt.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":apps chrome")
+
+        viewModel.onAppLaunched()
+
+        assertEquals("", viewModel.input)
+        assertNull(viewModel.appsCommand)
+    }
+
+    @Test
+    fun `launching an app does not write anything to the transcript`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":apps chrome")
+
+        viewModel.onAppLaunched()
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+    }
+
+    @Test
     fun `typing the final character of colon-apps auto-appends a separating space`() {
         val viewModel = ShellViewModel()
         viewModel.onInputChange(":app")
