@@ -31,6 +31,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.example.dailydriver.apps.AppEntry
+import com.example.dailydriver.apps.AppsCommand
+import com.example.dailydriver.apps.filteredBy
 
 /** The prompt glyph, shown on the input line and on every recorded command in the scrollback. */
 private const val PROMPT = "❯"
@@ -43,10 +46,13 @@ private const val PROMPT = "❯"
 internal object ShellTestTags {
     const val TRANSCRIPT_LIST = "shell_transcript_list"
     const val INPUT_FIELD = "shell_input_field"
+    const val APP_LIST = "shell_app_list"
 }
 
 /**
- * The launcher surface: scrollback transcript above, input line pinned at the bottom.
+ * The launcher surface: scrollback transcript above, input line pinned at the bottom — or, while
+ * [appsCommand] is non-null, the `:apps` browse list in place of the transcript. Same input line
+ * either way; it drives the live filter in apps mode instead of submitting commands.
  *
  * Stateless — all state is hoisted to [ShellViewModel], per the convention in android/CLAUDE.md.
  */
@@ -56,6 +62,9 @@ fun ShellScreen(
     input: String,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
+    appsCommand: AppsCommand?,
+    apps: List<AppEntry>,
+    onAppClick: (AppEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -83,16 +92,28 @@ fun ShellScreen(
             .imePadding()
             .padding(horizontal = 12.dp),
     ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .testTag(ShellTestTags.TRANSCRIPT_LIST),
-            verticalArrangement = Arrangement.Bottom,
-        ) {
-            items(transcript.entries) { entry ->
-                TranscriptLine(entry = entry, textStyle = monospace)
+        if (appsCommand != null) {
+            val filteredApps = remember(apps, appsCommand) { apps.filteredBy(appsCommand.query) }
+            AppListView(
+                apps = filteredApps,
+                onAppClick = onAppClick,
+                textStyle = monospace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .testTag(ShellTestTags.TRANSCRIPT_LIST),
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                items(transcript.entries) { entry ->
+                    TranscriptLine(entry = entry, textStyle = monospace)
+                }
             }
         }
 
