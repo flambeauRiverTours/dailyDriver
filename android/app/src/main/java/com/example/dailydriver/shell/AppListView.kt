@@ -76,8 +76,16 @@ fun AppListView(
 
         LazyColumn(
             state = listState,
+            // fillMaxHeight is load-bearing, not decoration: verticalArrangement only has an
+            // effect when the LazyColumn is TALLER than its content, since what it arranges is
+            // the leftover slack. Inside a Row, fillMaxWidth alone leaves the LazyColumn sized to
+            // its content and top-aligned, so Arrangement.Bottom silently does nothing. (The
+            // transcript's LazyColumn in ShellScreen gets its full height from Column weight(1f)
+            // instead — same visual result, different mechanism. The weight(1f) passed into
+            // AppListView applies to the enclosing Row, not to this.)
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight()
                 .testTag(ShellTestTags.APP_LIST),
             verticalArrangement = Arrangement.Bottom,
         ) {
