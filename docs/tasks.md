@@ -113,13 +113,15 @@ Daily-drivable as your real home screen, zero ML.
 - [x] **T001** — Create Android project (Compose, pinned min/target SDK)  
   `P0` `S`
   - Pin the ONE target device here; all benchmarks cite it.
-  - **Target device (2026-08-14):** Samsung Galaxy S20 FE 5G, model SM-G781V (Snapdragon 865), Android 13 (API 33). `minSdk`/`targetSdk`/`compileSdk` pinned to 33 in `android/app/build.gradle.kts` to match.
-- [ ] **T002** — Register HOME activity intent filters  
+  - **Target device (2026-08-14):** Samsung Galaxy S20 FE 5G, model SM-G781V (Snapdragon 865), Android 13 (API 33). `minSdk`/`targetSdk` pinned to 33 in `android/app/build.gradle.kts` to match.
+  - **Correction (T003):** `compileSdk` couldn't stay at 33 — `core-ktx` and other already-present AndroidX deps require `compileSdk 36`, a hard build failure, not a warning. `compileSdk` is build-time-only (API surface visible to the compiler) and independent of `minSdk`/`targetSdk` (actual runtime behavior), so this doesn't undo the device-pinning decision — only `compileSdk` moved, to 36.
+- [x] **T002** — Register HOME activity intent filters  
   `P0` `S` · after: T001
   - `ACTION_MAIN` + `CATEGORY_HOME` + `CATEGORY_DEFAULT`.
-- [ ] **T003** — Build app index from PackageManager  
+- [x] **T003** — Build app index from PackageManager  
   `P0` `M` · after: T001
   - Cache it; refresh on package install/uninstall broadcast.
+  - `AppEntry`/`AppIndex` (pure, unit-tested) + `AppIndexRepository` (PackageManager query + dynamically-registered package-change `BroadcastReceiver`, `RECEIVER_NOT_EXPORTED` required by targetSdk 33). No `<queries>` manifest entry needed — CATEGORY_HOME apps are auto-exempt from package-visibility filtering. Not yet wired into an Activity/Application lifecycle owner — that lands with T004/T012.
 - [ ] **T004** — CLI shell UI: scrollback + input line, IME auto-open  
   `P0` `M` · after: T002
 - [ ] **T005** — Dark-only theme tokens  

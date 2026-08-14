@@ -6,9 +6,11 @@ plugins {
 
 android {
     namespace = "com.example.dailydriver"
-    // Pinned to the one target device (Samsung Galaxy S20 FE 5G, SM-G781V, Android 13 / API 33) —
-    // see android/CLAUDE.md. No broader compatibility is a goal here, so min/target/compile all match it.
-    compileSdk = 33
+    // compileSdk is a build-time setting (which API surface javac/kotlinc can see) and is
+    // independent of minSdk/targetSdk (which control actual runtime behavior on-device) — it's
+    // kept at the latest AndroidX-required level, currently 36, rather than pinned to the target
+    // device. minSdk/targetSdk below ARE pinned to the target device; see android/CLAUDE.md.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.dailydriver"
