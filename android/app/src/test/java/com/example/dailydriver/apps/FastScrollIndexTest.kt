@@ -38,4 +38,23 @@ class FastScrollIndexTest {
     fun `letter with no matching app returns null`() {
         assertNull(apps.indexOfFirstLabelStartingWith('Z'))
     }
+
+    @Test
+    fun `blank labels are skipped, not crashed on — real devices can have apps with no label`() {
+        val withBlank = apps + AppEntry("com.mystery", "")
+
+        assertEquals(listOf('C', 'D'), withBlank.fastScrollLetters())
+    }
+
+    @Test
+    fun `a list of only blank labels has no letters`() {
+        assertEquals(emptyList<Char>(), listOf(AppEntry("com.a", "")).fastScrollLetters())
+    }
+
+    @Test
+    fun `indexOfFirstLabelStartingWith also tolerates blank labels in the list`() {
+        val withBlankFirst = listOf(AppEntry("com.mystery", "")) + apps
+
+        assertEquals(1, withBlankFirst.indexOfFirstLabelStartingWith('C'))
+    }
 }

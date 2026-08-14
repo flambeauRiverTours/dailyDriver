@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.example.dailydriver.apps.APPS_COMMAND_TOKEN
 import com.example.dailydriver.apps.AppsCommand
 import com.example.dailydriver.apps.parseAppsCommand
 
@@ -31,7 +32,13 @@ class ShellViewModel : ViewModel() {
         if (enteringAppsMode) {
             transcript = Transcript()
         }
-        input = value
+
+        // Auto-separate the command from the filter query the moment ":apps" is completed by
+        // typing forward (value.length > input.length guards this) — but NOT when arriving at
+        // exactly ":apps" by backspacing down from something longer, or the space you just
+        // deleted would reappear immediately and backspace would get stuck.
+        val justCompletedAppsToken = value == APPS_COMMAND_TOKEN && value.length > input.length
+        input = if (justCompletedAppsToken) "$value " else value
     }
 
     fun onSubmit() {
