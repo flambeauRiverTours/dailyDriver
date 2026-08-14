@@ -37,7 +37,7 @@ The command pipeline is the core of the app. **The SLM (T2) is never the front d
 
 | Tier | Handler | Latency budget | Handles |
 |---|---|---|---|
-| T0 | Exact match — reserved commands (`:apps`, `:settings`, `:note`, `:alias`) and user aliases | < 5 ms | Muscle-memory input |
+| T0 | Exact match — reserved commands (`:apps`, `:settings`, `:note`, `:alias`, `:help`/`?`) and user aliases | < 5 ms | Muscle-memory input |
 | T1 | Fuzzy match over the `PackageManager` app index (normalized edit distance + prefix/acronym boost) | < 50 ms | `chr` → Chrome |
 | T2 | SLM intent + slot extraction (MediaPipe) | ~1 s | Free-form natural language |
 | T3 | Fallback — app-name search, else help | — | Everything else |
