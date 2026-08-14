@@ -122,8 +122,13 @@ Daily-drivable as your real home screen, zero ML.
   `P0` `M` · after: T001
   - Cache it; refresh on package install/uninstall broadcast.
   - `AppEntry`/`AppIndex` (pure, unit-tested) + `AppIndexRepository` (PackageManager query + dynamically-registered package-change `BroadcastReceiver`, `RECEIVER_NOT_EXPORTED` required by targetSdk 33). No `<queries>` manifest entry needed — CATEGORY_HOME apps are auto-exempt from package-visibility filtering. Not yet wired into an Activity/Application lifecycle owner — that lands with T004/T012.
-- [ ] **T004** — CLI shell UI: scrollback + input line, IME auto-open  
+- [x] **T004** — CLI shell UI: scrollback + input line, IME auto-open  
   `P0` `M` · after: T002
+  - `shell/` package: `TranscriptEntry` (sealed Input/Output) + `Transcript` (immutable, pure, unit-tested — blank input ignored, input trimmed) + `ShellViewModel` (Compose state; ViewModel lifetime deliberately matches the "cleared on process death" rule) + `ShellScreen` (stateless, `LazyColumn` bottom-anchored, `BasicTextField` input line, `❯` prompt, monospace).
+  - IME auto-open via `FocusRequester` + `windowSoftInputMode="adjustResize"` + `imePadding()`. Added `androidx.lifecycle:lifecycle-viewmodel-compose` to the version catalog.
+  - Dark-only forced at the `DailyDriverTheme(darkTheme = true, dynamicColor = false)` call site, **not** in the theme itself — stripping the light palette and Material You out of `Theme.kt` is still T005's job.
+  - Submitting appends a placeholder output line (`no command pipeline yet (T006)`); the real cascade replaces it at T006/T010.
+  - **Verified:** 15 unit tests pass, `assembleDebug` succeeds. **Not** verified on-device — IME behaviour, insets, and legibility need a real run (see T017).
 - [ ] **T005** — Dark-only theme tokens  
   `P1` `S` · after: T004
   - No light palette exists by design.
