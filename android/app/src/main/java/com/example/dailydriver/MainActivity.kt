@@ -4,13 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.dailydriver.shell.ShellScreen
+import com.example.dailydriver.shell.ShellViewModel
 import com.example.dailydriver.ui.theme.DailyDriverTheme
 
 class MainActivity : ComponentActivity() {
@@ -18,30 +14,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            DailyDriverTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+            // Dark-only, no dynamic colour (design doc §4.1). Forced here rather than in the theme
+            // itself — stripping the light palette and Material You out of DailyDriverTheme is T005.
+            DailyDriverTheme(darkTheme = true, dynamicColor = false) {
+                val viewModel: ShellViewModel = viewModel()
+                ShellScreen(
+                    transcript = viewModel.transcript,
+                    input = viewModel.input,
+                    onInputChange = viewModel::onInputChange,
+                    onSubmit = viewModel::onSubmit,
+                )
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    DailyDriverTheme {
-        Greeting("Android")
     }
 }
