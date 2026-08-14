@@ -143,8 +143,8 @@ private fun InputLine(
             // autoCorrectEnabled = false is load-bearing, not cosmetic: T0 is exact-match against
             // aliases and reserved commands (:apps, :note, ...) — IME autocorrect silently mangling
             // a command mid-type would make T0 miss and fall through to T1/T2 for no visible reason.
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go, autoCorrectEnabled = false),
-            keyboardActions = KeyboardActions(onGo = { onSubmit() }),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send, autoCorrectEnabled = false),
+            keyboardActions = KeyboardActions(onSend = { onSubmit() }),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag(ShellTestTags.INPUT_FIELD),
