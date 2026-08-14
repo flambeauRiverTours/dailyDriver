@@ -1,22 +1,27 @@
 package com.example.dailydriver
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dailydriver.shell.ShellScreen
 import com.example.dailydriver.shell.ShellViewModel
 import com.example.dailydriver.ui.theme.DailyDriverTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Forces this app's own night-mode Configuration flag on, independent of the system-wide
+        // light/dark setting — well-behaved IMEs (Gboard included) key their own keyboard color
+        // scheme off the focused app's flag, not off its Compose theme, which is otherwise
+        // invisible to a separate process. Must be set before super.onCreate() so the theme
+        // resolves to its dark variant on first creation rather than triggering a recreate.
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            // Dark-only, no dynamic colour (design doc §4.1). Forced here rather than in the theme
-            // itself — stripping the light palette and Material You out of DailyDriverTheme is T005.
-            DailyDriverTheme(darkTheme = true, dynamicColor = false) {
+            DailyDriverTheme {
                 val viewModel: ShellViewModel = viewModel()
                 ShellScreen(
                     transcript = viewModel.transcript,
