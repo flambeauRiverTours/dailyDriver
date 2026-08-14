@@ -138,13 +138,17 @@ Daily-drivable as your real home screen, zero ML.
   - Found and fixed while in here: `themes.xml` (the pre-Compose XML theme controlling window background) was still inheriting `android:Theme.Material.Light.NoActionBar` — a real light palette causing a white flash on cold launch, not just a Compose-level gap. Switched to the non-Light Material parent with `windowBackground`/`colorBackground` explicitly set to match `Color.kt`'s `Background` token — the platform's default dark parent alone uses literal black, which would've just traded the white flash for a pure-black one. Also removed unused scaffold colors (`purple_*`, `teal_*`, literal `black`/`white`) from `colors.xml`.
   - **Follow-up:** on-device check found the IME (soft keyboard) still rendering in light mode — a separate app (Gboard), keyed off this app's own `Configuration` night-mode flag, not its Compose theme. Fixed via `AppCompatDelegate.setDefaultNightMode(MODE_NIGHT_YES)`, which required `MainActivity` to extend `AppCompatActivity` (was `ComponentActivity`) and `themes.xml`'s parent to become `Theme.AppCompat.DayNight.NoActionBar` (AppCompatActivity crashes on a non-AppCompat theme; only the DayNight variant responds to `setDefaultNightMode`). Adds `androidx.appcompat:appcompat` as a dependency.
   - **Verified:** `assembleDebug` + all 16 unit tests pass, including after the AppCompat/DayNight change (theme-parent resolution failures show up at build time, not just runtime). **Not verified on-device** — cold-launch flash, on-screen color rendering, and specifically whether Gboard actually respects the forced night-mode flag all need a real run. This is IME-dependent behavior (well-documented for Gboard; no universal guarantee across every keyboard app), so it's worth confirming rather than assuming.
-- [ ] **T011** — Launch app by package intent  
+- [x] **T011** — Launch app by package intent  
   `P0` `S` · after: T003
+  - `apps/AppLauncher.kt`. Resolves via `PackageManager.getLaunchIntentForPackage`, `FLAG_ACTIVITY_NEW_TASK` (launcher apps always give the target its own task), catches `ActivityNotFoundException` and returns `false` rather than crashing — the app being tapped can be uninstalled/disabled since the index was last refreshed, and a launcher crashing takes the whole home screen down with it. No unit test: no separable pure logic, same as `AppIndexRepository` at T003. Standalone — not yet wired into the T0/T1 pipeline (T140/T141).
+  - **Verified:** `assembleDebug` + all 16 existing unit tests still pass.
 - [ ] **T012** — Open all-apps list view  
   `P1` `M` · after: T003
-- [ ] **T013** — Open Settings via intents  
+- [x] **T013** — Open Settings via intents  
   `P1` `S`
   - The intent-launching mechanism itself — no dependency on the T0 parser existing yet. T142 wires this in as `:settings`.
+  - `settings/SettingsLauncher.kt`. Same shape as `AppLauncher` (T011) for consistency, though `ACTION_SETTINGS` failure is far less likely than an arbitrary package's. Standalone — not yet wired into the pipeline (T140/T142).
+  - **Verified:** `assembleDebug` + all 16 existing unit tests still pass.
 - [ ] **T015** — BACK/HOME key behaviour  
   `P1` `S` · after: T004, T020
   - BACK is a no-op at the prompt, but **closes the editor overlay** when open — the only state where BACK does anything. HOME re-focuses input.
