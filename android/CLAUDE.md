@@ -2,7 +2,7 @@
 
 Registered as the device HOME activity: a single full-screen Compose surface (scrollback transcript + input line) that replaces the home screen and routes input through the T0–T3 command pipeline. Room is the local source of truth for notes, checklists, and aliases. See root [`../CLAUDE.md`](../CLAUDE.md) for project-wide constraints and [`../docs/design.md`](../docs/design.md) §4 for the full design.
 
-Current state: `com.example.dailydriver`, `minSdk`/`targetSdk` pinned to 33, `compileSdk` at 36 (see note below), Compose + Material3. `apps/` package (T003) has the app index — not yet wired into an Activity. No Room or MediaPipe dependencies yet.
+Current state: `com.example.dailydriver`, `minSdk`/`targetSdk` pinned to 33, `compileSdk` at 36 (see note below), Compose + Material3. Working end to end and on-device verified: the CLI shell (`shell/`) with a live-filtering, tap-or-Enter-or-auto-launch `:apps` browse view backed by the real app index (`apps/`, wired into `MainActivity` at T012). `settings/SettingsLauncher` exists but isn't wired to anything yet. No Room or MediaPipe dependencies yet — the command pipeline (T0–T3) is still just the T140 placeholder plus the one-off `:apps` recognizer pulled forward at T012.
 
 **Running Gradle from the command line just works** — no `JAVA_HOME=` override needed. The system-wide `JAVA_HOME` on this machine points at JDK 11, which AGP 8.10 rejects (requires 17+), but `~/.gradle/gradle.properties` (machine-local, outside this repo, not something a fresh clone gets) pins `org.gradle.java.home` to Android Studio's bundled JBR. If a fresh environment hits "Android Gradle plugin requires Java 17," that's this setting missing, not a project problem — same fix, or point `JAVA_HOME` at a real JDK 17+.
 

@@ -4,7 +4,7 @@ A keyboard-first, CLI-style Android launcher with an on-device SLM for natural-l
 
 This is a personal side project that doubles as a portfolio piece for a .NET job search — see [`docs/design.md`](docs/design.md) for the full design and [`docs/adr/`](docs/adr/) for the reasoning behind the big calls (WPF over Avalonia, MediaPipe over llama.cpp, Markdown storage, conflict-copy sync, monorepo layout).
 
-**Status:** early — see [`docs/tasks.md`](docs/tasks.md) for current phase and task list. Not yet installable or buildable end to end.
+**Status:** early — see [`docs/tasks.md`](docs/tasks.md) for current phase and task list. The Android launcher shell builds, installs, and runs on-device (dark CLI prompt, live-filtering `:apps` app browser/launcher); the natural-language command pipeline, notes, desktop client, and backend don't exist yet.
 
 ## Stack
 
