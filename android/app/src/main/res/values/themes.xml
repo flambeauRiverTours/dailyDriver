@@ -5,8 +5,14 @@
          white flash on cold launch before Compose's dark background ever painted. Not just
          switching to the platform's default dark parent either: that inherits a literal black
          (#000000) windowBackground, trading a white flash for a pure-black one. windowBackground
-         is set explicitly to match Color.kt's Background token instead. -->
-    <style name="Theme.DailyDriver" parent="android:Theme.Material.NoActionBar">
+         is set explicitly to match Color.kt's Background token instead.
+
+         Parent is Theme.AppCompat.DayNight, not the platform Theme.Material: MainActivity now
+         extends AppCompatActivity (required to make AppCompatDelegate.setDefaultNightMode() force
+         the keyboard into dark mode — see MainActivity.onCreate), and AppCompatActivity crashes
+         at runtime unless its theme descends from Theme.AppCompat. Only the DayNight variant
+         actually responds to setDefaultNightMode(); the non-DayNight AppCompat themes are fixed. -->
+    <style name="Theme.DailyDriver" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/background</item>
         <item name="android:colorBackground">@color/background</item>
     </style>
