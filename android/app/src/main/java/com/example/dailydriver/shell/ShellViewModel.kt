@@ -4,9 +4,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import com.example.dailydriver.apps.APPS_COMMAND_TOKEN
-import com.example.dailydriver.apps.AppsCommand
-import com.example.dailydriver.apps.parseAppsCommand
+import com.example.dailydriver.command.ReservedCommand
+import com.example.dailydriver.command.parseReservedCommand
+import com.example.dailydriver.command.reservedCommandTokens
 
 /**
  * Holds the shell's transient state. A ViewModel is the right lifetime here: it survives
@@ -21,31 +21,39 @@ class ShellViewModel : ViewModel() {
     var input by mutableStateOf("")
         private set
 
-    /** Non-null while the input represents the `:apps` command — see [parseAppsCommand]. */
-    val appsCommand: AppsCommand? get() = parseAppsCommand(input)
+    /** Non-null while the input matches a T0 reserved command — see [parseReservedCommand]. */
+    val reservedCommand: ReservedCommand? get() = parseReservedCommand(input)
 
     fun onInputChange(value: String) {
-        // Clear on the transition into apps mode only — real terminal `clear` semantics, not a
-        // per-keystroke reset. The transcript never comes back once cleared; leaving apps mode by
-        // typing something else doesn't restore it.
-        val enteringAppsMode = parseAppsCommand(value) != null && appsCommand == null
+        // Clear on the transition into apps mode specifically, not any reserved command — real
+        // terminal `clear` semantics, not a per-keystroke reset, and scoped to Apps because
+        // future commands (:settings fires an intent and leaves; :note opens an overlay *over*
+        // the visible transcript per the design doc) have no reason to want this. The transcript
+        // never comes back once cleared; leaving apps mode by typing something else doesn't
+        // restore it.
+        val enteringAppsMode = parseReservedCommand(value) is ReservedCommand.Apps &&
+            reservedCommand !is ReservedCommand.Apps
         if (enteringAppsMode) {
             transcript = Transcript()
         }
 
-        // Auto-separate the command from the filter query the moment ":apps" is completed by
-        // typing forward (value.length > input.length guards this) — but NOT when arriving at
-        // exactly ":apps" by backspacing down from something longer, or the space you just
-        // deleted would reappear immediately and backspace would get stuck.
-        val justCompletedAppsToken = value == APPS_COMMAND_TOKEN && value.length > input.length
-        input = if (justCompletedAppsToken) "$value " else value
+        // Auto-separate the command token from its argument the moment any registered token is
+        // completed by typing forward (value.length > input.length guards this) — but NOT when
+        // arriving at the bare token by backspacing down from something longer, or the space you
+        // just deleted would reappear immediately and backspace would get stuck. Generalized
+        // across every registered token, not just :apps: harmless even for a command that turns
+        // out to take no argument, and saves each of T142-T145 from reimplementing it.
+        val justCompletedToken = value in reservedCommandTokens && value.length > input.length
+        input = if (justCompletedToken) "$value " else value
     }
 
     fun onSubmit() {
         // In apps mode, ShellScreen intercepts Enter to launch a sole match before this is
         // reached; anything that gets here has no unique target, so it's a no-op rather than
-        // recording ":apps chrome" as a bogus command.
-        if (appsCommand != null) return
+        // recording ":apps chrome" as a bogus command. Generalized to any reserved command: Enter
+        // behavior for a matched-but-not-yet-built command (:settings, etc.) belongs to that
+        // command's own task, not to this fallback.
+        if (reservedCommand != null) return
         transcript = transcript.record(input, NO_PIPELINE_YET)
         input = ""
     }
@@ -61,7 +69,7 @@ class ShellViewModel : ViewModel() {
     }
 
     private companion object {
-        /** Placeholder until the T0–T3 cascade lands (T140 onward). */
-        const val NO_PIPELINE_YET = "no command pipeline yet (T140)"
+        /** Placeholder for the T1 fuzzy-match fallthrough (T008), which doesn't exist yet. */
+        const val NO_PIPELINE_YET = "no command pipeline yet (T008)"
     }
 }

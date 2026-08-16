@@ -1,6 +1,6 @@
 package com.example.dailydriver.shell
 
-import com.example.dailydriver.apps.AppsCommand
+import com.example.dailydriver.command.ReservedCommand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -86,14 +86,14 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `appsCommand is null outside apps mode, parsed when inside it`() {
+    fun `reservedCommand is null outside apps mode, parsed when inside it`() {
         val viewModel = ShellViewModel()
 
-        assertNull(viewModel.appsCommand)
+        assertNull(viewModel.reservedCommand)
 
         viewModel.onInputChange(":apps chrome")
 
-        assertEquals(AppsCommand("chrome"), viewModel.appsCommand)
+        assertEquals(ReservedCommand.Apps("chrome"), viewModel.reservedCommand)
     }
 
     @Test
@@ -155,7 +155,7 @@ class ShellViewModelTest {
         viewModel.onAppLaunched()
 
         assertEquals("", viewModel.input)
-        assertNull(viewModel.appsCommand)
+        assertNull(viewModel.reservedCommand)
     }
 
     @Test
