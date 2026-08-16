@@ -77,6 +77,26 @@ class ShellViewModel : ViewModel() {
     }
 
     /**
+     * Substitutes a resolved alias's [expansion] into the input and dispatches it exactly as if
+     * it had been typed — one Enter, not two, since aliases exist for muscle memory (design doc
+     * §4.2, T0's tight latency tier) and making the user confirm the expansion would defeat that.
+     *
+     * Reusing [onInputChange] rather than assigning `input` directly is deliberate: it carries
+     * the auto-space and enter-apps-mode-clears-transcript behavior for free, so an alias to
+     * `:apps` behaves identically to typing `:apps` by hand.
+     *
+     * Cannot recurse. An alias can never point at another alias — [evaluateAliasDefinition]
+     * rejects that at definition time — so exactly one substitution ever happens.
+     */
+    fun onAliasExpanded(expansion: String) {
+        onInputChange(expansion)
+        // A reserved command's response *is* the UI reacting to the new input (`:apps` opening
+        // the browse view), so there's nothing to record and nothing further to dispatch.
+        if (reservedCommand != null) return
+        onSubmit()
+    }
+
+    /**
      * Records the outcome of an alias-definition attempt and clears the input. [submittedInput]
      * is what the user actually typed, passed in rather than read from [input] — the Room write
      * this follows is async, so by the time the result is known the user may have already moved

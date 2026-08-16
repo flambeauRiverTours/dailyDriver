@@ -75,6 +75,8 @@ fun ShellScreen(
     reservedCommand: ReservedCommand?,
     apps: List<AppEntry>,
     onAppClick: (AppEntry) -> Unit,
+    aliases: Map<String, String>,
+    onAliasExpanded: (expansion: String) -> Unit,
     onDefineAlias: suspend (input: String, name: String, command: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -157,10 +159,15 @@ fun ShellScreen(
                 // alias definitions ("alias ... = ...") have disjoint shapes, so at most one of
                 // these branches can ever apply to a given input.
                 val aliasAttempt = parseAliasDefinition(input)
+                val aliasExpansion = aliases[input.trim()]
                 when {
                     // Enter opens a uniquely-matched app immediately rather than waiting out the
                     // pause.
                     autoLaunchTarget != null -> onAppClick(autoLaunchTarget)
+                    // Checked before the definition branch only for readability — the two shapes
+                    // are disjoint, since an alias name can't contain the spaces or "=" that a
+                    // definition requires.
+                    aliasExpansion != null -> onAliasExpanded(aliasExpansion)
                     // Captured before launching: onDefineAlias awaits a Room write, and by the
                     // time it returns the live `input` may already be something else the user
                     // has since typed.

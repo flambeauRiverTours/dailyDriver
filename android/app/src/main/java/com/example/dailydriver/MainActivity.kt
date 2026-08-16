@@ -67,6 +67,11 @@ class MainActivity : AppCompatActivity() {
                         // Leave apps mode on the way out — see ShellViewModel.onAppLaunched.
                         viewModel.onAppLaunched()
                     },
+                    // Same non-reactive-getter caveat as `apps` above — refreshed by
+                    // AliasRepository.define, picked up on the next recomposition, which the
+                    // transcript update after a definition reliably triggers.
+                    aliases = aliasRepository.aliases,
+                    onAliasExpanded = viewModel::onAliasExpanded,
                     onDefineAlias = { input, name, command ->
                         val result = aliasRepository.define(name, command)
                         viewModel.onAliasDefined(input, result)
