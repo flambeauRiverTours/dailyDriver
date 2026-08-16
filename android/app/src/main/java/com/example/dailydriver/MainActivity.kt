@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
                     input = viewModel.input,
                     onInputChange = viewModel::onInputChange,
                     onSubmit = viewModel::onSubmit,
-                    appsCommand = viewModel.appsCommand,
+                    reservedCommand = viewModel.reservedCommand,
                     // Reading a plain (non-State) property here means this only picks up a
                     // background refresh (package install/uninstall) the next time something else
                     // triggers recomposition of this scope — typing does, so in practice this is

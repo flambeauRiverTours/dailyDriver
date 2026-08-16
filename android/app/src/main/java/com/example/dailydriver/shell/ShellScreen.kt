@@ -32,9 +32,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.dailydriver.apps.AppEntry
-import com.example.dailydriver.apps.AppsCommand
 import com.example.dailydriver.apps.filteredBy
 import com.example.dailydriver.apps.soleAutoLaunchTarget
+import com.example.dailydriver.command.ReservedCommand
 import kotlinx.coroutines.delay
 
 /** The prompt glyph, shown on the input line and on every recorded command in the scrollback. */
@@ -56,8 +56,8 @@ internal object ShellTestTags {
 
 /**
  * The launcher surface: scrollback transcript above, input line pinned at the bottom — or, while
- * [appsCommand] is non-null, the `:apps` browse list in place of the transcript. Same input line
- * either way; it drives the live filter in apps mode instead of submitting commands.
+ * [reservedCommand] is the `:apps` command, the browse list in place of the transcript. Same
+ * input line either way; it drives the live filter in apps mode instead of submitting commands.
  *
  * Stateless — all state is hoisted to [ShellViewModel], per the convention in android/CLAUDE.md.
  */
@@ -67,11 +67,14 @@ fun ShellScreen(
     input: String,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
-    appsCommand: AppsCommand?,
+    reservedCommand: ReservedCommand?,
     apps: List<AppEntry>,
     onAppClick: (AppEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Only Apps has real UI behavior today — settings/note/alias/help will each add their own
+    // branch here (or elsewhere) as T142-T145 land, same as this one did at T012.
+    val appsCommand = reservedCommand as? ReservedCommand.Apps
     val listState = rememberLazyListState()
     val focusRequester = remember { FocusRequester() }
     val monospace = LocalTextStyle.current.copy(

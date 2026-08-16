@@ -129,7 +129,7 @@ Daily-drivable as your real home screen, zero ML.
   - `shell/` package: `TranscriptEntry` (sealed Input/Output) + `Transcript` (immutable, pure, unit-tested — blank input ignored, input trimmed) + `ShellViewModel` (Compose state; ViewModel lifetime deliberately matches the "cleared on process death" rule) + `ShellScreen` (stateless, `LazyColumn` bottom-anchored, `BasicTextField` input line, `❯` prompt, monospace).
   - IME auto-open via `FocusRequester` + `windowSoftInputMode="adjustResize"` + `imePadding()`. Added `androidx.lifecycle:lifecycle-viewmodel-compose` to the version catalog.
   - Dark-only forced at the `DailyDriverTheme(darkTheme = true, dynamicColor = false)` call site, **not** in the theme itself — stripping the light palette and Material You out of `Theme.kt` is still T005's job.
-  - Submitting appends a placeholder output line (`no command pipeline yet (T006)` at the time — now reads `(T140)`, updated when T006 was split below); the real cascade replaces it starting at T140.
+  - Submitting appends a placeholder output line — originally `(T006)`, then `(T140)` once that was split out below, now `(T008)` once T140 itself landed and the remaining gap is T1 (T008), not the dispatcher. The real cascade replaces it once T008 exists.
   - **On-device check (2026-08-14):** IME opens correctly, insets/padding correct, `❯` renders correctly on the S20 FE.
   - **Follow-up critical pass:** disabled IME autocorrect on the input field (`autoCorrectEnabled = false`) — load-bearing, not cosmetic, since T0 is exact-match and silent autocorrect would make aliases/reserved commands miss unpredictably. Added `ShellTestTags` (test-tag anchors for future Compose UI tests, per the semantics-over-text-matching convention in `android/CLAUDE.md`). Fixed an inline fully-qualified `SolidColor` reference. Added 5 tests: `Transcript` internal-whitespace preservation and receiver-immutability; `ShellViewModel` input-without-submit is inert, double-submit doesn't duplicate, submit produces Input-then-Output structurally.
   - **Verified:** 16 unit tests pass (was 11), `assembleDebug` succeeds.
@@ -177,13 +177,18 @@ Daily-drivable as your real home screen, zero ML.
 
 Tiered cascade. **The SLM is not the front door.**
 
-- [ ] **T140** — T0 dispatcher: exact-match router + T1 fallthrough  
+- [x] **T140** — T0 dispatcher: exact-match router + T1 fallthrough  
   `P0` `S` · after: T004
   - **Replaces T006** (2026-08-14) — was one lump task for all reserved commands; split into one task per command (T141–T145 below) so each can land independently instead of all-or-nothing.
   - The mechanism itself: recognize a leading `:` (or a bare `?` — see T145), hold a small registry of reserved-command handlers, dispatch on exact match, fall through to T1 when nothing matches. T141–T145 all plug into this; none of them make sense before it exists.
-- [ ] **T141** — `:apps` reserved command  
+  - **Built (2026-08-16):** `command/ReservedCommand.kt` (sealed interface, one `Apps(query)` variant today) + `command/ReservedCommandParser.kt` (the registry — an ordered list of token→builder pairs tried in sequence, pure and tested, generalizing the `matchCommandToken` shape every T0 command shares). Retired the `:apps`-only one-off parser pulled forward at T012 (`apps/AppsCommand.kt`, deleted, not kept alongside) — `ShellViewModel`, `ShellScreen`, and `MainActivity` all migrated from `AppsCommand`/`parseAppsCommand` to `ReservedCommand`/`parseReservedCommand` in the same commit.
+  - **Judgment call, not generalized despite the temptation:** transcript-clear-on-entry stays scoped to `ReservedCommand.Apps` specifically, not "any reserved command." `:settings` (fires an intent and leaves) and `:note` (opens an overlay *over* the visible transcript, per design doc §4.6) have no reason to want it, and generalizing it would have been guessing at their UX ahead of T142/T143 actually deciding it. Auto-space-on-completion, by contrast, **was** generalized to every registered token — pure convenience, no plausible downside even for a command that turns out to take no argument.
+  - Still no real T1 (T008) or T2 — the fallthrough placeholder ShellViewModel writes on an unmatched submit is unchanged in spirit, just re-labeled to say `(T008)` instead of `(T140)`.
+  - **Verified:** 59 unit tests pass (was 58 — net +1: `AppsCommandTest`'s 7 replaced by `ReservedCommandParserTest`'s 8), `assembleDebug` succeeds, lint shows no new findings. Not yet checked on-device — the `:apps` browse experience should be byte-for-byte unchanged from the user's perspective, since this was a pure refactor of the recognition mechanism underneath it, but that's exactly the kind of claim worth a real run to confirm rather than assume.
+- [x] **T141** — `:apps` reserved command  
   `P1` `S` · after: T140, T012
   - Routes to the all-apps list view T012 builds.
+  - **Confirmed done as a side effect of T140** (2026-08-16), per the note left at T012 — `:apps` is registered in `ReservedCommandParser`'s registry exactly as T141 would have built it. No separate work needed.
 - [ ] **T142** — `:settings` reserved command  
   `P1` `S` · after: T140, T013
   - Routes to the Settings intent T013 builds.
