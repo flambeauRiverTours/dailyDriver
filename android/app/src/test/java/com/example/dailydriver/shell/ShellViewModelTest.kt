@@ -1,5 +1,6 @@
 package com.example.dailydriver.shell
 
+import com.example.dailydriver.alias.DefineAliasResult
 import com.example.dailydriver.command.ReservedCommand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -198,5 +199,41 @@ class ShellViewModelTest {
         viewModel.onInputChange(":app")
 
         assertEquals(":app", viewModel.input)
+    }
+
+    @Test
+    fun `submit is a no-op when input is an alias definition — ShellScreen handles it, not this fallback`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("alias gm = chrome")
+
+        viewModel.onSubmit()
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+        assertEquals("alias gm = chrome", viewModel.input)
+    }
+
+    @Test
+    fun `onAliasDefined records the input and the described outcome, then clears input`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("alias gm = chrome")
+
+        viewModel.onAliasDefined("alias gm = chrome", DefineAliasResult.Created("gm", "chrome"))
+
+        val entries = viewModel.transcript.entries
+        assertEquals("alias gm = chrome", entries[0].text)
+        assertEquals("alias 'gm' created", entries[1].text)
+        assertEquals("", viewModel.input)
+    }
+
+    @Test
+    fun `onAliasDefined records the input it was given, not whatever is currently in the field`() {
+        // The Room write is async; the user may have already started typing something else by
+        // the time the result comes back. The transcript must show what was actually submitted.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("something new")
+
+        viewModel.onAliasDefined("alias gm = chrome", DefineAliasResult.Created("gm", "chrome"))
+
+        assertEquals("alias gm = chrome", viewModel.transcript.entries[0].text)
     }
 }

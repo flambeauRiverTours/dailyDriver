@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -33,11 +34,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.example.dailydriver.alias.parseAliasDefinition
 import com.example.dailydriver.apps.AppEntry
 import com.example.dailydriver.apps.filteredBy
 import com.example.dailydriver.apps.soleAutoLaunchTarget
 import com.example.dailydriver.command.ReservedCommand
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** The prompt glyph, shown on the input line and on every recorded command in the scrollback. */
 private const val PROMPT = "❯"
@@ -72,12 +75,14 @@ fun ShellScreen(
     reservedCommand: ReservedCommand?,
     apps: List<AppEntry>,
     onAppClick: (AppEntry) -> Unit,
+    onDefineAlias: suspend (input: String, name: String, command: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Only Apps has real UI behavior today — settings/note/alias/help will each add their own
     // branch here (or elsewhere) as T142-T145 land, same as this one did at T012.
     val appsCommand = reservedCommand as? ReservedCommand.Apps
     val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val monospace = LocalTextStyle.current.copy(
         fontFamily = FontFamily.Monospace,
@@ -147,10 +152,30 @@ fun ShellScreen(
         InputLine(
             value = input,
             onValueChange = onInputChange,
-            // Enter opens a uniquely-matched app immediately rather than waiting out the pause;
-            // with no unique match it falls through to the normal submit, which no-ops in apps
-            // mode rather than recording ":apps ca" as a command.
-            onSubmit = { autoLaunchTarget?.let(onAppClick) ?: onSubmit() },
+            onSubmit = {
+                // Priority order is arbitrary in practice — apps-mode input (":apps ...") and
+                // alias definitions ("alias ... = ...") have disjoint shapes, so at most one of
+                // these branches can ever apply to a given input.
+                val aliasAttempt = parseAliasDefinition(input)
+                when {
+                    // Enter opens a uniquely-matched app immediately rather than waiting out the
+                    // pause.
+                    autoLaunchTarget != null -> onAppClick(autoLaunchTarget)
+                    // Captured before launching: onDefineAlias awaits a Room write, and by the
+                    // time it returns the live `input` may already be something else the user
+                    // has since typed.
+                    aliasAttempt != null -> {
+                        val submittedInput = input
+                        coroutineScope.launch {
+                            onDefineAlias(submittedInput, aliasAttempt.name, aliasAttempt.command)
+                        }
+                    }
+                    // No unique app match and not an alias definition — falls through to the
+                    // normal submit, which no-ops in apps mode rather than recording ":apps ca"
+                    // as a command.
+                    else -> onSubmit()
+                }
+            },
             textStyle = monospace,
             modifier = Modifier
                 .fillMaxWidth()
