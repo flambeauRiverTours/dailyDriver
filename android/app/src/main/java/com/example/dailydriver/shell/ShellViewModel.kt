@@ -4,6 +4,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.example.dailydriver.alias.DefineAliasResult
+import com.example.dailydriver.alias.describeDefineAliasResult
+import com.example.dailydriver.alias.parseAliasDefinition
 import com.example.dailydriver.command.ReservedCommand
 import com.example.dailydriver.command.parseReservedCommand
 import com.example.dailydriver.command.reservedCommandTokens
@@ -54,6 +57,11 @@ class ShellViewModel : ViewModel() {
         // behavior for a matched-but-not-yet-built command (:settings, etc.) belongs to that
         // command's own task, not to this fallback.
         if (reservedCommand != null) return
+        // Same reasoning, for alias definitions: ShellScreen intercepts these before onSubmit is
+        // called (it needs to await the Room write, which this synchronous method can't do) and
+        // calls onAliasDefined with the result. Guarded here too so onSubmit stays correct even
+        // if called directly.
+        if (parseAliasDefinition(input) != null) return
         transcript = transcript.record(input, NO_PIPELINE_YET)
         input = ""
     }
@@ -65,6 +73,37 @@ class ShellViewModel : ViewModel() {
      * auto-launch on the still-unique match and bounce straight back out of the launcher.
      */
     fun onAppLaunched() {
+        input = ""
+    }
+
+    /**
+     * Substitutes a resolved alias's [expansion] into the input and dispatches it exactly as if
+     * it had been typed — one Enter, not two, since aliases exist for muscle memory (design doc
+     * §4.2, T0's tight latency tier) and making the user confirm the expansion would defeat that.
+     *
+     * Reusing [onInputChange] rather than assigning `input` directly is deliberate: it carries
+     * the auto-space and enter-apps-mode-clears-transcript behavior for free, so an alias to
+     * `:apps` behaves identically to typing `:apps` by hand.
+     *
+     * Cannot recurse. An alias can never point at another alias — [evaluateAliasDefinition]
+     * rejects that at definition time — so exactly one substitution ever happens.
+     */
+    fun onAliasExpanded(expansion: String) {
+        onInputChange(expansion)
+        // A reserved command's response *is* the UI reacting to the new input (`:apps` opening
+        // the browse view), so there's nothing to record and nothing further to dispatch.
+        if (reservedCommand != null) return
+        onSubmit()
+    }
+
+    /**
+     * Records the outcome of an alias-definition attempt and clears the input. [submittedInput]
+     * is what the user actually typed, passed in rather than read from [input] — the Room write
+     * this follows is async, so by the time the result is known the user may have already moved
+     * on to typing something else, and the transcript must show what was actually submitted.
+     */
+    fun onAliasDefined(submittedInput: String, result: DefineAliasResult) {
+        transcript = transcript.record(submittedInput, describeDefineAliasResult(result))
         input = ""
     }
 

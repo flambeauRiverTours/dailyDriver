@@ -1,5 +1,6 @@
 package com.example.dailydriver.shell
 
+import com.example.dailydriver.alias.DefineAliasResult
 import com.example.dailydriver.command.ReservedCommand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -198,5 +199,79 @@ class ShellViewModelTest {
         viewModel.onInputChange(":app")
 
         assertEquals(":app", viewModel.input)
+    }
+
+    @Test
+    fun `submit is a no-op when input is an alias definition — ShellScreen handles it, not this fallback`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("alias gm = chrome")
+
+        viewModel.onSubmit()
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+        assertEquals("alias gm = chrome", viewModel.input)
+    }
+
+    @Test
+    fun `onAliasDefined records the input and the described outcome, then clears input`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("alias gm = chrome")
+
+        viewModel.onAliasDefined("alias gm = chrome", DefineAliasResult.Created("gm", "chrome"))
+
+        val entries = viewModel.transcript.entries
+        assertEquals("alias gm = chrome", entries[0].text)
+        assertEquals("alias 'gm' created", entries[1].text)
+        assertEquals("", viewModel.input)
+    }
+
+    @Test
+    fun `expanding an alias to a reserved command enters that command's mode`() {
+        // The case that proves deferring resolution was wrong: ":apps" already works today, so
+        // an alias pointing at it is immediately useful with nothing downstream needed.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("a")
+
+        viewModel.onAliasExpanded(":apps")
+
+        assertEquals(ReservedCommand.Apps(""), viewModel.reservedCommand)
+        // Auto-spaced on the way in, exactly as if ":apps" had been typed, so the next keystroke
+        // starts the filter query rather than corrupting the token.
+        assertEquals(":apps ", viewModel.input)
+    }
+
+    @Test
+    fun `expanding an alias to a reserved command records nothing — the UI is the response`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("a")
+
+        viewModel.onAliasExpanded(":apps")
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+    }
+
+    @Test
+    fun `expanding an alias to plain text dispatches it immediately, in one Enter`() {
+        // Aliases exist for muscle memory (design doc §4.2, T0's < 5ms tier) — expanding into the
+        // input line and making the user press Enter again would defeat the point.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("b")
+
+        viewModel.onAliasExpanded("maps")
+
+        assertEquals("maps", viewModel.transcript.entries[0].text)
+        assertEquals("", viewModel.input)
+    }
+
+    @Test
+    fun `onAliasDefined records the input it was given, not whatever is currently in the field`() {
+        // The Room write is async; the user may have already started typing something else by
+        // the time the result comes back. The transcript must show what was actually submitted.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("something new")
+
+        viewModel.onAliasDefined("alias gm = chrome", DefineAliasResult.Created("gm", "chrome"))
+
+        assertEquals("alias gm = chrome", viewModel.transcript.entries[0].text)
     }
 }

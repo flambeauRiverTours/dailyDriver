@@ -5,12 +5,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.dailydriver.alias.AliasRepository
 import com.example.dailydriver.apps.AppIndexRepository
 import com.example.dailydriver.apps.AppLauncher
 import com.example.dailydriver.shell.ShellScreen
 import com.example.dailydriver.shell.ShellViewModel
 import com.example.dailydriver.ui.theme.DailyDriverTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -18,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     // at property-initializer time (attachBaseContext runs after the object is constructed).
     private lateinit var appIndexRepository: AppIndexRepository
     private lateinit var appLauncher: AppLauncher
+    private lateinit var aliasRepository: AliasRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Forces this app's own night-mode Configuration flag on, independent of the system-wide
@@ -37,6 +41,9 @@ class MainActivity : AppCompatActivity() {
         // PackageManager for a broadcast that doesn't need to be "fresh per visit," just
         // eventually consistent.
         appIndexRepository.register()
+
+        aliasRepository = AliasRepository(this)
+        lifecycleScope.launch { aliasRepository.refresh() }
 
         setContent {
             DailyDriverTheme {
@@ -59,6 +66,15 @@ class MainActivity : AppCompatActivity() {
                         appLauncher.launch(app.packageName)
                         // Leave apps mode on the way out — see ShellViewModel.onAppLaunched.
                         viewModel.onAppLaunched()
+                    },
+                    // Same non-reactive-getter caveat as `apps` above — refreshed by
+                    // AliasRepository.define, picked up on the next recomposition, which the
+                    // transcript update after a definition reliably triggers.
+                    aliases = aliasRepository.aliases,
+                    onAliasExpanded = viewModel::onAliasExpanded,
+                    onDefineAlias = { input, name, command ->
+                        val result = aliasRepository.define(name, command)
+                        viewModel.onAliasDefined(input, result)
                     },
                 )
             }
