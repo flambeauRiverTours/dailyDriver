@@ -7,11 +7,12 @@ import androidx.lifecycle.ViewModel
 import com.example.dailydriver.alias.DefineAliasResult
 import com.example.dailydriver.alias.describeDefineAliasResult
 import com.example.dailydriver.alias.parseAliasDefinition
-import com.example.dailydriver.command.EscalationTier
 import com.example.dailydriver.command.ReservedCommand
 import com.example.dailydriver.command.escalationTier
+import com.example.dailydriver.command.helpText
 import com.example.dailydriver.command.parseReservedCommand
 import com.example.dailydriver.command.reservedCommandTokens
+import com.example.dailydriver.command.unmatchedResponse
 
 /**
  * Holds the shell's transient state. A ViewModel is the right lifetime here: it survives
@@ -82,6 +83,14 @@ class ShellViewModel : ViewModel() {
                 input = ""
                 return
             }
+            // T145. Like Note, this wants onSubmit's normal record-and-clear — helpText() is
+            // pure and needs no Context or repository, so there's nothing for ShellScreen to
+            // resolve first the way :alias needs the live aliases map.
+            is ReservedCommand.Help -> {
+                transcript = transcript.record(input, helpText())
+                input = ""
+                return
+            }
             null -> Unit
         }
         // Same reasoning, for alias definitions: ShellScreen intercepts these before onSubmit is
@@ -89,15 +98,11 @@ class ShellViewModel : ViewModel() {
         // calls onAliasDefined with the result. Guarded here too so onSubmit stays correct even
         // if called directly.
         if (parseAliasDefinition(input) != null) return
-        // T009 (design doc §4.2): whitespace is the T2/T3 fork. Neither tier has a real handler
-        // yet (T2 needs the SLM, T3 is T010), so this only decides which placeholder to show —
-        // but it's the same decision real routing will make later, so the boundary is exercised
-        // now rather than deferred wholesale.
-        val placeholder = when (escalationTier(input)) {
-            EscalationTier.T2 -> T2_NOT_BUILT_YET
-            EscalationTier.T3 -> T3_NOT_BUILT_YET
-        }
-        transcript = transcript.record(input, placeholder)
+        // T009 (design doc §4.2) classifies the fork — whitespace means prose, so T2; otherwise
+        // T3. T010 turns that classification into real output: see [unmatchedResponse] for why
+        // T3 is help-only rather than a second app search, and why T2 degrades here instead of
+        // dead-ending while the SLM is absent.
+        transcript = transcript.record(input, unmatchedResponse(input, escalationTier(input)))
         input = ""
     }
 
@@ -179,13 +184,10 @@ class ShellViewModel : ViewModel() {
     }
 
     private companion object {
-        /** Placeholder for prose input that would escalate to the SLM (T2), not built yet. */
-        const val T2_NOT_BUILT_YET = "no natural-language understanding yet (T2)"
-
-        /** Placeholder for single-word input with no T3 app-search-or-help handler yet (T010). */
-        const val T3_NOT_BUILT_YET = "no command match (T3)"
-
-        /** Placeholder for `:note` (T143) until the real editor overlay (T020) exists. */
+        /**
+         * Placeholder for `:note` (T143) until the real editor overlay (T020) exists. The last
+         * of these — T009's two T2/T3 placeholders were replaced by real output at T010.
+         */
         const val NOTE_NOT_BUILT_YET = "will open notes in the future (T020)"
     }
 }

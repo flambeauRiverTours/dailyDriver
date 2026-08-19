@@ -31,4 +31,10 @@ sealed interface ReservedCommand {
      * way `:apps` filters by app name (T147).
      */
     data object Notif : ReservedCommand
+
+    /**
+     * No query — `:help` and its bare-`?` shorthand both resolve here (T145). One variant, two
+     * registered tokens; see [HELP_SHORTHAND].
+     */
+    data object Help : ReservedCommand
 }

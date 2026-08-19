@@ -15,7 +15,29 @@ const val ALIAS_TOKEN = ":alias"
 /** Command token for `:notif`, exposed for the same reason as [APPS_TOKEN]. */
 const val NOTIF_TOKEN = ":notif"
 
-private data class RegisteredCommand(val token: String, val build: (query: String) -> ReservedCommand)
+/** Command token for `:help`, exposed for the same reason as [APPS_TOKEN]. */
+const val HELP_TOKEN = ":help"
+
+/**
+ * The bare-`?` shorthand for [HELP_TOKEN] — the one registered token with no `:` prefix, which
+ * T140's registry already anticipated. It resolves to the same [ReservedCommand.Help] variant;
+ * having two tokens for one command is exactly what a token→builder registry makes cheap.
+ */
+const val HELP_SHORTHAND = "?"
+
+/**
+ * How one command documents itself in `:help`'s output (T145). [usage] is what you'd type,
+ * including any argument placeholder — a bare token can't express `:apps [query]`, so this is
+ * spelled out rather than derived from [RegisteredCommand.token].
+ */
+data class CommandHelp(val usage: String, val description: String)
+
+private data class RegisteredCommand(
+    val token: String,
+    /** Null hides this token from `:help` — see [HELP_SHORTHAND], documented by its long form. */
+    val help: CommandHelp?,
+    val build: (query: String) -> ReservedCommand,
+)
 
 /**
  * The T0 registry — reserved-command tokens tried in order, first match wins, exact-match only
@@ -28,22 +50,45 @@ private data class RegisteredCommand(val token: String, val build: (query: Strin
  * this as a second mechanism.
  */
 private val registry = listOf(
-    RegisteredCommand(APPS_TOKEN) { query -> ReservedCommand.Apps(query) },
+    RegisteredCommand(APPS_TOKEN, CommandHelp(":apps [query]", "browse and launch apps")) { query ->
+        ReservedCommand.Apps(query)
+    },
     // Query is discarded — Settings takes none (see its doc comment) — but the builder still
     // takes one so every RegisteredCommand shares the same shape.
-    RegisteredCommand(SETTINGS_TOKEN) { ReservedCommand.Settings },
-    RegisteredCommand(NOTE_TOKEN) { query -> ReservedCommand.Note(query) },
-    RegisteredCommand(ALIAS_TOKEN) { ReservedCommand.Alias },
-    RegisteredCommand(NOTIF_TOKEN) { ReservedCommand.Notif },
+    RegisteredCommand(SETTINGS_TOKEN, CommandHelp(":settings", "open system settings")) {
+        ReservedCommand.Settings
+    },
+    RegisteredCommand(NOTE_TOKEN, CommandHelp(":note [name]", "create a note (not built yet)")) { query ->
+        ReservedCommand.Note(query)
+    },
+    RegisteredCommand(ALIAS_TOKEN, CommandHelp(":alias", "list defined aliases")) {
+        ReservedCommand.Alias
+    },
+    RegisteredCommand(NOTIF_TOKEN, CommandHelp(":notif", "browse notifications")) {
+        ReservedCommand.Notif
+    },
+    RegisteredCommand(HELP_TOKEN, CommandHelp(":help, ?", "show this help")) {
+        ReservedCommand.Help
+    },
+    // Hidden from the listing — the entry above already documents both spellings on one line,
+    // which reads better than two rows saying the same thing.
+    RegisteredCommand(HELP_SHORTHAND, help = null) { ReservedCommand.Help },
 )
 
 /** Every registered command's token — e.g. for ShellViewModel's auto-space-on-completion behavior. */
 val reservedCommandTokens: List<String> = registry.map { it.token }
 
 /**
+ * What `:help` lists, in registry order (T145). Generated rather than hand-written so a command
+ * can't silently go undocumented: registering it *is* documenting it, and the next command to
+ * land can't forget to update a separate help constant.
+ */
+val reservedCommandHelp: List<CommandHelp> = registry.mapNotNull { it.help }
+
+/**
  * Recognizes a T0 reserved command against raw shell input, or returns null if [input] doesn't
- * match anything registered — the fallthrough point where T1 (T008, not yet built) plugs in.
- * `ShellViewModel`'s placeholder output on submit is that fallthrough's current stand-in.
+ * match anything registered — the fallthrough point where T1's fuzzy matching (T008) takes over,
+ * and past that the T2/T3 escalation in `ShellViewModel.onSubmit`.
  */
 fun parseReservedCommand(input: String): ReservedCommand? {
     for (entry in registry) {
