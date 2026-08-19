@@ -97,6 +97,20 @@ class ShellViewModel : ViewModel() {
     }
 
     /**
+     * Records a T1 result that was too ambiguous to act on, listing what it could have meant.
+     * Deliberately not "launch the top one anyway": for a query like `ca`, guessing between
+     * Camera / Calendar / Calculator would be wrong two times in three.
+     */
+    fun onAppCandidates(submittedInput: String, candidateLabels: List<String>) {
+        val listing = candidateLabels.joinToString("\n")
+        transcript = transcript.record(
+            submittedInput,
+            "$listing\n(${candidateLabels.size} matches — type more to narrow)",
+        )
+        input = ""
+    }
+
+    /**
      * Records the outcome of an alias-definition attempt and clears the input. [submittedInput]
      * is what the user actually typed, passed in rather than read from [input] — the Room write
      * this follows is async, so by the time the result is known the user may have already moved

@@ -36,7 +36,11 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.example.dailydriver.alias.parseAliasDefinition
 import com.example.dailydriver.apps.AppEntry
+import com.example.dailydriver.apps.MAX_LISTED_CANDIDATES
+import com.example.dailydriver.apps.confidentMatch
 import com.example.dailydriver.apps.filteredBy
+import com.example.dailydriver.apps.matchPreview
+import com.example.dailydriver.apps.rankedMatches
 import com.example.dailydriver.apps.soleAutoLaunchTarget
 import com.example.dailydriver.command.ReservedCommand
 import kotlinx.coroutines.delay
@@ -78,6 +82,7 @@ fun ShellScreen(
     aliases: Map<String, String>,
     onAliasExpanded: (expansion: String) -> Unit,
     onDefineAlias: suspend (input: String, name: String, command: String) -> Unit,
+    onAppCandidates: (input: String, candidateLabels: List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Only Apps has real UI behavior today — settings/note/alias/help will each add their own
@@ -107,6 +112,21 @@ fun ShellScreen(
     // Hoisted out of the apps-mode branch below because Enter needs it too, not just the timer.
     val autoLaunchTarget = remember(filteredApps, appsCommand) {
         appsCommand?.let { filteredApps.soleAutoLaunchTarget(it.query) }
+    }
+
+    // T1 only applies to bare prompt input — not while a reserved command is active, not to an
+    // alias definition, and not to an alias name (which expands rather than fuzzy-matching).
+    val isPlainQuery = reservedCommand == null && parseAliasDefinition(input) == null &&
+        !aliases.containsKey(input.trim())
+
+    // Shown dim above the prompt so you can see what Enter will do before committing to it.
+    // An alias previews its expansion for the same reason a fuzzy match previews its target.
+    val previewText = remember(apps, aliases, input, isPlainQuery, reservedCommand) {
+        when {
+            reservedCommand != null || parseAliasDefinition(input) != null -> null
+            aliases.containsKey(input.trim()) -> aliases[input.trim()]
+            else -> apps.matchPreview(input)
+        }
     }
 
     // Auto-launch after a pause in typing. Keyed on the query and not just the target: "chr",
@@ -151,6 +171,14 @@ fun ShellScreen(
             }
         }
 
+        if (previewText != null) {
+            Text(
+                text = "→ $previewText",
+                style = monospace.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
         InputLine(
             value = input,
             onValueChange = onInputChange,
@@ -177,9 +205,19 @@ fun ShellScreen(
                             onDefineAlias(submittedInput, aliasAttempt.name, aliasAttempt.command)
                         }
                     }
-                    // No unique app match and not an alias definition — falls through to the
-                    // normal submit, which no-ops in apps mode rather than recording ":apps ca"
-                    // as a command.
+                    // T1 (design doc §4.2). A confident match launches straight away; a field of
+                    // near-ties lists what it could have meant rather than guessing, since for a
+                    // query like "ca" any single guess is wrong more often than right.
+                    isPlainQuery && apps.confidentMatch(input) != null ->
+                        onAppClick(apps.confidentMatch(input)!!.entry)
+
+                    isPlainQuery && apps.rankedMatches(input).isNotEmpty() -> onAppCandidates(
+                        input,
+                        apps.rankedMatches(input).take(MAX_LISTED_CANDIDATES).map { it.entry.label },
+                    )
+
+                    // Nothing matched at any tier — falls through to the normal submit, which
+                    // no-ops in apps mode rather than recording ":apps ca" as a command.
                     else -> onSubmit()
                 }
             },
