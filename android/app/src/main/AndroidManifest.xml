@@ -35,6 +35,20 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- T147: gives this app read access to other apps' notifications, once the user grants
+             it by hand under Settings -> Notification access (NotificationRepository). No
+             <uses-permission> needed here — BIND_NOTIFICATION_LISTENER_SERVICE is held by the
+             system, which enforces it against whoever binds to this service, not against this
+             app. -->
+        <service
+            android:name=".notifications.DailyDriverNotificationListenerService"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

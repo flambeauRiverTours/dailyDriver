@@ -24,4 +24,11 @@ sealed interface ReservedCommand {
      * nothing to filter by (T144).
      */
     data object Alias : ReservedCommand
+
+    /**
+     * No query — design check-in (2026-08-19) deliberately left `:notif` unfiltered, since
+     * notification counts are usually small and there's no single obvious field to filter by the
+     * way `:apps` filters by app name (T147).
+     */
+    data object Notif : ReservedCommand
 }

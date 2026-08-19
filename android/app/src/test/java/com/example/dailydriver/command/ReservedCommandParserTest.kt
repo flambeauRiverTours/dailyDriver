@@ -47,8 +47,8 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand("chrome"))
         // :help is a real T0 command per the design doc, but registering its behavior is T145's
         // job, not T140's — until then it's just unrecognized input, falling through exactly
-        // like any other text. (:settings, :note, and :alias were this same kind of stub until
-        // T142/T143/T144 registered them — see the dedicated tests below.)
+        // like any other text. (:settings, :note, :alias, and :notif were this same kind of stub
+        // until T142/T143/T144/T147 registered them — see the dedicated tests below.)
         assertNull(parseReservedCommand(":help"))
     }
 
@@ -58,6 +58,7 @@ class ReservedCommandParserTest {
         assertTrue(SETTINGS_TOKEN in reservedCommandTokens)
         assertTrue(NOTE_TOKEN in reservedCommandTokens)
         assertTrue(ALIAS_TOKEN in reservedCommandTokens)
+        assertTrue(NOTIF_TOKEN in reservedCommandTokens)
     }
 
     // --- T142: :settings -----------------------------------------------------------------------
@@ -121,5 +122,24 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand(":Alias"))
         assertNull(parseReservedCommand(":ALIAS"))
         assertNull(parseReservedCommand(":aliasfoo"))
+    }
+
+    // --- T147: :notif ----------------------------------------------------------------------
+
+    @Test
+    fun `bare colon-notif parses to the Notif variant`() {
+        assertEquals(ReservedCommand.Notif, parseReservedCommand(":notif"))
+    }
+
+    @Test
+    fun `colon-notif followed by text still resolves to Notif — no live filter, per design check-in`() {
+        assertEquals(ReservedCommand.Notif, parseReservedCommand(":notif anything"))
+    }
+
+    @Test
+    fun `colon-notif is case-sensitive and not a prefix match, like every other T0 token`() {
+        assertNull(parseReservedCommand(":Notif"))
+        assertNull(parseReservedCommand(":NOTIF"))
+        assertNull(parseReservedCommand(":notiffoo"))
     }
 }

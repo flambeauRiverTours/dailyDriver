@@ -68,6 +68,12 @@ class ShellViewModel : ViewModel() {
             // Same reasoning as Settings — ShellScreen intercepts Alias before onSubmit is ever
             // called, since it needs the live aliases map this ViewModel doesn't hold (T144).
             is ReservedCommand.Alias -> return
+            // With access granted, ShellScreen shows the :notif browse view and Enter has no
+            // sole-match-style target to commit to (tap-only) — a no-op, same as Apps' own
+            // no-sole-match case. Without access, ShellScreen intercepts Enter before it ever
+            // reaches here (see onNotifAccessSettingsOpened) — reaching here in that state would
+            // mean that interception broke, so the same no-op is still the safe default.
+            is ReservedCommand.Notif -> return
             // T143: the real editor overlay is T020, which doesn't exist yet. Recorded as a
             // normal exchange (not silently dropped) so the launcher gives an honest answer
             // instead of looking broken — same shape as the T2/T3 placeholders below.
@@ -121,6 +127,23 @@ class ShellViewModel : ViewModel() {
      */
     fun onAliasListRequested(listing: String) {
         transcript = transcript.record(input, listing)
+        input = ""
+    }
+
+    /**
+     * Leaves `:notif` mode after tapping a notification fires its `contentIntent` and hands off
+     * to whatever app that opens — same reasoning as [onAppLaunched]/[onSettingsLaunched].
+     */
+    fun onNotificationOpened() {
+        input = ""
+    }
+
+    /**
+     * Leaves the input at rest after `:notif` (without access) deep-links to Settings ->
+     * Notification access — same reasoning as [onSettingsLaunched], distinctly named per call
+     * site rather than reused, matching this file's existing one-liner-per-command precedent.
+     */
+    fun onNotifAccessSettingsOpened() {
         input = ""
     }
 
