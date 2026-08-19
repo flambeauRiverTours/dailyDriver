@@ -49,6 +49,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    // For LocalLifecycleOwner — the compose-ui one is deprecated, and T146's status-line tick
+    // needs it to stop ticking while the launcher isn't resumed.
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.room.runtime)
