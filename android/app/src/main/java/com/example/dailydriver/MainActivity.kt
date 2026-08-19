@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dailydriver.alias.AliasRepository
 import com.example.dailydriver.apps.AppIndexRepository
 import com.example.dailydriver.apps.AppLauncher
+import com.example.dailydriver.settings.SettingsLauncher
 import com.example.dailydriver.shell.ShellScreen
 import com.example.dailydriver.shell.ShellViewModel
 import com.example.dailydriver.ui.theme.DailyDriverTheme
@@ -21,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     // at property-initializer time (attachBaseContext runs after the object is constructed).
     private lateinit var appIndexRepository: AppIndexRepository
     private lateinit var appLauncher: AppLauncher
+    private lateinit var settingsLauncher: SettingsLauncher
     private lateinit var aliasRepository: AliasRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,6 +37,7 @@ class MainActivity : AppCompatActivity() {
 
         appIndexRepository = AppIndexRepository(this)
         appLauncher = AppLauncher(this)
+        settingsLauncher = SettingsLauncher(this)
         // onCreate/onDestroy, not onStart/onStop: unlike a typical app, this Activity IS the home
         // screen — it gets paused/resumed on every app switch but rarely destroyed, so pairing
         // registration with onStart/onStop would mean constant re-registration and re-querying
@@ -66,6 +69,11 @@ class MainActivity : AppCompatActivity() {
                         appLauncher.launch(app.packageName)
                         // Leave apps mode on the way out — see ShellViewModel.onAppLaunched.
                         viewModel.onAppLaunched()
+                    },
+                    onSettingsCommand = {
+                        settingsLauncher.open()
+                        // Same reasoning as onAppClick above — see ShellViewModel.onSettingsLaunched.
+                        viewModel.onSettingsLaunched()
                     },
                     // Same non-reactive-getter caveat as `apps` above — refreshed by
                     // AliasRepository.define, picked up on the next recomposition, which the

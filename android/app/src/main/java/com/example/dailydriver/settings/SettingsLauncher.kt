@@ -11,7 +11,8 @@ import android.provider.Settings
  * third-party package availability is genuinely unpredictable); the same defensive shape is kept
  * anyway for consistency and because a launcher app crashing is worse than most alternatives.
  *
- * Not yet wired into the T0/T1 pipeline — that's T140/T142's job.
+ * Wired into the T0 pipeline at T142 — `MainActivity` calls [open] when `ShellScreen` reports the
+ * `:settings` reserved command was submitted.
  */
 class SettingsLauncher(private val context: Context) {
 

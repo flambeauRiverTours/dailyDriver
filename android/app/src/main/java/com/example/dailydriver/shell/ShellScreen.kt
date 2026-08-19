@@ -77,13 +77,15 @@ fun ShellScreen(
     reservedCommand: ReservedCommand?,
     apps: List<AppEntry>,
     onAppClick: (AppEntry) -> Unit,
+    onSettingsCommand: () -> Unit,
     aliases: Map<String, String>,
     onAliasExpanded: (expansion: String) -> Unit,
     onDefineAlias: suspend (input: String, name: String, command: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Only Apps has real UI behavior today — settings/note/alias/help will each add their own
-    // branch here (or elsewhere) as T142-T145 land, same as this one did at T012.
+    // Only Apps has a browse-mode UI — :settings (T142) fires-and-forgets on Enter instead (see
+    // the submit handler below), and note/alias/help will each add their own behavior as
+    // T143-T145 land.
     val appsCommand = reservedCommand as? ReservedCommand.Apps
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -199,6 +201,11 @@ fun ShellScreen(
                     // Enter opens a uniquely-matched app immediately rather than waiting out the
                     // pause.
                     autoLaunchTarget != null -> onAppClick(autoLaunchTarget)
+                    // :settings (T142) has no browse mode to select from like :apps does — Enter
+                    // is what fires it. Checked ahead of the alias branches below only because
+                    // it's the more specific state; the two never actually overlap (alias names
+                    // can't start with `:`).
+                    reservedCommand is ReservedCommand.Settings -> onSettingsCommand()
                     // Checked before the definition branch only for readability — the two shapes
                     // are disjoint, since an alias name can't contain the spaces or "=" that a
                     // definition requires.

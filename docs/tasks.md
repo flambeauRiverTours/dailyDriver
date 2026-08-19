@@ -197,9 +197,13 @@ Tiered cascade. **The SLM is not the front door.**
   `P1` `S` · after: T140, T012
   - Routes to the all-apps list view T012 builds.
   - **Confirmed done as a side effect of T140** (2026-08-16), per the note left at T012 — `:apps` is registered in `ReservedCommandParser`'s registry exactly as T141 would have built it. No separate work needed.
-- [ ] **T142** — `:settings` reserved command  
+- [x] **T142** — `:settings` reserved command  
   `P1` `S` · after: T140, T013
   - Routes to the Settings intent T013 builds.
+  - **No query, unlike `:apps`.** `ReservedCommand.Settings` is a `data object`, not a `data class` — there's nothing to filter, it just fires and returns to the prompt. Registered into T140's registry the same shape as every other token (`":settings"` → `SETTINGS_TOKEN`), so it gets the generalized auto-space-on-completion behavior for free; a query typed after it (`":settings foo"`) still resolves to `Settings`, just with the trailing text discarded rather than rejected.
+  - **Enter-fires, not tap-to-select** — the opposite of `:apps`' browse-and-tap shape, since there's no list to browse. `ShellScreen` gained an `onSettingsCommand` callback, checked in the submit `when` block ahead of the alias branches (the two states never actually overlap, since alias names can't start with `:`). `MainActivity` wires it to `settingsLauncher.open()` followed by `viewModel.onSettingsLaunched()` — same shape as `onAppClick`, including ignoring `open()`'s `Boolean` result, which `onAppClick` also does for `AppLauncher.launch()`.
+  - **`ShellViewModel.onSettingsLaunched()`** just clears the input, mirroring `onAppLaunched()` — `:settings` hands off to another app entirely, so there's nothing to return to and nothing for the transcript.
+  - **Verified:** 132 unit tests pass (was 127, +5), `assembleDebug` succeeds, lint unchanged (0 errors, 9 warnings, same categories as baseline). **Not verified on-device** — confirm Enter on `:settings` actually opens the system Settings app and returns cleanly to an empty prompt.
 - [ ] **T143** — `:note` reserved command  
   `P1` `S` · after: T140, T020
   - Opens the editor overlay. Design doc §4.6 also shows `note standup` (space-separated, with a name argument) as the worked example — confirm whether bare `:note` and `note <name>` are the same command or two before building this; the design doc doesn't fully reconcile the colon-prefix table (§4.2) against the prose example (§4.6).

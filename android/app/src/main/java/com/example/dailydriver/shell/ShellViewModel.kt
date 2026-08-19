@@ -87,6 +87,15 @@ class ShellViewModel : ViewModel() {
     }
 
     /**
+     * Leaves the input at rest after `:settings` fires the system Settings intent and hands off
+     * to another app entirely (T142) — there's nothing to keep at the prompt to return to, and no
+     * transcript entry either, same reasoning as [onAppLaunched] for a launched app.
+     */
+    fun onSettingsLaunched() {
+        input = ""
+    }
+
+    /**
      * Substitutes a resolved alias's [expansion] into the input and dispatches it exactly as if
      * it had been typed — one Enter, not two, since aliases exist for muscle memory (design doc
      * §4.2, T0's tight latency tier) and making the user confirm the expansion would defeat that.

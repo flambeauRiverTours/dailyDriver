@@ -3,6 +3,9 @@ package com.example.dailydriver.command
 /** Command token for `:apps`, exposed for ShellViewModel's auto-space-on-completion behavior. */
 const val APPS_TOKEN = ":apps"
 
+/** Command token for `:settings`, exposed for the same reason as [APPS_TOKEN]. */
+const val SETTINGS_TOKEN = ":settings"
+
 private data class RegisteredCommand(val token: String, val build: (query: String) -> ReservedCommand)
 
 /**
@@ -17,6 +20,9 @@ private data class RegisteredCommand(val token: String, val build: (query: Strin
  */
 private val registry = listOf(
     RegisteredCommand(APPS_TOKEN) { query -> ReservedCommand.Apps(query) },
+    // Query is discarded — Settings takes none (see its doc comment) — but the builder still
+    // takes one so every RegisteredCommand shares the same shape.
+    RegisteredCommand(SETTINGS_TOKEN) { ReservedCommand.Settings },
 )
 
 /** Every registered command's token — e.g. for ShellViewModel's auto-space-on-completion behavior. */

@@ -275,6 +275,30 @@ class ShellViewModelTest {
         assertEquals("alias gm = chrome", viewModel.transcript.entries[0].text)
     }
 
+    // --- T142: :settings ------------------------------------------------------------------------
+
+    @Test
+    fun `colon-settings parses as the Settings reserved command`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onInputChange(":settings")
+
+        assertEquals(ReservedCommand.Settings, viewModel.reservedCommand)
+    }
+
+    @Test
+    fun `onSettingsLaunched clears the input and writes nothing to the transcript`() {
+        // Mirrors onAppLaunched: :settings hands off to another app entirely, so there's no
+        // input to return to and no transcript entry — the UI is the system Settings app opening.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":settings")
+
+        viewModel.onSettingsLaunched()
+
+        assertEquals("", viewModel.input)
+        assertTrue(viewModel.transcript.entries.isEmpty())
+    }
+
     // --- T009: T1/T2 escalation on an unmatched submit ---------------------------------------
 
     @Test
