@@ -264,30 +264,6 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `onAppCandidates lists the ambiguous matches and clears the input`() {
-        val viewModel = ShellViewModel()
-        viewModel.onInputChange("ca")
-
-        viewModel.onAppCandidates("ca", listOf("Camera", "Calendar", "Calculator"))
-
-        val entries = viewModel.transcript.entries
-        assertEquals("ca", entries[0].text)
-        assertTrue(entries[1].text.contains("Camera"))
-        assertTrue(entries[1].text.contains("Calendar"))
-        assertTrue(entries[1].text.contains("Calculator"))
-        assertEquals("", viewModel.input)
-    }
-
-    @Test
-    fun `onAppCandidates says how to proceed rather than just dumping names`() {
-        val viewModel = ShellViewModel()
-
-        viewModel.onAppCandidates("ca", listOf("Camera", "Calendar"))
-
-        assertTrue(viewModel.transcript.entries[1].text.contains("2 matches"))
-    }
-
-    @Test
     fun `onAliasDefined records the input it was given, not whatever is currently in the field`() {
         // The Room write is async; the user may have already started typing something else by
         // the time the result comes back. The transcript must show what was actually submitted.

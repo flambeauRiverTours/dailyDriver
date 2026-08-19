@@ -37,27 +37,26 @@ fun List<AppEntry>.rankedMatches(query: String): List<AppMatch> {
 }
 
 /**
- * The single match to act on without asking, or null when the field is too close or too weak to
- * call. Mirrors "T1 short-circuits on a single high-confidence match" (design doc §4.2) — the
- * corollary being that it must *not* short-circuit when there isn't one.
+ * The single match Enter or a typing pause acts on — the top-ranked entry, full stop, with no
+ * separate ambiguity gate. Null only when nothing matched at all.
  *
- * Thresholds are provisional and deliberately conservative; calibrating them against real usage
- * is T009's job.
+ * **Revised (2026-08-16, user request), reversing the original design.** T008 originally gated
+ * this on both a minimum score *and* a lead over the runner-up, falling through to a
+ * disambiguation listing otherwise (`ca` → list Camera/Calendar/Calculator rather than guess).
+ * The user explicitly asked for the best match to win even when there are close candidates — the
+ * preview line's "+N more" suffix from [matchPreview] is the safety valve instead: it tells you
+ * ambiguity exists so you can type further before the pause fires, rather than the app refusing
+ * to guess for you.
  */
-fun List<AppEntry>.confidentMatch(query: String): AppMatch? {
-    val ranked = rankedMatches(query)
-    val best = ranked.firstOrNull() ?: return null
-    if (best.score < MIN_CONFIDENT_SCORE) return null
-    val runnerUp = ranked.getOrNull(1) ?: return best
-    return best.takeIf { it.score - runnerUp.score >= MIN_CONFIDENT_LEAD }
-}
+fun List<AppEntry>.topMatch(query: String): AppEntry? = rankedMatches(query).firstOrNull()?.entry
 
 /**
  * The hint shown above the prompt as you type, or null when there's nothing worth previewing.
  *
- * Names the runner-up count as well as the best match, because with the ambiguity rule in
- * [confidentMatch] the interesting question isn't only "what matched?" but "will Enter act on
- * it?" — `Camera  +2 more` says plainly that it won't.
+ * Names the runner-up count as well as the best match — since [topMatch] no longer refuses to
+ * act on an ambiguous field, this suffix is the only remaining signal that other candidates
+ * exist. `Camera  +2 more` is your cue to keep typing if Camera isn't what you meant, before the
+ * pause commits to it.
  */
 fun List<AppEntry>.matchPreview(query: String): String? {
     val ranked = rankedMatches(query)
@@ -65,15 +64,6 @@ fun List<AppEntry>.matchPreview(query: String): String? {
     val others = ranked.size - 1
     return if (others == 0) best.entry.label else "${best.entry.label}  +$others more"
 }
-
-/** How many candidates to list when a query is too ambiguous to act on. */
-const val MAX_LISTED_CANDIDATES = 5
-
-/** Below this, the best guess is too speculative to launch without confirmation. */
-private const val MIN_CONFIDENT_SCORE = 0.70
-
-/** Two candidates closer together than this are a genuine tie — `ca` has no right answer. */
-private const val MIN_CONFIDENT_LEAD = 0.15
 
 private fun AppEntry.matchAgainst(query: String): AppMatch? {
     val label = this.label.lowercase()

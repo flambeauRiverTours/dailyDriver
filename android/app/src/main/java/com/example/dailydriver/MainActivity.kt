@@ -76,7 +76,6 @@ class MainActivity : AppCompatActivity() {
                         val result = aliasRepository.define(name, command)
                         viewModel.onAliasDefined(input, result)
                     },
-                    onAppCandidates = viewModel::onAppCandidates,
                 )
             }
         }

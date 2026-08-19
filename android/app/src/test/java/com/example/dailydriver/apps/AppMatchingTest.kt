@@ -144,23 +144,25 @@ class AppMatchingTest {
         assertEquals(chrome, topMatch("  chr  ")?.entry)
     }
 
-    // --- confidence ----------------------------------------------------------------------------
+    // --- topMatch (what Enter / a pause acts on) ------------------------------------------------
 
     @Test
-    fun `a clear single winner is confident`() {
-        assertEquals(chrome, apps.confidentMatch("chr")?.entry)
+    fun `topMatch is the best-ranked entry, unambiguous case`() {
+        assertEquals(chrome, apps.topMatch("chr"))
     }
 
     @Test
-    fun `near-tied candidates are not confident — ca has no right answer`() {
-        // Calculator / Calendar / Camera all score within a hair of each other; guessing one
-        // would be wrong two times in three.
-        assertNull(apps.confidentMatch("ca"))
+    fun `topMatch wins even among near-tied candidates — best guess, not a refusal to guess`() {
+        // Calculator / Calendar / Camera all score within a hair of each other. Reversed from the
+        // original design (which listed candidates instead) per explicit request: the preview
+        // line's "+N more" is the disambiguation signal now, not a gate on launching at all.
+        assertEquals(camera, apps.topMatch("ca"))
     }
 
     @Test
-    fun `no matches at all is not confident`() {
-        assertNull(apps.confidentMatch("zzzzzz"))
+    fun `topMatch is null only when nothing matched at all`() {
+        assertNull(apps.topMatch("zzzzzz"))
+        assertNull(apps.topMatch(""))
     }
 
     // --- preview line ---------------------------------------------------------------------------
@@ -185,13 +187,12 @@ class AppMatchingTest {
     }
 
     @Test
-    fun `a weak best match is not confident even when unrivalled`() {
-        // Subsequence-only hits are too speculative to launch without confirmation. Note "xtd"
-        // would NOT work as the query here — those are the label's initials, so it'd be a
-        // confident ACRONYM hit. "xye" only matches as scattered characters.
+    fun `even a weak subsequence-only match is actionable via topMatch when it's the only one`() {
+        // No score floor anymore — a lone SUBSEQUENCE hit still wins, since the user asked for
+        // the best match to always be what Enter/a pause acts on.
         val weak = listOf(AppEntry("com.x", "Xylophone Tuner Deluxe"))
 
         assertEquals(MatchStrategy.SUBSEQUENCE, weak.rankedMatches("xye").first().strategy)
-        assertNull(weak.confidentMatch("xye"))
+        assertEquals(weak.first(), weak.topMatch("xye"))
     }
 }
