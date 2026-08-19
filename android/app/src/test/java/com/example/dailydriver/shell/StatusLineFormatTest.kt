@@ -78,6 +78,21 @@ class StatusLineFormatTest {
         assertEquals(format().date, format(colonVisible = false).date)
     }
 
+    // --- T148 unread indicator ---------------------------------------------------------------
+
+    @Test
+    fun `the indicator is the same width present or absent, so the clock never shifts`() {
+        // The whole point of reserving the cells: a notification arriving must not shove the
+        // time sideways. Same invariant as the blinking colon becoming a space.
+        assertEquals(unreadIndicator(hasUnread = true).length, unreadIndicator(hasUnread = false).length)
+    }
+
+    @Test
+    fun `the indicator shows a dot only when there is something unread`() {
+        assertEquals("• ", unreadIndicator(hasUnread = true))
+        assertEquals("  ", unreadIndicator(hasUnread = false))
+    }
+
     private fun at(hour: Int, minute: Int) =
         LocalDateTime.of(2026, 8, 19, hour, minute).toInstant(ZoneOffset.UTC)
 

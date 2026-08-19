@@ -42,11 +42,19 @@ private const val BLINK_INTERVAL_MS = 500L
  * cancels the loop below RESUMED and restarts it on return — which also means coming back to the
  * launcher paints a current time immediately rather than a stale one.
  *
- * The left edge is intentionally left free of decoration: T148 wants a notification dot in that
- * corner, and it belongs inside this row rather than floating over it.
+ * [hasUnreadNotifications] is a lambda, not a value, so T148's dot refreshes on the tick this
+ * composable already runs. Passing a plain `Boolean` would freeze it until something *else*
+ * recomposed [ShellScreen] — a keystroke, say — since the repository behind it is a non-reactive
+ * getter. Reading it is cheap: the service maintains it as a field (see
+ * `DailyDriverNotificationListenerService.hasUnread`), so this is a field read per blink, not a
+ * binder call.
  */
 @Composable
-fun StatusLine(textStyle: TextStyle, modifier: Modifier = Modifier) {
+fun StatusLine(
+    hasUnreadNotifications: () -> Boolean,
+    textStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -60,12 +68,14 @@ fun StatusLine(textStyle: TextStyle, modifier: Modifier = Modifier) {
     )
 
     var text by remember { mutableStateOf(render(colonVisible = true)) }
+    var unread by remember { mutableStateOf(hasUnreadNotifications()) }
 
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var colonVisible = true
             while (true) {
                 text = render(colonVisible)
+                unread = hasUnreadNotifications()
                 colonVisible = !colonVisible
                 delay(BLINK_INTERVAL_MS)
             }
@@ -79,7 +89,13 @@ fun StatusLine(textStyle: TextStyle, modifier: Modifier = Modifier) {
             .padding(bottom = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(text = text.time, style = dim)
+        // Grouped so SpaceBetween still pushes exactly two things apart — dot and time travel
+        // together at the left edge, date stays pinned right.
+        Row {
+            // Undimmed, unlike the time and date: the dot is the one thing here worth noticing.
+            Text(text = unreadIndicator(unread), style = textStyle)
+            Text(text = text.time, style = dim)
+        }
         Text(text = text.date, style = dim)
     }
 }
