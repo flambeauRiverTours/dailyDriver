@@ -37,7 +37,9 @@ import androidx.compose.ui.unit.dp
 import com.example.dailydriver.alias.parseAliasDefinition
 import com.example.dailydriver.apps.AppEntry
 import com.example.dailydriver.apps.filteredBy
+import com.example.dailydriver.apps.matchPreview
 import com.example.dailydriver.apps.soleAutoLaunchTarget
+import com.example.dailydriver.apps.topMatch
 import com.example.dailydriver.command.ReservedCommand
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -105,16 +107,41 @@ fun ShellScreen(
         appsCommand?.let { apps.filteredBy(it.query) }.orEmpty()
     }
     // Hoisted out of the apps-mode branch below because Enter needs it too, not just the timer.
+    // Sole-match only — :apps browse mode's own auto-launch is unchanged by the T1 revision below.
     val autoLaunchTarget = remember(filteredApps, appsCommand) {
         appsCommand?.let { filteredApps.soleAutoLaunchTarget(it.query) }
     }
 
-    // Auto-launch after a pause in typing. Keyed on the query and not just the target: "chr",
-    // "chro" and "chrom" all resolve to the same app, so keying on the target alone would leave
-    // the original timer running and fire mid-word. Re-keying per keystroke cancels and restarts
-    // it, which is what "a one second pause" actually means.
-    LaunchedEffect(autoLaunchTarget, appsCommand?.query) {
-        val target = autoLaunchTarget ?: return@LaunchedEffect
+    // T1 only applies to bare prompt input — not while a reserved command is active, not to an
+    // alias definition, and not to an alias name (which expands rather than fuzzy-matching).
+    val isPlainQuery = reservedCommand == null && parseAliasDefinition(input) == null &&
+        !aliases.containsKey(input.trim())
+
+    // The best T1 match, if any — what a plain-prompt Enter or pause commits to. No ambiguity
+    // gate: the best match always wins, even among near-ties (":apps" keeps its own stricter
+    // sole-match-only rule above, untouched by this).
+    val plainMatchTarget = remember(apps, input, isPlainQuery) {
+        if (isPlainQuery) apps.topMatch(input) else null
+    }
+
+    // Shown dim above the prompt so you can see what Enter will do before committing to it.
+    // An alias previews its expansion for the same reason a fuzzy match previews its target.
+    val previewText = remember(apps, aliases, input, isPlainQuery, reservedCommand) {
+        when {
+            reservedCommand != null || parseAliasDefinition(input) != null -> null
+            aliases.containsKey(input.trim()) -> aliases[input.trim()]
+            else -> apps.matchPreview(input)
+        }
+    }
+
+    // Auto-launch after a pause in typing — either :apps' sole match, or T1's best guess at the
+    // bare prompt. Keyed on `input` itself, not just the resolved target: "chr", "chro" and
+    // "chrom" can all resolve to the same app, so keying on the target alone would leave the
+    // original timer running and fire mid-word. Re-keying on every keystroke cancels and
+    // restarts it, which is what "a one second pause" actually means.
+    val currentAutoLaunchTarget = autoLaunchTarget ?: plainMatchTarget
+    LaunchedEffect(currentAutoLaunchTarget, input) {
+        val target = currentAutoLaunchTarget ?: return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
         onAppClick(target)
     }
@@ -151,6 +178,14 @@ fun ShellScreen(
             }
         }
 
+        if (previewText != null) {
+            Text(
+                text = "→ $previewText",
+                style = monospace.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
         InputLine(
             value = input,
             onValueChange = onInputChange,
@@ -177,9 +212,13 @@ fun ShellScreen(
                             onDefineAlias(submittedInput, aliasAttempt.name, aliasAttempt.command)
                         }
                     }
-                    // No unique app match and not an alias definition — falls through to the
-                    // normal submit, which no-ops in apps mode rather than recording ":apps ca"
-                    // as a command.
+                    // T1 (design doc §4.2). Enter commits to the same best guess the preview
+                    // line and the pause-timer above already agree on — the best match wins even
+                    // among near-ties, per explicit request.
+                    plainMatchTarget != null -> onAppClick(plainMatchTarget)
+
+                    // Nothing matched at any tier — falls through to the normal submit, which
+                    // no-ops in apps mode rather than recording ":apps ca" as a command.
                     else -> onSubmit()
                 }
             },
