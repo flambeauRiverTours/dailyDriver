@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dailydriver.alias.AliasRepository
 import com.example.dailydriver.apps.AppIndexRepository
 import com.example.dailydriver.apps.AppLauncher
+import com.example.dailydriver.notifications.NotificationRepository
 import com.example.dailydriver.settings.SettingsLauncher
 import com.example.dailydriver.shell.ShellScreen
 import com.example.dailydriver.shell.ShellViewModel
@@ -24,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appLauncher: AppLauncher
     private lateinit var settingsLauncher: SettingsLauncher
     private lateinit var aliasRepository: AliasRepository
+    private lateinit var notificationRepository: NotificationRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Forces this app's own night-mode Configuration flag on, independent of the system-wide
@@ -38,6 +40,7 @@ class MainActivity : AppCompatActivity() {
         appIndexRepository = AppIndexRepository(this)
         appLauncher = AppLauncher(this)
         settingsLauncher = SettingsLauncher(this)
+        notificationRepository = NotificationRepository(this)
         // onCreate/onDestroy, not onStart/onStop: unlike a typical app, this Activity IS the home
         // screen — it gets paused/resumed on every app switch but rarely destroyed, so pairing
         // registration with onStart/onStop would mean constant re-registration and re-querying
@@ -84,6 +87,18 @@ class MainActivity : AppCompatActivity() {
                     onDefineAlias = { input, name, command ->
                         val result = aliasRepository.define(name, command)
                         viewModel.onAliasDefined(input, result)
+                    },
+                    // Same non-reactive-getter caveat as `apps`/`aliases` above — both properties
+                    // are read fresh on each recomposition, not backed by State/Flow.
+                    notifications = notificationRepository.notifications,
+                    hasNotificationAccess = notificationRepository.hasAccess(),
+                    onNotificationClick = { notification ->
+                        notificationRepository.open(notification.key)
+                        viewModel.onNotificationOpened()
+                    },
+                    onNotifAccessSettings = {
+                        notificationRepository.openNotificationAccessSettings()
+                        viewModel.onNotifAccessSettingsOpened()
                     },
                 )
             }

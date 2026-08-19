@@ -42,6 +42,7 @@ import com.example.dailydriver.apps.matchPreview
 import com.example.dailydriver.apps.soleAutoLaunchTarget
 import com.example.dailydriver.apps.topMatch
 import com.example.dailydriver.command.ReservedCommand
+import com.example.dailydriver.notifications.NotificationRecord
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -60,6 +61,7 @@ internal object ShellTestTags {
     const val TRANSCRIPT_LIST = "shell_transcript_list"
     const val INPUT_FIELD = "shell_input_field"
     const val APP_LIST = "shell_app_list"
+    const val NOTIF_LIST = "shell_notif_list"
 }
 
 /**
@@ -83,16 +85,24 @@ fun ShellScreen(
     onAliasListRequested: (listing: String) -> Unit,
     onAliasExpanded: (expansion: String) -> Unit,
     onDefineAlias: suspend (input: String, name: String, command: String) -> Unit,
+    notifications: List<NotificationRecord>,
+    hasNotificationAccess: Boolean,
+    onNotificationClick: (NotificationRecord) -> Unit,
+    onNotifAccessSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Only Apps has a browse-mode UI — :settings (T142) fires-and-forgets on Enter instead (see
-    // the submit handler below), same as :alias (T144): ShellScreen already holds the live
-    // aliases map, so it formats the listing here and hands the result to the ViewModel rather
-    // than the ViewModel resolving it itself. :note (T143) needs no ShellScreen change at all:
-    // with no browse mode and no external data to reach for, it falls straight through the
-    // `else -> onSubmit()` branch below like any other unmatched-tier input, and ShellViewModel
-    // decides what that means. :help (T145) will add its own behavior as it lands.
+    // Apps has a browse-mode UI, and so does Notif — but only once access is granted; without it
+    // there's nothing to browse, so it falls back to the transcript like :settings/:alias, and
+    // Enter deep-links to the one place this permission can be granted instead (see the submit
+    // handler below). :settings (T142) fires-and-forgets on Enter; :alias (T144) is the same
+    // shape — ShellScreen already holds the live aliases map, so it formats the listing here and
+    // hands the result to the ViewModel rather than the ViewModel resolving it itself. :note
+    // (T143) needs no ShellScreen change at all: with no browse mode and no external data to
+    // reach for, it falls straight through the `else -> onSubmit()` branch below like any other
+    // unmatched-tier input, and ShellViewModel decides what that means. :help (T145) will add its
+    // own behavior as it lands.
     val appsCommand = reservedCommand as? ReservedCommand.Apps
+    val notifCommand = (reservedCommand as? ReservedCommand.Notif)?.takeIf { hasNotificationAccess }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -171,6 +181,15 @@ fun ShellScreen(
                     .fillMaxWidth()
                     .weight(1f),
             )
+        } else if (notifCommand != null) {
+            NotifListView(
+                notifications = notifications,
+                onNotificationClick = onNotificationClick,
+                textStyle = monospace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
         } else {
             LazyColumn(
                 state = listState,
@@ -217,6 +236,15 @@ fun ShellScreen(
                     // holds the live aliases map.
                     reservedCommand is ReservedCommand.Alias ->
                         onAliasListRequested(aliases.formatAliasListing())
+                    // :notif (T147) without access has nothing to browse — Enter deep-links
+                    // straight to Settings -> Notification access, no explanation screen first
+                    // (design check-in, 2026-08-19). With access, notifCommand is non-null and
+                    // the browse view above is already showing; Enter has nothing to commit to
+                    // (tap-only, like :apps has no keyboard-driven selection beyond a sole
+                    // match), so it falls through to the `else` branch below same as Apps' own
+                    // no-sole-match case does.
+                    reservedCommand is ReservedCommand.Notif && !hasNotificationAccess ->
+                        onNotifAccessSettings()
                     // Checked before the definition branch only for readability — the two shapes
                     // are disjoint, since an alias name can't contain the spaces or "=" that a
                     // definition requires.

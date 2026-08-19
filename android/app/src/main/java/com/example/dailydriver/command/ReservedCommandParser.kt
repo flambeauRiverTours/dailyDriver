@@ -12,6 +12,9 @@ const val NOTE_TOKEN = ":note"
 /** Command token for `:alias`, exposed for the same reason as [APPS_TOKEN]. */
 const val ALIAS_TOKEN = ":alias"
 
+/** Command token for `:notif`, exposed for the same reason as [APPS_TOKEN]. */
+const val NOTIF_TOKEN = ":notif"
+
 private data class RegisteredCommand(val token: String, val build: (query: String) -> ReservedCommand)
 
 /**
@@ -31,6 +34,7 @@ private val registry = listOf(
     RegisteredCommand(SETTINGS_TOKEN) { ReservedCommand.Settings },
     RegisteredCommand(NOTE_TOKEN) { query -> ReservedCommand.Note(query) },
     RegisteredCommand(ALIAS_TOKEN) { ReservedCommand.Alias },
+    RegisteredCommand(NOTIF_TOKEN) { ReservedCommand.Notif },
 )
 
 /** Every registered command's token — e.g. for ShellViewModel's auto-space-on-completion behavior. */

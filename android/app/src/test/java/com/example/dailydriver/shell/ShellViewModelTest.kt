@@ -362,6 +362,52 @@ class ShellViewModelTest {
         assertEquals("", viewModel.input)
     }
 
+    // --- T147: :notif -----------------------------------------------------------------------
+
+    @Test
+    fun `colon-notif parses as the Notif reserved command`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onInputChange(":notif")
+
+        assertEquals(ReservedCommand.Notif, viewModel.reservedCommand)
+    }
+
+    @Test
+    fun `submit is a no-op while colon-notif is active — tap-only, no keyboard selection`() {
+        val viewModel = ShellViewModel()
+        // Auto-space-on-completion (T140, generalized to every registered token) turns this into
+        // ":notif " — irrelevant to what's under test here, just accounted for in the assertion.
+        viewModel.onInputChange(":notif")
+
+        viewModel.onSubmit()
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+        assertEquals(":notif ", viewModel.input)
+    }
+
+    @Test
+    fun `onNotificationOpened clears the input and writes nothing to the transcript`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":notif")
+
+        viewModel.onNotificationOpened()
+
+        assertEquals("", viewModel.input)
+        assertTrue(viewModel.transcript.entries.isEmpty())
+    }
+
+    @Test
+    fun `onNotifAccessSettingsOpened clears the input and writes nothing to the transcript`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":notif")
+
+        viewModel.onNotifAccessSettingsOpened()
+
+        assertEquals("", viewModel.input)
+        assertTrue(viewModel.transcript.entries.isEmpty())
+    }
+
     // --- T009: T1/T2 escalation on an unmatched submit ---------------------------------------
 
     @Test
