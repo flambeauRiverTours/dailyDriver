@@ -172,6 +172,11 @@ fun ShellScreen(
             .imePadding()
             .padding(horizontal = 12.dp),
     ) {
+        // Above everything and outside the browse-mode branch below: it's a status line, so it
+        // stays put while :apps/:notif replace the transcript (design check-in, 2026-08-19).
+        // Its own state ticks internally — this scope doesn't recompose with it.
+        StatusLine(textStyle = monospace)
+
         if (appsCommand != null) {
             AppListView(
                 apps = filteredApps,
