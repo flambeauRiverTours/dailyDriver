@@ -7,7 +7,9 @@ import androidx.lifecycle.ViewModel
 import com.example.dailydriver.alias.DefineAliasResult
 import com.example.dailydriver.alias.describeDefineAliasResult
 import com.example.dailydriver.alias.parseAliasDefinition
+import com.example.dailydriver.command.EscalationTier
 import com.example.dailydriver.command.ReservedCommand
+import com.example.dailydriver.command.escalationTier
 import com.example.dailydriver.command.parseReservedCommand
 import com.example.dailydriver.command.reservedCommandTokens
 
@@ -62,7 +64,15 @@ class ShellViewModel : ViewModel() {
         // calls onAliasDefined with the result. Guarded here too so onSubmit stays correct even
         // if called directly.
         if (parseAliasDefinition(input) != null) return
-        transcript = transcript.record(input, NO_PIPELINE_YET)
+        // T009 (design doc §4.2): whitespace is the T2/T3 fork. Neither tier has a real handler
+        // yet (T2 needs the SLM, T3 is T010), so this only decides which placeholder to show —
+        // but it's the same decision real routing will make later, so the boundary is exercised
+        // now rather than deferred wholesale.
+        val placeholder = when (escalationTier(input)) {
+            EscalationTier.T2 -> T2_NOT_BUILT_YET
+            EscalationTier.T3 -> T3_NOT_BUILT_YET
+        }
+        transcript = transcript.record(input, placeholder)
         input = ""
     }
 
@@ -108,7 +118,10 @@ class ShellViewModel : ViewModel() {
     }
 
     private companion object {
-        /** Placeholder for the T1 fuzzy-match fallthrough (T008), which doesn't exist yet. */
-        const val NO_PIPELINE_YET = "no command pipeline yet (T008)"
+        /** Placeholder for prose input that would escalate to the SLM (T2), not built yet. */
+        const val T2_NOT_BUILT_YET = "no natural-language understanding yet (T2)"
+
+        /** Placeholder for single-word input with no T3 app-search-or-help handler yet (T010). */
+        const val T3_NOT_BUILT_YET = "no command match (T3)"
     }
 }
