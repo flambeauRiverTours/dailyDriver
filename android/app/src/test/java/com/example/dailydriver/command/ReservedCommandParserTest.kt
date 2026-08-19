@@ -45,11 +45,10 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand("apps"))
         assertNull(parseReservedCommand(""))
         assertNull(parseReservedCommand("chrome"))
-        // :help is a real T0 command per the design doc, but registering its behavior is T145's
-        // job, not T140's — until then it's just unrecognized input, falling through exactly
-        // like any other text. (:settings, :note, :alias, and :notif were this same kind of stub
-        // until T142/T143/T144/T147 registered them — see the dedicated tests below.)
-        assertNull(parseReservedCommand(":help"))
+        // Every reserved command the design doc names is registered now (T141-T145, T147), so
+        // what's left here is genuinely unregistered input: a plausible-looking colon token that
+        // nothing claims still falls through to T1 like any other text.
+        assertNull(parseReservedCommand(":nosuchcommand"))
     }
 
     @Test
@@ -59,6 +58,8 @@ class ReservedCommandParserTest {
         assertTrue(NOTE_TOKEN in reservedCommandTokens)
         assertTrue(ALIAS_TOKEN in reservedCommandTokens)
         assertTrue(NOTIF_TOKEN in reservedCommandTokens)
+        assertTrue(HELP_TOKEN in reservedCommandTokens)
+        assertTrue(HELP_SHORTHAND in reservedCommandTokens)
     }
 
     // --- T142: :settings -----------------------------------------------------------------------
@@ -141,5 +142,37 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand(":Notif"))
         assertNull(parseReservedCommand(":NOTIF"))
         assertNull(parseReservedCommand(":notiffoo"))
+    }
+
+    // --- T145: :help and its bare-? shorthand -------------------------------------------------
+
+    @Test
+    fun `both help spellings resolve to the same variant`() {
+        assertEquals(ReservedCommand.Help, parseReservedCommand(HELP_TOKEN))
+        assertEquals(ReservedCommand.Help, parseReservedCommand(HELP_SHORTHAND))
+    }
+
+    @Test
+    fun `the bare question mark is a whole token, not a prefix of longer input`() {
+        // "?" is the one registered token without a ":" prefix, so it's worth proving it obeys
+        // the same whole-token rule — "?x" must not resolve to help.
+        assertNull(parseReservedCommand("?x"))
+        assertNull(parseReservedCommand("what?"))
+    }
+
+    @Test
+    fun `help takes no query, so trailing text is discarded rather than rejected`() {
+        assertEquals(ReservedCommand.Help, parseReservedCommand(":help me"))
+        assertEquals(ReservedCommand.Help, parseReservedCommand("? me"))
+    }
+
+    @Test
+    fun `every documented command's usage starts with a token the parser actually accepts`() {
+        // The point of generating help from the registry is that it can't document something
+        // undispatchable — this asserts that property rather than trusting it.
+        reservedCommandHelp.forEach { entry ->
+            val token = entry.usage.substringBefore(' ').substringBefore(',')
+            assertTrue("'$token' is documented but not parseable", parseReservedCommand(token) != null)
+        }
     }
 }
