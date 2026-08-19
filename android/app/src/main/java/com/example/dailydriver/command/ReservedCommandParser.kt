@@ -6,6 +6,9 @@ const val APPS_TOKEN = ":apps"
 /** Command token for `:settings`, exposed for the same reason as [APPS_TOKEN]. */
 const val SETTINGS_TOKEN = ":settings"
 
+/** Command token for `:note`, exposed for the same reason as [APPS_TOKEN]. */
+const val NOTE_TOKEN = ":note"
+
 private data class RegisteredCommand(val token: String, val build: (query: String) -> ReservedCommand)
 
 /**
@@ -23,6 +26,7 @@ private val registry = listOf(
     // Query is discarded — Settings takes none (see its doc comment) — but the builder still
     // takes one so every RegisteredCommand shares the same shape.
     RegisteredCommand(SETTINGS_TOKEN) { ReservedCommand.Settings },
+    RegisteredCommand(NOTE_TOKEN) { query -> ReservedCommand.Note(query) },
 )
 
 /** Every registered command's token — e.g. for ShellViewModel's auto-space-on-completion behavior. */

@@ -53,12 +53,28 @@ class ShellViewModel : ViewModel() {
     }
 
     fun onSubmit() {
-        // In apps mode, ShellScreen intercepts Enter to launch a sole match before this is
-        // reached; anything that gets here has no unique target, so it's a no-op rather than
-        // recording ":apps chrome" as a bogus command. Generalized to any reserved command: Enter
-        // behavior for a matched-but-not-yet-built command (:settings, etc.) belongs to that
-        // command's own task, not to this fallback.
-        if (reservedCommand != null) return
+        // Exhaustive over ReservedCommand (no `else`): Kotlin flags a missing branch here even as
+        // a statement, which won't fail the build (allWarningsAsErrors isn't set) but does mean
+        // T144/T145 can't add a new variant without the compiler pointing back at this decision.
+        when (reservedCommand) {
+            // ShellScreen intercepts Enter to launch a sole match before this is reached;
+            // anything that gets here has no unique target, so it's a no-op rather than
+            // recording ":apps chrome" as a bogus command.
+            is ReservedCommand.Apps -> return
+            // ShellScreen intercepts Settings before onSubmit is ever called — firing the intent
+            // needs a Context this ViewModel doesn't have. Reaching here would mean that
+            // interception broke; no-op defensively rather than recording something wrong.
+            is ReservedCommand.Settings -> return
+            // T143: the real editor overlay is T020, which doesn't exist yet. Recorded as a
+            // normal exchange (not silently dropped) so the launcher gives an honest answer
+            // instead of looking broken — same shape as the T2/T3 placeholders below.
+            is ReservedCommand.Note -> {
+                transcript = transcript.record(input, NOTE_NOT_BUILT_YET)
+                input = ""
+                return
+            }
+            null -> Unit
+        }
         // Same reasoning, for alias definitions: ShellScreen intercepts these before onSubmit is
         // called (it needs to await the Room write, which this synchronous method can't do) and
         // calls onAliasDefined with the result. Guarded here too so onSubmit stays correct even
@@ -132,5 +148,8 @@ class ShellViewModel : ViewModel() {
 
         /** Placeholder for single-word input with no T3 app-search-or-help handler yet (T010). */
         const val T3_NOT_BUILT_YET = "no command match (T3)"
+
+        /** Placeholder for `:note` (T143) until the real editor overlay (T020) exists. */
+        const val NOTE_NOT_BUILT_YET = "will open notes in the future (T020)"
     }
 }

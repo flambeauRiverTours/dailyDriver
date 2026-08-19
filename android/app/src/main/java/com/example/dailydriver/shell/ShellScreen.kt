@@ -84,8 +84,10 @@ fun ShellScreen(
     modifier: Modifier = Modifier,
 ) {
     // Only Apps has a browse-mode UI — :settings (T142) fires-and-forgets on Enter instead (see
-    // the submit handler below), and note/alias/help will each add their own behavior as
-    // T143-T145 land.
+    // the submit handler below). :note (T143) needs no ShellScreen change at all: with no
+    // browse mode and no external Context to reach for, it falls straight through the `else ->
+    // onSubmit()` branch below like any other unmatched-tier input, and ShellViewModel decides
+    // what that means. :alias/:help (T144/T145) will each add their own behavior as they land.
     val appsCommand = reservedCommand as? ReservedCommand.Apps
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()

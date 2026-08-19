@@ -45,17 +45,18 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand("apps"))
         assertNull(parseReservedCommand(""))
         assertNull(parseReservedCommand("chrome"))
-        // :note/:alias/:help are real T0 commands per the design doc, but registering their
-        // behavior is T143-T145's job, not T140's — until then they're just unrecognized input,
-        // falling through exactly like any other text. (:settings was this same kind of stub
-        // until T142 registered it — see the dedicated tests below.)
-        assertNull(parseReservedCommand(":note"))
+        // :alias/:help are real T0 commands per the design doc, but registering their behavior
+        // is T144/T145's job, not T140's — until then they're just unrecognized input, falling
+        // through exactly like any other text. (:settings and :note were this same kind of stub
+        // until T142/T143 registered them — see the dedicated tests below.)
+        assertNull(parseReservedCommand(":alias"))
     }
 
     @Test
     fun `every registered token is exposed for callers like the auto-space behavior`() {
         assertTrue(APPS_TOKEN in reservedCommandTokens)
         assertTrue(SETTINGS_TOKEN in reservedCommandTokens)
+        assertTrue(NOTE_TOKEN in reservedCommandTokens)
     }
 
     // --- T142: :settings -----------------------------------------------------------------------
@@ -78,5 +79,27 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand(":Settings"))
         assertNull(parseReservedCommand(":SETTINGS"))
         assertNull(parseReservedCommand(":settingsfoo"))
+    }
+
+    // --- T143: :note -----------------------------------------------------------------------
+
+    @Test
+    fun `bare colon-note parses to the Note variant with an empty query`() {
+        assertEquals(ReservedCommand.Note(""), parseReservedCommand(":note"))
+    }
+
+    @Test
+    fun `colon-note followed by a space and text captures the query, unlike Settings`() {
+        // Unused today (T143 just shows a placeholder), but the design doc's own worked example
+        // ("note standup") gives it a name argument, so it's captured like :apps' query rather
+        // than discarded like :settings' — see ReservedCommand.Note's doc comment.
+        assertEquals(ReservedCommand.Note("standup"), parseReservedCommand(":note standup"))
+    }
+
+    @Test
+    fun `colon-note is case-sensitive and not a prefix match, like every other T0 token`() {
+        assertNull(parseReservedCommand(":Note"))
+        assertNull(parseReservedCommand(":NOTE"))
+        assertNull(parseReservedCommand(":notefoo"))
     }
 }
