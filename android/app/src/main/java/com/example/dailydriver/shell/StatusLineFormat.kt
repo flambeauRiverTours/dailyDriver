@@ -9,6 +9,20 @@ import java.util.Locale
 data class StatusLineText(val time: String, val date: String)
 
 /**
+ * T148's unread-notification indicator, as the leading cells of the status row.
+ *
+ * Always the same width whether or not it's showing, for the same reason the blinking colon
+ * becomes a space rather than vanishing: the time sits immediately to its right, and a dot that
+ * changed the row's width would shove the clock sideways every time a notification arrived.
+ *
+ * Not `#FFFFFF` — T005 established this project uses no literal white; the caller styles this
+ * with the existing `onBackground` token, brighter than the dimmed time and date beside it.
+ */
+fun unreadIndicator(hasUnread: Boolean): String = if (hasUnread) "$UNREAD_DOT " else "  "
+
+private const val UNREAD_DOT = '•'
+
+/**
  * Renders the status line's clock and date (T146). Pure and Android-independent so it lives in
  * `src/test/` per android/CLAUDE.md — only the *ticking* needs Compose, and that's [StatusLine]'s
  * job.

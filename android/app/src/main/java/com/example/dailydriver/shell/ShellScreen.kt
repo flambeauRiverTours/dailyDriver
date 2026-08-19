@@ -89,6 +89,8 @@ fun ShellScreen(
     hasNotificationAccess: Boolean,
     onNotificationClick: (NotificationRecord) -> Unit,
     onNotifAccessSettings: () -> Unit,
+    /** A lambda, not a Boolean — see [StatusLine], which polls it on its own tick. */
+    hasUnreadNotifications: () -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     // Apps has a browse-mode UI, and so does Notif — but only once access is granted; without it
@@ -175,7 +177,7 @@ fun ShellScreen(
         // Above everything and outside the browse-mode branch below: it's a status line, so it
         // stays put while :apps/:notif replace the transcript (design check-in, 2026-08-19).
         // Its own state ticks internally — this scope doesn't recompose with it.
-        StatusLine(textStyle = monospace)
+        StatusLine(hasUnreadNotifications = hasUnreadNotifications, textStyle = monospace)
 
         if (appsCommand != null) {
             AppListView(

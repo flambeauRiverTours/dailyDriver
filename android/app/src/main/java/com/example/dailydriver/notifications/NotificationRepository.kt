@@ -38,6 +38,15 @@ class NotificationRepository(private val context: Context) {
             ?.newestLast()
             .orEmpty()
 
+    /**
+     * Whether the T148 dot should show. Cheap by design — a plain field read on the connected
+     * service (see [DailyDriverNotificationListenerService.hasUnread]), because the status line
+     * polls this on every blink. False whenever access isn't granted or the service isn't
+     * connected, which is the behavior you want: no access means nothing to indicate.
+     */
+    val hasUnreadNotifications: Boolean
+        get() = DailyDriverNotificationListenerService.instance?.hasUnread == true
+
     /** Deep-links to the one place this permission can be granted — see the class doc. */
     fun openNotificationAccessSettings() {
         context.startActivity(

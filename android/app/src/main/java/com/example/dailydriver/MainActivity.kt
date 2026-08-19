@@ -5,6 +5,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dailydriver.alias.AliasRepository
@@ -36,6 +38,7 @@ class MainActivity : AppCompatActivity() {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        enterImmersiveMode()
 
         appIndexRepository = AppIndexRepository(this)
         appLauncher = AppLauncher(this)
@@ -100,8 +103,41 @@ class MainActivity : AppCompatActivity() {
                         notificationRepository.openNotificationAccessSettings()
                         viewModel.onNotifAccessSettingsOpened()
                     },
+                    // Passed as a lambda rather than a value on purpose — StatusLine polls it on
+                    // its own tick, so the dot updates without waiting for this scope to
+                    // recompose. See StatusLine's doc comment.
+                    hasUnreadNotifications = { notificationRepository.hasUnreadNotifications },
                 )
             }
+        }
+    }
+
+    /**
+     * The system bars come back whenever the window loses focus — returning from another app, or
+     * dismissing the notification shade — so re-hiding on focus is what makes immersive mode
+     * stick rather than being a one-shot at launch.
+     */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) enterImmersiveMode()
+    }
+
+    /**
+     * Hides both system bars (T149) — the top one duplicated the status line's own clock, and a
+     * launcher built to look like a terminal shouldn't be framed by system chrome.
+     *
+     * `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`, not a hard hide: swiping from an edge still brings
+     * the bars back temporarily, which is what keeps the notification shade and quick settings
+     * reachable. Gesture navigation is unaffected — the bars are hidden, not disabled.
+     *
+     * Display-cutout padding still applies (`safeDrawingPadding` in ShellScreen), so the status
+     * row sits below the camera hole-punch rather than under it.
+     */
+    private fun enterImmersiveMode() {
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
 
