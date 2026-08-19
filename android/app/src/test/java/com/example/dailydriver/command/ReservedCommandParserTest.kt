@@ -45,14 +45,38 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand("apps"))
         assertNull(parseReservedCommand(""))
         assertNull(parseReservedCommand("chrome"))
-        // :settings/:note/:alias/:help are real T0 commands per the design doc, but registering
-        // their behavior is T142-T145's job, not T140's — until then they're just unrecognized
-        // input, falling through exactly like any other text.
-        assertNull(parseReservedCommand(":settings"))
+        // :note/:alias/:help are real T0 commands per the design doc, but registering their
+        // behavior is T143-T145's job, not T140's — until then they're just unrecognized input,
+        // falling through exactly like any other text. (:settings was this same kind of stub
+        // until T142 registered it — see the dedicated tests below.)
+        assertNull(parseReservedCommand(":note"))
     }
 
     @Test
     fun `every registered token is exposed for callers like the auto-space behavior`() {
         assertTrue(APPS_TOKEN in reservedCommandTokens)
+        assertTrue(SETTINGS_TOKEN in reservedCommandTokens)
+    }
+
+    // --- T142: :settings -----------------------------------------------------------------------
+
+    @Test
+    fun `bare colon-settings parses to the Settings variant`() {
+        assertEquals(ReservedCommand.Settings, parseReservedCommand(":settings"))
+    }
+
+    @Test
+    fun `colon-settings followed by text still resolves to Settings — it has no query to capture`() {
+        // Unlike :apps, :settings has nothing to filter. Anything typed after it is ignored
+        // rather than rejected — matching the shape every T0 token shares (token, or token +
+        // space + more) without inventing special-case parsing just for this one command.
+        assertEquals(ReservedCommand.Settings, parseReservedCommand(":settings anything"))
+    }
+
+    @Test
+    fun `colon-settings is case-sensitive and not a prefix match, like every other T0 token`() {
+        assertNull(parseReservedCommand(":Settings"))
+        assertNull(parseReservedCommand(":SETTINGS"))
+        assertNull(parseReservedCommand(":settingsfoo"))
     }
 }
