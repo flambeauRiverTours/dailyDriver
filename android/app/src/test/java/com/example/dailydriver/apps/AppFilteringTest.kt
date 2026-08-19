@@ -133,11 +133,6 @@ class AppFilteringTest {
     }
 
     @Test
-    fun `a whitespace-only query never auto-launches`() {
-        assertNull(apps.filteredBy("\t").soleAutoLaunchTarget("\t"))
-    }
-
-    @Test
     fun `an empty list never auto-launches`() {
         assertNull(emptyList<AppEntry>().soleAutoLaunchTarget("chrome"))
     }

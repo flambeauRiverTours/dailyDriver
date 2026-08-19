@@ -173,28 +173,6 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `typing the final character of colon-apps auto-appends a separating space`() {
-        val viewModel = ShellViewModel()
-        viewModel.onInputChange(":app")
-
-        viewModel.onInputChange(":apps")
-
-        assertEquals(":apps ", viewModel.input)
-    }
-
-    @Test
-    fun `backspacing down to exactly colon-apps does not re-add the space`() {
-        // If it did, backspace would be permanently stuck at ":apps " — the space you just
-        // deleted would reappear immediately, making it impossible to edit past it.
-        val viewModel = ShellViewModel()
-        viewModel.onInputChange(":apps chrome")
-
-        viewModel.onInputChange(":apps")
-
-        assertEquals(":apps", viewModel.input)
-    }
-
-    @Test
     fun `further backspacing past colon-apps is unaffected`() {
         val viewModel = ShellViewModel()
         viewModel.onInputChange(":apps")
@@ -506,7 +484,9 @@ class ShellViewModelTest {
 
     @Test
     fun `backspacing down to any token does not re-add the space`() {
-        // Without the length guard this would be stuck — the space you just deleted reappears.
+        // Without the `value.length > input.length` guard, backspace would be permanently stuck
+        // at "<token> " — the space you just deleted would reappear immediately, making it
+        // impossible to edit back past it.
         reservedCommandTokens.forEach { token ->
             val viewModel = ShellViewModel()
             viewModel.onInputChange("$token x")

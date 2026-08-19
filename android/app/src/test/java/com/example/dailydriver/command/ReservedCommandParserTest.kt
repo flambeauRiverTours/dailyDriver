@@ -37,6 +37,10 @@ class ReservedCommandParserTest {
 
     @Test
     fun `not a prefix match — the token must be the whole word, not part of a longer one`() {
+        // This is also what keeps the registry's ordering from mattering. No two registered
+        // tokens are currently prefixes of each other, but requiring an exact match or
+        // token-then-space means a future ":notes" alongside ":note" still wouldn't shadow it,
+        // and first-match-wins would stay an implementation detail rather than a rule to obey.
         assertNull(parseReservedCommand(":appsfoo"))
     }
 
@@ -224,15 +228,6 @@ class ReservedCommandParserTest {
         val sharedVariants = byVariant.filterValues { it.size > 1 }
 
         assertEquals(mapOf(ReservedCommand.Help to listOf(HELP_TOKEN, HELP_SHORTHAND)), sharedVariants)
-    }
-
-    @Test
-    fun `a token that is a prefix of another still resolves to itself, not the longer one`() {
-        // matchCommandToken requires an exact match or token-then-space, which is what stops
-        // ":note" from swallowing ":notif". Asserted rather than assumed, since adding ":n" or
-        // ":notes" later would make the registry's ordering suddenly load-bearing.
-        assertEquals(ReservedCommand.Note(""), parseReservedCommand(NOTE_TOKEN))
-        assertEquals(ReservedCommand.Notif, parseReservedCommand(NOTIF_TOKEN))
     }
 
     @Test

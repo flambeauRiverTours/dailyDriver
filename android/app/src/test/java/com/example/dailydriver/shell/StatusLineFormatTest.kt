@@ -1,6 +1,7 @@
 package com.example.dailydriver.shell
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -112,26 +113,15 @@ class StatusLineFormatTest {
     }
 
     @Test
-    fun `every minute of the day formats without throwing, in both conventions`() {
-        // Cheap exhaustive sweep — 1440 minutes is nothing, and it rules out an off-by-one in
-        // the 12-hour conversion at any hour rather than only the ones picked by hand.
-        (0..23).forEach { hour ->
-            (0..59 step 7).forEach { minute ->
-                val instant = at(hour, minute)
-                assertTrue(format(instant = instant).time.isNotBlank())
-                assertTrue(format(instant = instant, is24Hour = false).time.isNotBlank())
-            }
-        }
-    }
-
-    @Test
     fun `12-hour output always carries a meridiem and 24-hour never does`() {
+        // Sweeps all 24 hours, which is where an off-by-one in the 12-hour conversion would
+        // hide — the hand-picked boundary cases above only cover four of them.
         (0..23).forEach { hour ->
             val twelve = format(instant = at(hour, 0), is24Hour = false).time
             val twentyFour = format(instant = at(hour, 0)).time
 
             assertTrue("$hour: $twelve", twelve.endsWith(" AM") || twelve.endsWith(" PM"))
-            assertTrue("$hour: $twentyFour", !twentyFour.contains("M"))
+            assertFalse("$hour: $twentyFour", twentyFour.contains("M"))
         }
     }
 
@@ -244,8 +234,8 @@ class StatusLineFormatTest {
     fun `the two halves are independent — the indicator never leaks into either`() {
         val text = format()
 
-        assertTrue(!text.time.contains("•"))
-        assertTrue(!text.date.contains("•"))
+        assertFalse(text.time.contains("•"))
+        assertFalse(text.date.contains("•"))
     }
 
     private fun at(hour: Int, minute: Int) =

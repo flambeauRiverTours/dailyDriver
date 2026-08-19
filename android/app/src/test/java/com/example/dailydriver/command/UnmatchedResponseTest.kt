@@ -1,6 +1,7 @@
 package com.example.dailydriver.command
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,7 +49,7 @@ class UnmatchedResponseTest {
         // seeing the exact token is how you spot the typo.
         val prose = "remind me to call the bank tomorrow"
 
-        assertTrue(unmatchedResponse(prose, EscalationTier.T2).contains(prose).not())
+        assertFalse(unmatchedResponse(prose, EscalationTier.T2).contains(prose))
     }
 
     @Test
@@ -85,7 +86,7 @@ class UnmatchedResponseTest {
     @Test
     fun `every tier produces a single line — the transcript renders one entry per response`() {
         EscalationTier.entries.forEach { tier ->
-            assertTrue("$tier wrapped onto multiple lines", !unmatchedResponse("x", tier).contains('\n'))
+            assertFalse("$tier wrapped onto multiple lines", unmatchedResponse("x", tier).contains('\n'))
         }
     }
 

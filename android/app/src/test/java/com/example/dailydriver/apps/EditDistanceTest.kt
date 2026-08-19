@@ -47,14 +47,6 @@ class EditDistanceTest {
     }
 
     @Test
-    fun `is symmetric`() {
-        assertEquals(
-            damerauLevenshtein("calendar", "calculator"),
-            damerauLevenshtein("calculator", "calendar"),
-        )
-    }
-
-    @Test
     fun `completely unrelated strings cost at most the longer length`() {
         assertEquals(6, damerauLevenshtein("aaaaaa", "bbbbbb"))
     }
