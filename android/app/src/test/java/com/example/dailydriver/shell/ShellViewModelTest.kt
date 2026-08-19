@@ -274,4 +274,30 @@ class ShellViewModelTest {
 
         assertEquals("alias gm = chrome", viewModel.transcript.entries[0].text)
     }
+
+    // --- T009: T1/T2 escalation on an unmatched submit ---------------------------------------
+
+    @Test
+    fun `single-word input with no match gets the T3 placeholder`() {
+        // ShellScreen only ever calls onSubmit() as the fallthrough once T0 and its own T1 check
+        // have both missed — so any single word reaching here is exactly T3's case.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("zzzzzz")
+
+        viewModel.onSubmit()
+
+        assertEquals("no command match (T3)", viewModel.transcript.entries[1].text)
+    }
+
+    @Test
+    fun `multi-word input with no match gets the T2 placeholder instead of T3's`() {
+        // Design doc §4.2: whitespace with no T0/T1 hit skips straight to T2 — multi-word input
+        // is almost always prose, not an app name T3's search would have any better luck with.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("call mom tonight")
+
+        viewModel.onSubmit()
+
+        assertEquals("no natural-language understanding yet (T2)", viewModel.transcript.entries[1].text)
+    }
 }
