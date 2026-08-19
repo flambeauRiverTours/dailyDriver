@@ -65,6 +65,9 @@ class ShellViewModel : ViewModel() {
             // needs a Context this ViewModel doesn't have. Reaching here would mean that
             // interception broke; no-op defensively rather than recording something wrong.
             is ReservedCommand.Settings -> return
+            // Same reasoning as Settings — ShellScreen intercepts Alias before onSubmit is ever
+            // called, since it needs the live aliases map this ViewModel doesn't hold (T144).
+            is ReservedCommand.Alias -> return
             // T143: the real editor overlay is T020, which doesn't exist yet. Recorded as a
             // normal exchange (not silently dropped) so the launcher gives an honest answer
             // instead of looking broken — same shape as the T2/T3 placeholders below.
@@ -108,6 +111,16 @@ class ShellViewModel : ViewModel() {
      * transcript entry either, same reasoning as [onAppLaunched] for a launched app.
      */
     fun onSettingsLaunched() {
+        input = ""
+    }
+
+    /**
+     * Records the `:alias` listing [ShellScreen] already formatted (it holds the live aliases
+     * map this ViewModel doesn't) and clears the input — same shape as [onAliasDefined], which
+     * likewise records an outcome computed elsewhere rather than resolving it itself.
+     */
+    fun onAliasListRequested(listing: String) {
+        transcript = transcript.record(input, listing)
         input = ""
     }
 

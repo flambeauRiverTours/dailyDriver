@@ -18,4 +18,10 @@ sealed interface ReservedCommand {
      * go.
      */
     data class Note(val query: String) : ReservedCommand
+
+    /**
+     * No query, like [Settings] — `:alias` (design doc §4.7) just lists what's currently defined,
+     * nothing to filter by (T144).
+     */
+    data object Alias : ReservedCommand
 }

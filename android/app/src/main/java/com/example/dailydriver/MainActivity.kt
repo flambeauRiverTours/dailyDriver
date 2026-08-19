@@ -79,6 +79,7 @@ class MainActivity : AppCompatActivity() {
                     // AliasRepository.define, picked up on the next recomposition, which the
                     // transcript update after a definition reliably triggers.
                     aliases = aliasRepository.aliases,
+                    onAliasListRequested = viewModel::onAliasListRequested,
                     onAliasExpanded = viewModel::onAliasExpanded,
                     onDefineAlias = { input, name, command ->
                         val result = aliasRepository.define(name, command)

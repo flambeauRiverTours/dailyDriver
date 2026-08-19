@@ -335,6 +335,33 @@ class ShellViewModelTest {
         assertEquals("will open notes in the future (T020)", viewModel.transcript.entries[1].text)
     }
 
+    // --- T144: :alias ---------------------------------------------------------------------------
+
+    @Test
+    fun `colon-alias parses as the Alias reserved command`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onInputChange(":alias")
+
+        assertEquals(ReservedCommand.Alias, viewModel.reservedCommand)
+    }
+
+    @Test
+    fun `onAliasListRequested records the listing it was given and clears the input`() {
+        // The listing itself is formatted by ShellScreen (it holds the live aliases map, not
+        // this ViewModel) — onAliasListRequested just records whatever it's handed, same shape
+        // as onAliasDefined.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":alias")
+
+        viewModel.onAliasListRequested("gm = chrome\nmaps = google maps")
+
+        val entries = viewModel.transcript.entries
+        assertEquals(":alias", entries[0].text)
+        assertEquals("gm = chrome\nmaps = google maps", entries[1].text)
+        assertEquals("", viewModel.input)
+    }
+
     // --- T009: T1/T2 escalation on an unmatched submit ---------------------------------------
 
     @Test

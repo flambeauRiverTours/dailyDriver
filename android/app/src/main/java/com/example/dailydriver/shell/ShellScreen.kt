@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.example.dailydriver.alias.formatAliasListing
 import com.example.dailydriver.alias.parseAliasDefinition
 import com.example.dailydriver.apps.AppEntry
 import com.example.dailydriver.apps.filteredBy
@@ -79,15 +80,18 @@ fun ShellScreen(
     onAppClick: (AppEntry) -> Unit,
     onSettingsCommand: () -> Unit,
     aliases: Map<String, String>,
+    onAliasListRequested: (listing: String) -> Unit,
     onAliasExpanded: (expansion: String) -> Unit,
     onDefineAlias: suspend (input: String, name: String, command: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Only Apps has a browse-mode UI — :settings (T142) fires-and-forgets on Enter instead (see
-    // the submit handler below). :note (T143) needs no ShellScreen change at all: with no
-    // browse mode and no external Context to reach for, it falls straight through the `else ->
-    // onSubmit()` branch below like any other unmatched-tier input, and ShellViewModel decides
-    // what that means. :alias/:help (T144/T145) will each add their own behavior as they land.
+    // the submit handler below), same as :alias (T144): ShellScreen already holds the live
+    // aliases map, so it formats the listing here and hands the result to the ViewModel rather
+    // than the ViewModel resolving it itself. :note (T143) needs no ShellScreen change at all:
+    // with no browse mode and no external data to reach for, it falls straight through the
+    // `else -> onSubmit()` branch below like any other unmatched-tier input, and ShellViewModel
+    // decides what that means. :help (T145) will add its own behavior as it lands.
     val appsCommand = reservedCommand as? ReservedCommand.Apps
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -208,6 +212,11 @@ fun ShellScreen(
                     // it's the more specific state; the two never actually overlap (alias names
                     // can't start with `:`).
                     reservedCommand is ReservedCommand.Settings -> onSettingsCommand()
+                    // :alias (T144) has no browse mode either — it just lists what's defined.
+                    // Formatted here, not in the ViewModel, since ShellScreen is what already
+                    // holds the live aliases map.
+                    reservedCommand is ReservedCommand.Alias ->
+                        onAliasListRequested(aliases.formatAliasListing())
                     // Checked before the definition branch only for readability — the two shapes
                     // are disjoint, since an alias name can't contain the spaces or "=" that a
                     // definition requires.
