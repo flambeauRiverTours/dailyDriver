@@ -2,7 +2,10 @@ package com.example.dailydriver.shell
 
 import com.example.dailydriver.alias.DefineAliasResult
 import com.example.dailydriver.command.ReservedCommand
+import com.example.dailydriver.command.reservedCommandHelp
+import com.example.dailydriver.command.reservedCommandTokens
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -481,5 +484,251 @@ class ShellViewModelTest {
             "natural language needs the SLM (not built yet) — type :help or ? for commands",
             viewModel.transcript.entries[1].text,
         )
+    }
+
+    // --- auto-space, across the whole registry ---------------------------------------------------
+    //
+    // T140 generalised auto-space-on-completion to every registered token, but only ":apps" was
+    // ever tested for it. These run the same checks over the registry, so a token added later is
+    // covered the moment it's registered.
+
+    @Test
+    fun `every registered token auto-appends a separating space when typed forward`() {
+        reservedCommandTokens.forEach { token ->
+            val viewModel = ShellViewModel()
+            viewModel.onInputChange(token.dropLast(1))
+
+            viewModel.onInputChange(token)
+
+            assertEquals("'$token' didn't auto-space", "$token ", viewModel.input)
+        }
+    }
+
+    @Test
+    fun `backspacing down to any token does not re-add the space`() {
+        // Without the length guard this would be stuck — the space you just deleted reappears.
+        reservedCommandTokens.forEach { token ->
+            val viewModel = ShellViewModel()
+            viewModel.onInputChange("$token x")
+
+            viewModel.onInputChange(token)
+
+            assertEquals("'$token' re-added its space", token, viewModel.input)
+        }
+    }
+
+    @Test
+    fun `the single-character help shorthand auto-spaces like any other token`() {
+        // Worth its own case: "?" is one character, so "typed forward" means growing from an
+        // empty string, which is the shortest possible path through that guard.
+        val viewModel = ShellViewModel()
+
+        viewModel.onInputChange("?")
+
+        assertEquals("? ", viewModel.input)
+    }
+
+    @Test
+    fun `text that merely starts with a token is not auto-spaced`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onInputChange(":appsx")
+
+        assertEquals(":appsx", viewModel.input)
+    }
+
+    // --- recognition across the registry --------------------------------------------------------
+
+    @Test
+    fun `every registered token is recognised as a reserved command`() {
+        reservedCommandTokens.forEach { token ->
+            val viewModel = ShellViewModel()
+
+            viewModel.onInputChange(token)
+
+            assertNotNull("'$token' wasn't recognised", viewModel.reservedCommand)
+        }
+    }
+
+    @Test
+    fun `plain text is never mistaken for a reserved command`() {
+        val viewModel = ShellViewModel()
+
+        listOf("chrome", "alias gm = chrome", "call mom", "", "apps", "help").forEach { input ->
+            viewModel.onInputChange(input)
+            assertNull("'$input' parsed as a command", viewModel.reservedCommand)
+        }
+    }
+
+    // --- transitions between modes ----------------------------------------------------------------
+
+    @Test
+    fun `switching from another reserved command into apps mode clears the transcript`() {
+        // The clear is scoped to *entering* Apps, and arriving from :settings is still entering.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("zzz")
+        viewModel.onSubmit()
+        viewModel.onInputChange(":settings")
+        assertTrue(viewModel.transcript.entries.isNotEmpty())
+
+        viewModel.onInputChange(":apps")
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+    }
+
+    @Test
+    fun `leaving apps mode for another reserved command does not restore the transcript`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("zzz")
+        viewModel.onSubmit()
+        viewModel.onInputChange(":apps")
+
+        viewModel.onInputChange(":settings")
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+    }
+
+    @Test
+    fun `typing ordinary text never clears the transcript`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("zzz")
+        viewModel.onSubmit()
+        val recorded = viewModel.transcript.entries.size
+
+        viewModel.onInputChange("something")
+        viewModel.onInputChange("something else")
+
+        assertEquals(recorded, viewModel.transcript.entries.size)
+    }
+
+    @Test
+    fun `re-entering apps mode after leaving it clears again`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":apps")
+        viewModel.onInputChange("zzz")
+        viewModel.onSubmit()
+        assertTrue(viewModel.transcript.entries.isNotEmpty())
+
+        viewModel.onInputChange(":apps")
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+    }
+
+    // --- submitting -------------------------------------------------------------------------------
+
+    @Test
+    fun `submit is a no-op for every reserved command that ShellScreen intercepts`() {
+        // :apps, :settings, :alias and :notif all resolve elsewhere — reaching onSubmit means
+        // interception broke, and recording the raw command text would be wrong in every case.
+        listOf(":apps chrome", ":settings", ":alias", ":notif").forEach { input ->
+            val viewModel = ShellViewModel()
+            viewModel.onInputChange(input)
+
+            viewModel.onSubmit()
+
+            assertTrue("'$input' recorded something", viewModel.transcript.entries.isEmpty())
+        }
+    }
+
+    @Test
+    fun `submitting accumulates across several commands`() {
+        val viewModel = ShellViewModel()
+
+        listOf("zzz1", "zzz2", "zzz3").forEach {
+            viewModel.onInputChange(it)
+            viewModel.onSubmit()
+        }
+
+        assertEquals(6, viewModel.transcript.entries.size)
+        assertEquals("zzz1", viewModel.transcript.entries.first().text)
+    }
+
+    @Test
+    fun `submitting whitespace-only input records nothing and clears the line`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("\t  ")
+
+        viewModel.onSubmit()
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+        assertEquals("", viewModel.input)
+    }
+
+    @Test
+    fun `help output lists every reserved command`() {
+        // Ties the ViewModel's :help path back to the registry — a command that's registered but
+        // undocumented fails here, not only in HelpTextTest.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":help")
+
+        viewModel.onSubmit()
+
+        val output = viewModel.transcript.entries[1].text
+        reservedCommandHelp.forEach { entry ->
+            assertTrue("help omitted '${entry.usage}'", output.contains(entry.usage))
+        }
+    }
+
+    // --- alias outcomes ------------------------------------------------------------------------------
+
+    @Test
+    fun `onAliasDefined describes an overwrite, naming the previous command`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onAliasDefined(
+            "alias gm = firefox",
+            DefineAliasResult.Overwritten("gm", "firefox", previousCommand = "chrome"),
+        )
+
+        assertEquals("alias 'gm' updated (was: chrome)", viewModel.transcript.entries[1].text)
+    }
+
+    @Test
+    fun `onAliasDefined reports a rejected self-reference rather than staying silent`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onAliasDefined("alias gm = gm", DefineAliasResult.RejectedSelfReference("gm"))
+
+        assertEquals("can't alias 'gm' to itself", viewModel.transcript.entries[1].text)
+        assertEquals("", viewModel.input)
+    }
+
+    @Test
+    fun `onAliasDefined reports a rejected alias-to-alias definition`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onAliasDefined(
+            "alias b = a",
+            DefineAliasResult.RejectedPointsAtAlias("b", targetAliasName = "a"),
+        )
+
+        assertTrue(viewModel.transcript.entries[1].text.contains("can't point at other aliases"))
+    }
+
+    @Test
+    fun `expanding an alias into apps mode clears an existing transcript`() {
+        // The expansion goes through onInputChange, so it inherits the enter-apps-mode clear —
+        // an alias to :apps has to behave exactly like typing :apps.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("zzz")
+        viewModel.onSubmit()
+
+        viewModel.onAliasExpanded(":apps")
+
+        assertTrue(viewModel.transcript.entries.isEmpty())
+        assertEquals(":apps ", viewModel.input)
+    }
+
+    @Test
+    fun `expanding an alias to unmatched plain text still gets a pipeline response`() {
+        // The expansion is dispatched, not just pasted into the field — so it lands on the T3
+        // fallback like any other unmatched input rather than silently doing nothing.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange("b")
+
+        viewModel.onAliasExpanded("zzzznotanapp")
+
+        assertEquals("zzzznotanapp", viewModel.transcript.entries[0].text)
+        assertTrue(viewModel.transcript.entries[1].text.contains(":help"))
     }
 }
