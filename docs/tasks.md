@@ -174,6 +174,7 @@ Daily-drivable as your real home screen, zero ML.
   - **Keep the formatting pure and unit-tested** — `(Instant, ZoneId, colonVisible: Boolean) -> String` is exactly the kind of Android-independent logic `android/CLAUDE.md`'s testing section says belongs in `src/test/`. Only the ticking itself needs Compose.
   - **Battery matters here in a way it doesn't elsewhere in this app.** This is the home screen; a naive `while(true) { delay(1s) }` recomposing forever is a real drain, and unlike a normal app there's no "user closed it" to save you. Tick from a `LaunchedEffect` that stops when the Activity isn't resumed, and scope recomposition to just the status line rather than the whole shell.
   - **Decisions to make when building it, none settled by the design doc:** 12h vs 24h (follow the system setting via `DateFormat.is24HourFormat`, or pin one?); the exact date format; whether the colon is 500ms-on/500ms-off or 1s-on/1s-off (the request said "one second flashing," which reads as the full cycle); and whether the status line stays visible in `:apps` browse mode (it replaces the transcript, not the whole surface — so probably yes, but confirm).
+  - **Coordinate with T148**, which wants a notification dot in the top-left — the same space this claims. The dot most likely belongs inside this status row; whichever of the two lands second should adapt to the first.
 - [ ] **T017** — Install as daily driver; keep fallback launcher installed  
   `P0` `S` · after: T011
   - Never ship an untested build to your only home screen.
@@ -208,6 +209,18 @@ Tiered cascade. **The SLM is not the front door.**
 - [ ] **T145** — `:help` / `?` reserved command  
   `P1` `S` · after: T140
   - **New — not in the original design doc's reserved-command list.** Two aliases, `:help` and a bare `?`, route to the same handler. Owns the actual help text; T010's T3 fallback reuses this content rather than defining its own copy when nothing else matches.
+- [ ] **T147** — `:notif` reserved command — list + open active notifications  
+  `P1` `M` · after: T140, T012
+  - **New (2026-08-16, user request)** — not in the design doc. Lists current notifications as a tappable list in the same shape as T012's `:apps` browse view (bottom-anchored, monospace, tap to act), registered into T140's registry like any other reserved command.
+  - **⚠ This needs a special-access permission, not a normal runtime one — plan for it.** Reading other apps' notifications requires a `NotificationListenerService` and `BIND_NOTIFICATION_LISTENER_SERVICE`. That **cannot** be requested with the standard permission dialog: the user has to enable it by hand under Settings → Notification access, so the app needs to detect it's missing and deep-link there (`Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`) with an explanation. This is the first special-access permission in the project and the main reason this is `M` not `S`. (Google Play restricts this permission tightly for *published* apps — irrelevant for a sideloaded personal launcher, but worth knowing before it shows up in the portfolio writeup.)
+  - **Exclude persistent notifications**, per the request — Android calls these *ongoing* (`StatusBarNotification.isOngoing()`): foreground services, media players, active downloads. They're ambient status, not "something happened." Decide during the build whether `isOngoing()` alone is the right filter or whether `isClearable()` is closer to intent — they differ on no-clear-but-not-ongoing notifications.
+  - **Tapping fires the notification's own `contentIntent`** (a `PendingIntent`), which is how "opening" a notification works. Handle a null `contentIntent` — not every notification has one — rather than silently doing nothing.
+  - **Split the way T012 did:** filtering and display-text formatting are pure and unit-testable (given a list of notification records → what's shown); the `NotificationListenerService` itself is Android glue in the `AppIndexRepository` mould, not unit-tested.
+- [ ] **T148** — Unread-notification indicator dot  
+  `P2` `S` · after: T147, T146
+  - **New (2026-08-16, user request)** — a small dot in the top-left when any non-persistent notification is present, using the same filtered set T147 builds (so "is there anything?" is a boolean over that list, not a second source of truth).
+  - **Coordinate with T146, which also claims the top of the screen** for the time/date status line. These two shouldn't fight over that space — the dot most likely belongs *in* that status row rather than floating separately. Whichever lands second should adapt to the first.
+  - **On "white":** the request said white, but T005 established that this project uses no literal `#FFFFFF` anywhere — use the existing `OnBackground` token (`#E4E1E6`) or add a deliberate token, rather than reintroducing pure white for one dot.
 - [x] **T007** — Alias store (Room) + T0 resolution  
   `P1` `M` · after: T140
   - Device-local, not synced.
@@ -610,4 +623,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**139 tasks.** Generated from the Todoist backlog; keep both in step when either changes.
+**147 tasks.** Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T148) — recount rather than trusting this line.
