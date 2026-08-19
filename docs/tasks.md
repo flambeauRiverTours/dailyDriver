@@ -168,6 +168,12 @@ Daily-drivable as your real home screen, zero ML.
 - [ ] **T016** — Scrollback cap + clear on process death  
   `P2` `S` · after: T004
   - Ephemeral, never synced.
+- [ ] **T146** — Status line: time + date above the transcript, flashing colon  
+  `P1` `S` · after: T004
+  - **New (2026-08-16, user request)** — not in the design doc; §4.1 describes only the transcript and input line. A fixed status line at the top of the shell surface showing the current time and date, with the time's colon blinking on a one-second cycle (the classic digital-clock/terminal look).
+  - **Keep the formatting pure and unit-tested** — `(Instant, ZoneId, colonVisible: Boolean) -> String` is exactly the kind of Android-independent logic `android/CLAUDE.md`'s testing section says belongs in `src/test/`. Only the ticking itself needs Compose.
+  - **Battery matters here in a way it doesn't elsewhere in this app.** This is the home screen; a naive `while(true) { delay(1s) }` recomposing forever is a real drain, and unlike a normal app there's no "user closed it" to save you. Tick from a `LaunchedEffect` that stops when the Activity isn't resumed, and scope recomposition to just the status line rather than the whole shell.
+  - **Decisions to make when building it, none settled by the design doc:** 12h vs 24h (follow the system setting via `DateFormat.is24HourFormat`, or pin one?); the exact date format; whether the colon is 500ms-on/500ms-off or 1s-on/1s-off (the request said "one second flashing," which reads as the full cycle); and whether the status line stays visible in `:apps` browse mode (it replaces the transcript, not the whole surface — so probably yes, but confirm).
 - [ ] **T017** — Install as daily driver; keep fallback launcher installed  
   `P0` `S` · after: T011
   - Never ship an untested build to your only home screen.
