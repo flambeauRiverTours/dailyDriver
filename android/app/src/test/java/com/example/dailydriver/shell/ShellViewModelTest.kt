@@ -299,6 +299,42 @@ class ShellViewModelTest {
         assertTrue(viewModel.transcript.entries.isEmpty())
     }
 
+    // --- T143: :note ----------------------------------------------------------------------------
+
+    @Test
+    fun `colon-note parses as the Note reserved command`() {
+        val viewModel = ShellViewModel()
+
+        viewModel.onInputChange(":note")
+
+        assertEquals(ReservedCommand.Note(""), viewModel.reservedCommand)
+    }
+
+    @Test
+    fun `submitting colon-note records the not-built-yet placeholder and clears the input`() {
+        // The real editor overlay is T020, which doesn't exist yet — this is a placeholder
+        // answer, not silence, per explicit request.
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":note")
+
+        viewModel.onSubmit()
+
+        val entries = viewModel.transcript.entries
+        assertEquals(":note", entries[0].text)
+        assertEquals("will open notes in the future (T020)", entries[1].text)
+        assertEquals("", viewModel.input)
+    }
+
+    @Test
+    fun `submitting colon-note with a query still gets the placeholder — the query is unused for now`() {
+        val viewModel = ShellViewModel()
+        viewModel.onInputChange(":note standup")
+
+        viewModel.onSubmit()
+
+        assertEquals("will open notes in the future (T020)", viewModel.transcript.entries[1].text)
+    }
+
     // --- T009: T1/T2 escalation on an unmatched submit ---------------------------------------
 
     @Test

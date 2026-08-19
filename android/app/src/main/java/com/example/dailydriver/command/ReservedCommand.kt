@@ -10,4 +10,12 @@ sealed interface ReservedCommand {
      * `object`, so it still gets a real `toString()`/`equals()` for free like every other variant.
      */
     data object Settings : ReservedCommand
+
+    /**
+     * `query` carries the design doc §4.6 worked example's name argument (`note standup`) for
+     * whenever the real editor overlay (T020) lands and has to decide what it means — discarded
+     * for now (T143), same as [Settings] discards its query, since there's nowhere yet for it to
+     * go.
+     */
+    data class Note(val query: String) : ReservedCommand
 }
