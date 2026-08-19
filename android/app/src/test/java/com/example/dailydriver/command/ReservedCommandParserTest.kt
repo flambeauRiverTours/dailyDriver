@@ -45,11 +45,11 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand("apps"))
         assertNull(parseReservedCommand(""))
         assertNull(parseReservedCommand("chrome"))
-        // :alias/:help are real T0 commands per the design doc, but registering their behavior
-        // is T144/T145's job, not T140's — until then they're just unrecognized input, falling
-        // through exactly like any other text. (:settings and :note were this same kind of stub
-        // until T142/T143 registered them — see the dedicated tests below.)
-        assertNull(parseReservedCommand(":alias"))
+        // :help is a real T0 command per the design doc, but registering its behavior is T145's
+        // job, not T140's — until then it's just unrecognized input, falling through exactly
+        // like any other text. (:settings, :note, and :alias were this same kind of stub until
+        // T142/T143/T144 registered them — see the dedicated tests below.)
+        assertNull(parseReservedCommand(":help"))
     }
 
     @Test
@@ -57,6 +57,7 @@ class ReservedCommandParserTest {
         assertTrue(APPS_TOKEN in reservedCommandTokens)
         assertTrue(SETTINGS_TOKEN in reservedCommandTokens)
         assertTrue(NOTE_TOKEN in reservedCommandTokens)
+        assertTrue(ALIAS_TOKEN in reservedCommandTokens)
     }
 
     // --- T142: :settings -----------------------------------------------------------------------
@@ -101,5 +102,24 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand(":Note"))
         assertNull(parseReservedCommand(":NOTE"))
         assertNull(parseReservedCommand(":notefoo"))
+    }
+
+    // --- T144: :alias ----------------------------------------------------------------------
+
+    @Test
+    fun `bare colon-alias parses to the Alias variant`() {
+        assertEquals(ReservedCommand.Alias, parseReservedCommand(":alias"))
+    }
+
+    @Test
+    fun `colon-alias followed by text still resolves to Alias — it has no query, like Settings`() {
+        assertEquals(ReservedCommand.Alias, parseReservedCommand(":alias anything"))
+    }
+
+    @Test
+    fun `colon-alias is case-sensitive and not a prefix match, like every other T0 token`() {
+        assertNull(parseReservedCommand(":Alias"))
+        assertNull(parseReservedCommand(":ALIAS"))
+        assertNull(parseReservedCommand(":aliasfoo"))
     }
 }
