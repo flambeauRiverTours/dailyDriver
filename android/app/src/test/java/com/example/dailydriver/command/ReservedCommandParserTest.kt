@@ -37,6 +37,10 @@ class ReservedCommandParserTest {
 
     @Test
     fun `not a prefix match — the token must be the whole word, not part of a longer one`() {
+        // This is also what keeps the registry's ordering from mattering. No two registered
+        // tokens are currently prefixes of each other, but requiring an exact match or
+        // token-then-space means a future ":notes" alongside ":note" still wouldn't shadow it,
+        // and first-match-wins would stay an implementation detail rather than a rule to obey.
         assertNull(parseReservedCommand(":appsfoo"))
     }
 
@@ -174,5 +178,119 @@ class ReservedCommandParserTest {
             val token = entry.usage.substringBefore(' ').substringBefore(',')
             assertTrue("'$token' is documented but not parseable", parseReservedCommand(token) != null)
         }
+    }
+
+    // --- registry-wide invariants -------------------------------------------------------------
+    //
+    // These don't test any one command — they're guardrails for the NEXT command someone
+    // registers. T141-T145 and T147 each added an entry by copying the one above it, which is
+    // exactly the workflow that quietly introduces a duplicate or a token that doesn't dispatch.
+
+    @Test
+    fun `no token is registered twice`() {
+        assertEquals(reservedCommandTokens.distinct(), reservedCommandTokens)
+    }
+
+    @Test
+    fun `no token is blank or carries stray whitespace`() {
+        reservedCommandTokens.forEach { token ->
+            assertTrue("'$token' is blank", token.isNotBlank())
+            assertEquals("'$token' has stray whitespace", token.trim(), token)
+        }
+    }
+
+    @Test
+    fun `every registered token actually dispatches`() {
+        // A token in the list that parseReservedCommand rejects would be invisible everywhere
+        // except ShellViewModel's auto-space, which would then insert a space after a
+        // meaningless prefix.
+        reservedCommandTokens.forEach { token ->
+            assertTrue("'$token' is registered but doesn't parse", parseReservedCommand(token) != null)
+        }
+    }
+
+    @Test
+    fun `only the help shorthand is allowed to skip the colon prefix`() {
+        // The `:` prefix is what keeps reserved commands and user aliases in disjoint namespaces
+        // (see AliasDefinition's rejection of names starting with `:`). `?` is the documented
+        // exception; a second bare token would reopen that precedence question.
+        val bare = reservedCommandTokens.filterNot { it.startsWith(":") }
+
+        assertEquals(listOf(HELP_SHORTHAND), bare)
+    }
+
+    @Test
+    fun `each token resolves to its own command, except the two help spellings`() {
+        // The registry is first-match-wins and ordered, so two tokens collapsing to one variant
+        // is only correct when it's deliberate. Grouping catches an accidental copy-paste that
+        // left the wrong builder behind.
+        val byVariant = reservedCommandTokens.groupBy { parseReservedCommand(it) }
+        val sharedVariants = byVariant.filterValues { it.size > 1 }
+
+        assertEquals(mapOf(ReservedCommand.Help to listOf(HELP_TOKEN, HELP_SHORTHAND)), sharedVariants)
+    }
+
+    @Test
+    fun `parsing is pure — the same input gives the same result every time`() {
+        repeat(3) {
+            assertEquals(ReservedCommand.Apps("chrome"), parseReservedCommand(":apps chrome"))
+            assertEquals(ReservedCommand.Help, parseReservedCommand("?"))
+        }
+    }
+
+    // --- token/query boundary cases -------------------------------------------------------------
+
+    @Test
+    fun `a bare colon matches nothing`() {
+        assertNull(parseReservedCommand(":"))
+    }
+
+    @Test
+    fun `leading whitespace defeats the match — the token has to start the input`() {
+        // ShellViewModel never trims before parsing, so this is the real input shape, and a
+        // leading space genuinely means the user hasn't typed a command.
+        assertNull(parseReservedCommand(" :apps"))
+        assertNull(parseReservedCommand("\t:apps"))
+    }
+
+    @Test
+    fun `a tab after the token is not a separator — only a space is`() {
+        assertNull(parseReservedCommand(":apps\tchrome"))
+    }
+
+    @Test
+    fun `internal spacing inside a query is preserved, not collapsed`() {
+        // The query is a live filter string; collapsing runs of spaces would silently change
+        // what the user is searching for.
+        assertEquals(ReservedCommand.Apps("google  maps"), parseReservedCommand(":apps google  maps"))
+    }
+
+    @Test
+    fun `a query can contain punctuation and symbols without breaking the parse`() {
+        assertEquals(ReservedCommand.Apps("a+b (c) [d]"), parseReservedCommand(":apps a+b (c) [d]"))
+    }
+
+    @Test
+    fun `a query can contain a colon, which would otherwise look like another command`() {
+        assertEquals(ReservedCommand.Apps(":settings"), parseReservedCommand(":apps :settings"))
+    }
+
+    @Test
+    fun `a query can contain non-ASCII text`() {
+        assertEquals(ReservedCommand.Apps("café 日本"), parseReservedCommand(":apps café 日本"))
+    }
+
+    @Test
+    fun `a long query is carried through intact rather than truncated`() {
+        val long = "x".repeat(500)
+
+        assertEquals(ReservedCommand.Apps(long), parseReservedCommand(":apps $long"))
+    }
+
+    @Test
+    fun `a question mark inside a query is not the help shorthand`() {
+        // "?" only means help as the whole input — otherwise searching for "what?" would be
+        // impossible.
+        assertEquals(ReservedCommand.Apps("what?"), parseReservedCommand(":apps what?"))
     }
 }

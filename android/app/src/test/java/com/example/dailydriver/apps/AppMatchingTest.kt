@@ -195,4 +195,210 @@ class AppMatchingTest {
         assertEquals(MatchStrategy.SUBSEQUENCE, weak.rankedMatches("xye").first().strategy)
         assertEquals(weak.first(), weak.topMatch("xye"))
     }
+
+    // --- labels the real PackageManager can hand us ---------------------------------------------
+
+    @Test
+    fun `an app with a blank label never matches anything`() {
+        // matchAgainst bails on an empty label before any strategy runs. PackageManager doesn't
+        // guarantee loadLabel() is non-empty, and a blank row that silently matched every query
+        // would outrank real apps at the prompt.
+        val withBlank = apps + AppEntry("com.mystery", "")
+
+        listOf("c", "chrome", "", "zzz", "a").forEach { query ->
+            assertTrue(
+                "blank label matched '$query'",
+                withBlank.rankedMatches(query).none { it.entry.packageName == "com.mystery" },
+            )
+        }
+    }
+
+    @Test
+    fun `an empty app list matches nothing without complaining`() {
+        val none = emptyList<AppEntry>()
+
+        assertTrue(none.rankedMatches("chrome").isEmpty())
+        assertNull(none.topMatch("chrome"))
+        assertNull(none.matchPreview("chrome"))
+    }
+
+    @Test
+    fun `labels containing digits and symbols still match`() {
+        val odd = listOf(AppEntry("com.pw", "1Password"), AppEntry("com.msg", "+Message"))
+
+        assertEquals(odd[0], odd.topMatch("1pass"))
+        assertEquals(odd[1], odd.topMatch("+mes"))
+    }
+
+    @Test
+    fun `non-ASCII labels match on their own characters`() {
+        val intl = listOf(AppEntry("com.a", "日本語辞書"), AppEntry("com.b", "Café"))
+
+        assertEquals(intl[0], intl.topMatch("日本"))
+        assertEquals(intl[1], intl.topMatch("caf"))
+    }
+
+    // --- score bands ------------------------------------------------------------------------------
+
+    @Test
+    fun `every match's score falls inside its own strategy's band`() {
+        // The bands are what make the ladder tunable. A strategy scoring outside its range would
+        // reorder results in ways none of the per-strategy tests above would notice.
+        val ranges = mapOf(
+            MatchStrategy.EXACT to 1.0..1.0,
+            MatchStrategy.PREFIX to 0.85..0.95,
+            MatchStrategy.ACRONYM to 0.80..0.85,
+            // TYPO is similarity * 0.80 with a 0.70 similarity floor, so it spans 0.56..0.80 and
+            // deliberately overlaps the bands below it — contiguity isn't a property here.
+            MatchStrategy.TYPO to 0.56..0.80,
+            MatchStrategy.WORD_PREFIX to 0.70..0.78,
+            MatchStrategy.SUBSTRING to 0.60..0.68,
+            MatchStrategy.SUBSEQUENCE to 0.50..0.58,
+        )
+
+        listOf("c", "ca", "chr", "chrome", "gm", "pp", "maps", "oogle", "chrm", "chorme", "set")
+            .flatMap { apps.rankedMatches(it) }
+            .forEach { match ->
+                assertTrue(
+                    "${match.strategy} scored ${match.score}, outside ${ranges.getValue(match.strategy)}",
+                    match.score in ranges.getValue(match.strategy),
+                )
+            }
+    }
+
+    @Test
+    fun `every strategy in the enum is reachable — none is dead code`() {
+        val seen = listOf("chrome", "chr", "gm", "chorme", "maps", "oogle", "chrm")
+            .flatMap { apps.rankedMatches(it) }
+            .map { it.strategy }
+            .toSet()
+
+        assertEquals(MatchStrategy.entries.toSet(), seen)
+    }
+
+    @Test
+    fun `scores never leave the zero-to-one range for any query`() {
+        listOf("", " ", "c", "chrome", "zzzz", "日本", "a b c", "x".repeat(50)).forEach { query ->
+            apps.rankedMatches(query).forEach { match ->
+                assertTrue("'$query' -> ${match.score}", match.score in 0.0..1.0)
+            }
+        }
+    }
+
+    @Test
+    fun `an exact match is worth exactly one, not merely near it`() {
+        assertEquals(1.0, apps.rankedMatches("settings").first().score, 0.0)
+    }
+
+    // --- strategy selection edges -----------------------------------------------------------------
+
+    @Test
+    fun `a near-miss below the typo floor drops to a weaker rung rather than scoring as a typo`() {
+        // "chrm" is 2 edits from "chrome" — 0.67 similarity, under the 0.70 floor. It has to land
+        // on SUBSEQUENCE instead, which is the boundary that keeps TYPO from producing noise.
+        assertEquals(MatchStrategy.SUBSEQUENCE, apps.rankedMatches("chrm").first().strategy)
+    }
+
+    @Test
+    fun `a query longer than the label cannot match it`() {
+        val short = listOf(AppEntry("com.x", "Ox"))
+
+        assertTrue(short.rankedMatches("oxygen").isEmpty())
+    }
+
+    @Test
+    fun `case differences alone still count as an exact match`() {
+        val top = apps.rankedMatches("ChRoMe").first()
+
+        assertEquals(MatchStrategy.EXACT, top.strategy)
+        assertEquals(1.0, top.score, 0.0001)
+    }
+
+    @Test
+    fun `a subsequence must appear in order, not merely be present`() {
+        // "emo" are all in "Chrome" but not in that order — matching it would make the weakest
+        // rung an anagram check.
+        val chromeOnly = listOf(chrome)
+
+        assertTrue(chromeOnly.rankedMatches("emo").isEmpty())
+        assertEquals(MatchStrategy.SUBSEQUENCE, chromeOnly.rankedMatches("cme").first().strategy)
+    }
+
+    @Test
+    fun `acronyms work across three or more words`() {
+        val long = listOf(AppEntry("com.x", "Very Long App Name"))
+
+        assertEquals(MatchStrategy.ACRONYM, long.rankedMatches("vlan").first().strategy)
+    }
+
+    @Test
+    fun `a partial acronym prefix still matches`() {
+        val long = listOf(AppEntry("com.x", "Very Long App Name"))
+
+        assertEquals(MatchStrategy.ACRONYM, long.rankedMatches("vl").first().strategy)
+    }
+
+    @Test
+    fun `a single character query still resolves`() {
+        assertEquals(MatchStrategy.PREFIX, apps.rankedMatches("s").first().strategy)
+    }
+
+    @Test
+    fun `within the substring band, tighter coverage ranks higher`() {
+        // Both labels have to be far enough from the query that TYPO doesn't claim them first —
+        // a shorter padding like "xoogley" is only 2 edits from "oogle" (0.71 similarity) and
+        // lands on TYPO instead, which is what makes this comparison meaningless. The strategy
+        // assertion below is here so that premise fails loudly rather than the ordering quietly
+        // testing something else.
+        val substrings = listOf(
+            AppEntry("com.a", "xxoogleyy"),
+            AppEntry("com.b", "xxxoogleyyy"),
+        )
+        val ranked = substrings.rankedMatches("oogle")
+
+        assertTrue(ranked.all { it.strategy == MatchStrategy.SUBSTRING })
+        assertEquals(listOf("xxoogleyy", "xxxoogleyyy"), ranked.map { it.entry.label })
+    }
+
+    @Test
+    fun `rankedMatches returns every match, not just the best few`() {
+        // "ca" reaches Calculator/Calendar/Camera by prefix and others more weakly; the caller
+        // (matchPreview's "+N more") depends on the count being complete.
+        val ranked = apps.rankedMatches("ca")
+
+        assertTrue(ranked.size >= 3)
+        assertEquals(ranked.map { it.entry }.distinct().size, ranked.size)
+    }
+
+    @Test
+    fun `matching is pure — the same query gives the same ranking every time`() {
+        assertEquals(apps.rankedMatches("ca"), apps.rankedMatches("ca"))
+        assertEquals(apps.topMatch("ca"), apps.topMatch("ca"))
+    }
+
+    // --- preview line -------------------------------------------------------------------------------
+
+    @Test
+    fun `two matches read as plus one more`() {
+        val two = listOf(chrome, AppEntry("com.x", "Chromatic"))
+
+        assertEquals("Chrome  +1 more", two.matchPreview("chro"))
+    }
+
+    @Test
+    fun `the preview's leading name is always the same entry topMatch would act on`() {
+        // These two are the promise the UI makes: what you see previewed is what Enter opens.
+        listOf("c", "ca", "chr", "gm", "maps", "chrm", "pp").forEach { query ->
+            val preview = apps.matchPreview(query)
+            val top = apps.topMatch(query)
+
+            assertTrue("'$query'", preview!!.startsWith(top!!.label))
+        }
+    }
+
+    @Test
+    fun `a whitespace-only query previews nothing`() {
+        assertNull(apps.matchPreview("   "))
+        assertNull(apps.topMatch("   "))
+    }
 }
