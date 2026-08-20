@@ -108,6 +108,14 @@ fun ShellScreen(
     onNoteEditorOpened: () -> Unit,
     /** Live results for a `:notes` query — see [NotesRepository.observe]. */
     observeNotes: (query: String) -> Flow<List<Note>>,
+    /**
+     * Bumped by [MainActivity][com.example.dailydriver.MainActivity] whenever the window regains
+     * focus — HOME chief among the ways that happens (T015, design doc §4.1: "HOME re-focuses
+     * the input"). An `Int` rather than a one-shot event/callback so the existing focus
+     * [LaunchedEffect] below can simply add it as a second key, the same way [editor]'s own state
+     * already re-triggers that effect.
+     */
+    focusRegainedSignal: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     // Apps has a browse-mode UI, and so does Notif — but only once access is granted; without it
@@ -147,7 +155,12 @@ fun ShellScreen(
     // "returns to the prompt with focus restored to the input line and the IME open" — with a
     // Unit key this fires once at startup and never again, so closing the editor left the prompt
     // unfocused and the keyboard down. Caught on-device; a build can't see it.
-    LaunchedEffect(editor.isOpen) {
+    //
+    // Also keyed on focusRegainedSignal (T015): the identical bug, general form — returning to
+    // the launcher window (HOME chief among the ways that happens) can leave the prompt
+    // unfocused and the keyboard down the same way closing the editor did. Guarded the same way:
+    // skipped while the editor is open, which leaves its own field to manage its own focus.
+    LaunchedEffect(editor.isOpen, focusRegainedSignal) {
         if (!editor.isOpen) focusRequester.requestFocus()
     }
 
