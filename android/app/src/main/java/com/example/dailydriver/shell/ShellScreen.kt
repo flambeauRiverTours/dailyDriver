@@ -21,6 +21,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -46,8 +48,13 @@ import com.example.dailydriver.command.ReservedCommand
 import com.example.dailydriver.editor.DiscardConfirmation
 import com.example.dailydriver.editor.NoteEditorView
 import com.example.dailydriver.editor.NoteEditorViewModel
+import com.example.dailydriver.notes.Note
+import com.example.dailydriver.notes.NotesRepository
+import com.example.dailydriver.notes.soleAutoOpenTarget
 import com.example.dailydriver.notifications.NotificationRecord
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 /** The prompt glyph, shown on the input line and on every recorded command in the scrollback. */
@@ -66,6 +73,7 @@ internal object ShellTestTags {
     const val INPUT_FIELD = "shell_input_field"
     const val APP_LIST = "shell_app_list"
     const val NOTIF_LIST = "shell_notif_list"
+    const val NOTE_LIST = "shell_note_list"
 }
 
 /**
@@ -98,6 +106,8 @@ fun ShellScreen(
     editor: NoteEditorViewModel,
     /** Clears the `:note ...` text off the prompt once the editor has taken over. */
     onNoteEditorOpened: () -> Unit,
+    /** Live results for a `:notes` query — see [NotesRepository.observe]. */
+    observeNotes: (query: String) -> Flow<List<Note>>,
     modifier: Modifier = Modifier,
 ) {
     // Apps has a browse-mode UI, and so does Notif — but only once access is granted; without it
@@ -112,6 +122,18 @@ fun ShellScreen(
     // own behavior as it lands.
     val appsCommand = reservedCommand as? ReservedCommand.Apps
     val notifCommand = (reservedCommand as? ReservedCommand.Notif)?.takeIf { hasNotificationAccess }
+    val notesCommand = reservedCommand as? ReservedCommand.Notes
+
+    // Re-subscribed whenever the query text changes, so the list narrows as you type — the same
+    // live-filter behaviour :apps has, except the filtering happens in SQL rather than in memory
+    // because notes aren't all resident the way the app index is.
+    val noteResults by remember(notesCommand?.query) {
+        notesCommand?.let { observeNotes(it.query) } ?: flowOf(emptyList())
+    }.collectAsState(initial = emptyList())
+
+    // Narrowed to exactly one note — Enter or a typing pause opens it, the same affordance (and
+    // the same blank-query guard) :apps has when its filter reaches a single app.
+    val noteAutoOpenTarget = notesCommand?.let { noteResults.soleAutoOpenTarget(it.query) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -179,6 +201,19 @@ fun ShellScreen(
         onAppClick(target)
     }
 
+    // The same pause-to-act behaviour for a sole note result. Kept as its own effect rather than
+    // folded into the one above: that one resolves to an AppEntry and ends in onAppClick, and
+    // unifying them would mean a nullable-of-either just to share four lines.
+    //
+    // Keyed on the note's id, not the Note itself — an autosave elsewhere changes updatedAt and
+    // would otherwise restart the timer for what is still the same note.
+    LaunchedEffect(noteAutoOpenTarget?.id, input) {
+        val target = noteAutoOpenTarget ?: return@LaunchedEffect
+        delay(AUTO_LAUNCH_DELAY_MS)
+        editor.openExisting(target)
+        onNoteEditorOpened()
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -196,6 +231,18 @@ fun ShellScreen(
             AppListView(
                 apps = filteredApps,
                 onAppClick = onAppClick,
+                textStyle = monospace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+        } else if (notesCommand != null) {
+            NoteListView(
+                notes = noteResults,
+                onNoteClick = { note ->
+                    editor.openExisting(note)
+                    onNoteEditorOpened()
+                },
                 textStyle = monospace,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -244,6 +291,8 @@ fun ShellScreen(
                 onKeep = editor::keepAndClose,
                 onDiscard = editor::requestDiscard,
                 textStyle = monospace,
+                expanded = editor.expanded,
+                modifier = if (editor.expanded) Modifier.weight(1f) else Modifier,
             )
             // BACK keeps rather than discards. It's the ambiguous gesture — people use it to mean
             // "go back", not "throw this away" — and autosave has already written the text, so
@@ -273,6 +322,13 @@ fun ShellScreen(
                     // Enter opens a uniquely-matched app immediately rather than waiting out the
                     // pause.
                     autoLaunchTarget != null -> onAppClick(autoLaunchTarget)
+                    // Same idea for :notes — Enter opens the sole remaining note rather than
+                    // waiting out the pause. Sits beside the :apps case because they're the same
+                    // affordance, not near the other reserved-command branches.
+                    noteAutoOpenTarget != null -> {
+                        editor.openExisting(noteAutoOpenTarget)
+                        onNoteEditorOpened()
+                    }
                     // :settings (T142) has no browse mode to select from like :apps does — Enter
                     // is what fires it. Checked ahead of the alias branches below only because
                     // it's the more specific state; the two never actually overlap (alias names

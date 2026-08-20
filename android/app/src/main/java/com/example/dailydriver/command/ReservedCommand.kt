@@ -20,6 +20,14 @@ sealed interface ReservedCommand {
     data class Note(val query: String) : ReservedCommand
 
     /**
+     * `:notes [query]` — browse and search stored notes (T025/T026). Separate from [Note], which
+     * *makes* one: "note" creates, "notes" shows you yours.
+     *
+     * `query` is the live search text, parsed by `parseNoteQuery` into a tag filter or free text.
+     */
+    data class Notes(val query: String) : ReservedCommand
+
+    /**
      * No query, like [Settings] — `:alias` (design doc §4.7) just lists what's currently defined,
      * nothing to filter by (T144).
      */

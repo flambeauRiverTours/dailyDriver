@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.dailydriver.notes.Note
 import com.example.dailydriver.notes.NotesRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -56,8 +57,62 @@ class NoteEditorViewModel(
      * No database row is created here. An accidental `:note` that's closed immediately leaves
      * nothing behind.
      */
+    /**
+     * True when the editor should take the full available height instead of growing from a few
+     * lines (design check-in, 2026-08-20).
+     *
+     * Set when an *existing* note is opened: that's a read/edit action on something already
+     * written, so the small starting height — sized for beginning a quick note — fights you
+     * immediately. New notes still grow from small, which is the quick-capture feel T020 exists
+     * for.
+     */
+    var expanded by mutableStateOf(false)
+        private set
+
+    /**
+     * Opens a draft for `:note`. With no [initialTitle] this is a new blank note, created
+     * synchronously so the editor appears on the same frame.
+     *
+     * With a name, it **opens that note if one already exists, otherwise creates it** (T025) —
+     * so `:note standup` twice gets you back to the same note rather than a second one wearing
+     * the same name. That lookup is a database read, hence the coroutine; the editor appears a
+     * frame later in that case only.
+     */
     fun open(initialTitle: String = "") {
-        draft = NoteDraft(id = newId(), title = initialTitle.trim(), createdAt = now())
+        val name = initialTitle.trim()
+        confirmingDiscard = false
+
+        if (name.isEmpty()) {
+            draft = NoteDraft(id = newId(), title = "", createdAt = now())
+            expanded = false
+            return
+        }
+
+        viewModelScope.launch {
+            val existing = notes.byTitle(name)
+            if (existing != null) openExisting(existing) else {
+                draft = NoteDraft(id = newId(), title = name, createdAt = now())
+                expanded = false
+            }
+        }
+    }
+
+    /**
+     * Opens a note chosen from the `:notes` list (T025).
+     *
+     * `persisted = true` matters: the row already exists, so discarding must soft-delete it
+     * rather than silently forgetting a draft that was never written.
+     */
+    fun openExisting(note: Note) {
+        draft = NoteDraft(
+            id = note.id,
+            title = note.title,
+            body = note.body,
+            createdAt = note.createdAt,
+            rev = note.rev,
+            persisted = true,
+        )
+        expanded = true
         confirmingDiscard = false
     }
 

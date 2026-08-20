@@ -14,6 +14,7 @@ import com.example.dailydriver.apps.AppIndexRepository
 import com.example.dailydriver.apps.AppLauncher
 import com.example.dailydriver.editor.NoteEditorViewModel
 import com.example.dailydriver.notes.NotesRepository
+import com.example.dailydriver.notes.parseNoteQuery
 import com.example.dailydriver.notifications.NotificationRepository
 import com.example.dailydriver.settings.SettingsLauncher
 import com.example.dailydriver.shell.ShellScreen
@@ -117,6 +118,12 @@ class MainActivity : AppCompatActivity() {
                     // The editor has taken over the bottom of the screen, so ":note ..." should
                     // not still be sitting on the prompt behind it.
                     onNoteEditorOpened = viewModel::onNoteEditorOpened,
+                    // Query string in, live results out. Parsing happens here rather than in the
+                    // composable so ShellScreen never has to know a tag filter and a text search
+                    // are different queries.
+                    observeNotes = { query ->
+                        notesRepository.observe(parseNoteQuery(query))
+                    },
                 )
             }
         }

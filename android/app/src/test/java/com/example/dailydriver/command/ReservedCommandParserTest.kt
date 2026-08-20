@@ -60,6 +60,7 @@ class ReservedCommandParserTest {
         assertTrue(APPS_TOKEN in reservedCommandTokens)
         assertTrue(SETTINGS_TOKEN in reservedCommandTokens)
         assertTrue(NOTE_TOKEN in reservedCommandTokens)
+        assertTrue(NOTES_TOKEN in reservedCommandTokens)
         assertTrue(ALIAS_TOKEN in reservedCommandTokens)
         assertTrue(NOTIF_TOKEN in reservedCommandTokens)
         assertTrue(HELP_TOKEN in reservedCommandTokens)
@@ -146,6 +147,37 @@ class ReservedCommandParserTest {
         assertNull(parseReservedCommand(":Notif"))
         assertNull(parseReservedCommand(":NOTIF"))
         assertNull(parseReservedCommand(":notiffoo"))
+    }
+
+    // --- T025/T026: :notes, and the first real prefix collision -------------------------------
+
+    @Test
+    fun `bare colon-notes parses to the Notes variant with an empty query`() {
+        assertEquals(ReservedCommand.Notes(""), parseReservedCommand(NOTES_TOKEN))
+    }
+
+    @Test
+    fun `colon-notes captures its search query`() {
+        assertEquals(ReservedCommand.Notes("standup"), parseReservedCommand(":notes standup"))
+        assertEquals(ReservedCommand.Notes("#work"), parseReservedCommand(":notes #work"))
+    }
+
+    @Test
+    fun `a token that is a strict prefix of another does not swallow it`() {
+        // ":note" + "s". This pair is why matchCommandToken requires an exact match or
+        // token-then-SPACE — with a plain startsWith, ":notes" would resolve to Note("s") and
+        // the note browser would be unreachable. Registry order is irrelevant precisely because
+        // of that rule, and this is the case that proves it rather than asserting it abstractly.
+        assertEquals(ReservedCommand.Note(""), parseReservedCommand(":note"))
+        assertEquals(ReservedCommand.Notes(""), parseReservedCommand(":notes"))
+        assertEquals(ReservedCommand.Note("standup"), parseReservedCommand(":note standup"))
+        assertEquals(ReservedCommand.Notes("standup"), parseReservedCommand(":notes standup"))
+    }
+
+    @Test
+    fun `colon-notes is case-sensitive and not a prefix match, like every other T0 token`() {
+        assertNull(parseReservedCommand(":Notes"))
+        assertNull(parseReservedCommand(":notesfoo"))
     }
 
     // --- T145: :help and its bare-? shorthand -------------------------------------------------

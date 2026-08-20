@@ -52,6 +52,8 @@ Opened by `:note` (bare) or `:note <name>` (pre-fills the title); opening an *ex
 - **A blank title becomes a `Wed 19 Aug - 14:32` stamp derived from `createdAt`, never `now()`** — otherwise the title drifts on every autosave, and an entry written past midnight would change date mid-write.
 - **✓ keeps, ✗ discards** (soft delete). ✗ confirms when there's content to lose **only because T138's undo doesn't exist yet — delete that confirmation when it does.**
 - **BACK keeps rather than discards.** It's ambiguous, and autosave has already written the text.
+- **`:notes [query]` browses and searches** (T025/T026, `shell/NoteListView.kt`); `:note` still writes one, and `:note <name>` opens-or-creates. Rows are two lines — title plus body snippet — because blank titles default to a timestamp and a list of those is unidentifiable. Opening an existing note expands the editor to full height.
+- **⚠️ Auto-space only applies to `autoSpaceableTokens`, not every token.** `:note`/`:notes` is a prefix pair: auto-spacing `:note` on completion made `:notes` untypeable (the `s` landed after the inserted space). Any future token that is a prefix of another inherits this — the rule is enforced in `ReservedCommandParser` and pinned by a test, so don't reintroduce `reservedCommandTokens` at that call site.
 
 ## Kotlin/Compose conventions
 
