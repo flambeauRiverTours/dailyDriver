@@ -29,6 +29,26 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+/**
+ * Header action glyphs.
+ *
+ * `×` (U+00D7 MULTIPLICATION SIGN), **not** `✗` (U+2717 BALLOT X): the ballot X is drawn with
+ * deliberately irregular, hand-inked strokes in most fonts, which reads as sketchy next to a
+ * monospace terminal. The multiplication sign is two straight strokes at a right angle — the
+ * geometric, minimal form, and the one every close affordance already uses.
+ *
+ * `✓` (U+2713) is kept: it's already two straight strokes, and the obvious "straighter"
+ * substitutes are worse here. An arrow like `↵` reads as *insert a newline* when it's sitting in
+ * the header of a text editor, which is actively misleading rather than merely plain.
+ *
+ * Sized up from body text because both are small glyphs — `×` in particular is a math operator
+ * and renders noticeably smaller than surrounding letters at the same point size.
+ */
+private const val DISCARD_GLYPH = "×"
+private const val KEEP_GLYPH = "✓"
+private val GLYPH_SIZE = 22.sp
 
 /** Test anchors, following the convention in `ShellTestTags`. */
 internal object EditorTestTags {
@@ -93,10 +113,10 @@ fun NoteEditorView(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             EditorAction(
-                label = "✗",
+                label = DISCARD_GLYPH,
                 tag = EditorTestTags.DISCARD_BUTTON,
                 // Dimmed: destructive, and should never be the thing your eye lands on first.
-                style = dim,
+                style = dim.copy(fontSize = GLYPH_SIZE),
                 onClick = onDiscard,
             )
 
@@ -135,9 +155,9 @@ fun NoteEditorView(
             )
 
             EditorAction(
-                label = "✓",
+                label = KEEP_GLYPH,
                 tag = EditorTestTags.KEEP_BUTTON,
-                style = textStyle,
+                style = textStyle.copy(fontSize = GLYPH_SIZE),
                 onClick = onKeep,
             )
         }
