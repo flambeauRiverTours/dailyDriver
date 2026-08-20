@@ -5,6 +5,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
@@ -32,6 +35,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var aliasRepository: AliasRepository
     private lateinit var notificationRepository: NotificationRepository
     private lateinit var notesRepository: NotesRepository
+
+    // Bumped on every window-focus regain (T015) — a Compose State so ShellScreen's focus
+    // LaunchedEffect can key off it and re-request focus on the input line. Covers the HOME
+    // button/gesture, but also BACK-from-another-app and dismissing the notification shade —
+    // all of them are "you're back at the launcher" and should behave the same way.
+    private var focusRegainedSignal by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Forces this app's own night-mode Configuration flag on, independent of the system-wide
@@ -124,6 +133,7 @@ class MainActivity : AppCompatActivity() {
                     observeNotes = { query ->
                         notesRepository.observe(parseNoteQuery(query))
                     },
+                    focusRegainedSignal = focusRegainedSignal,
                 )
             }
         }
@@ -136,7 +146,14 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) enterImmersiveMode()
+        if (hasFocus) {
+            enterImmersiveMode()
+            // T015: HOME re-focuses the input. Regaining window focus is the general form of
+            // "back at the launcher" — the HOME button/gesture chief among them, but also BACK
+            // from an app with an empty back stack, or dismissing the shade — so one signal here
+            // covers all of them instead of special-casing the HOME intent alone.
+            focusRegainedSignal++
+        }
     }
 
     /**
