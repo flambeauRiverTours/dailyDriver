@@ -23,6 +23,11 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // NOTE: Room schema export is deliberately NOT enabled here — see DailyDriverDatabase's
+    // `exportSchema` comment and T151. Adding `ksp { arg("room.schemaLocation", ...) }` on Room
+    // 2.8.4 in this project builds once and then fails every subsequent build with an
+    // AbstractMethodError inside kotlinx-serialization. Re-enable it via T151, not by accident.
+
     buildTypes {
         release {
             isMinifyEnabled = false
