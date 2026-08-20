@@ -43,4 +43,19 @@ Trunk-based. `main` is the only long-lived branch; everything else is short-live
 
 ## Commits
 
-Reference the task ID from `docs/tasks.md` (format `Txxx`), e.g. `T098 · Create monorepo skeleton`.
+Conventional commits, with the task ID leading the summary:
+
+```
+<type>(<scope>): Txxx <summary>
+```
+
+e.g. `feat(android): T003 build app index from PackageManager`
+
+- **Types in use:** `feat`, `fix`, `docs`, `chore`.
+- **Scope is the module** — `android`, `desktop`, `backend`, `infra` — and is **omitted when the change is repo-wide**, which is why `docs:` and `chore:` commits usually carry none.
+- **Reference the task ID** from `docs/tasks.md` (format `Txxx`) whenever a commit serves one. Housekeeping with no task behind it (`chore: remove fulfilled .github/TODO.txt placeholder`) legitimately has none — don't invent one to fill the slot.
+- **Multiple tasks are space-separated**, e.g. `docs: T100 T101 T102 module CLAUDE.md files`.
+
+This matches `.github/pull_request_template.md`'s checklist, which is the other place this is written down — keep the two in step.
+
+**Corrected 2026-08-19.** This section used to read "Reference the task ID … e.g. `T098 · Create monorepo skeleton`" — the shape of the repo's *first* commit, from before the convention settled at T107 (`docs: T107 PR template + commit convention fix`). The example was never updated to match, so it contradicted the PR template for ~140 tasks and misled a later session into a run of non-conforming `Txxx · summary` commits. Those stay in history; don't rewrite them, and don't copy them either.
