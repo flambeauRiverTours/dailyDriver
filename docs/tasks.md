@@ -165,6 +165,7 @@ Daily-drivable as your real home screen, zero ML.
 - [ ] **T015** — BACK/HOME key behaviour  
   `P1` `S` · after: T004, T020
   - BACK is a no-op at the prompt, but **closes the editor overlay** when open — the only state where BACK does anything. HOME re-focuses input.
+  - **Unblocked as of 2026-08-20, and half-built.** T020 shipped the editor's `BackHandler` because an overlay with no way out is a trap — and it deliberately treats BACK as *keep*, not discard, since BACK means "go back" to most people and autosave has already written the text. **What's left here is HOME re-focusing the input**, plus deciding whether BACK's editor behaviour belongs in `ShellScreen` (where it is now, next to the overlay it closes) or moves into whatever T015 builds.
 - [ ] **T016** — Scrollback cap + clear on process death  
   `P2` `S` · after: T004
   - Ephemeral, never synced.
@@ -740,4 +741,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**150 tasks — 37 done, 113 open** (recounted 2026-08-19). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**150 tasks — 40 done, 110 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
