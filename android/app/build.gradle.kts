@@ -23,6 +23,14 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Room's exported schema JSON (T018). Committed, not generated-and-ignored: it's the record
+    // of what shipped, and it's what MigrationTestHelper reads to verify a future migration
+    // actually produces the schema it claims to. Without it, migrations can only be tested by
+    // hand against a device that happens to have old data on it.
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

@@ -12,6 +12,8 @@ T146/T148/T149 added the status row (clock, date, unread-notification dot) and i
 
 **Not yet verified on-device:** T146, T147, T148, T149 — permission grant/revoke and real notification/window behavior can't be unit-tested, so these are the ones to actually run before trusting them.
 
+**Phase 1 has started ahead of Phase 0's exit gate.** T018 landed the notes/outbox/tags Room schema (`dailydriver.db`, replacing T007's aliases-only database — one DB, because a transaction can't span two SQLite files and the outbox guarantee depends on it). Its instrumented tests are written but **unrun** — see T018's note.
+
 **Still open:** T014 (training-data log — land **before** T017, since daily-driving without it throws away real usage T075 needs), T016 (scrollback cap), T017 (install as daily driver — the Phase 0 exit gate, not yet done). T015 stays blocked on T020.
 
 Exit criterion: daily-drivable as the real home screen with T0/T1/T3 only, zero ML. Update this line as phases complete — see `docs/design.md` §9 for the full phase table.
