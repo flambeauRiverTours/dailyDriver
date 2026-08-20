@@ -114,6 +114,80 @@ class TranscriptTest {
         assertEquals("out50", transcript.entries.last().text)
     }
 
+    // --- the cap (T016) ---------------------------------------------------------------------------
+
+    /** [records] commands, each of which contributes two entries. */
+    private fun transcriptOf(records: Int) =
+        (1..records).fold(Transcript()) { acc, i -> acc.record("cmd$i", "out$i") }
+
+    /** The number of commands that exactly fills the cap. */
+    private val recordsAtCap = MAX_TRANSCRIPT_ENTRIES / 2
+
+    @Test
+    fun `a transcript filled exactly to the cap keeps everything`() {
+        val transcript = transcriptOf(recordsAtCap)
+
+        assertEquals(MAX_TRANSCRIPT_ENTRIES, transcript.entries.size)
+        assertEquals("cmd1", transcript.entries.first().text)
+    }
+
+    @Test
+    fun `one record past the cap evicts exactly one exchange`() {
+        val transcript = transcriptOf(recordsAtCap + 1)
+
+        assertEquals(MAX_TRANSCRIPT_ENTRIES, transcript.entries.size)
+        assertEquals("cmd2", transcript.entries.first().text)
+    }
+
+    @Test
+    fun `the cap is not exceeded no matter how many records arrive`() {
+        // The launcher is the home screen — this process is resumed and paused for months rather
+        // than restarted, so "eventually" here is a real state, not a stress test.
+        val transcript = transcriptOf(MAX_TRANSCRIPT_ENTRIES * 3)
+
+        assertEquals(MAX_TRANSCRIPT_ENTRIES, transcript.entries.size)
+    }
+
+    @Test
+    fun `it is the oldest entries that fall off`() {
+        val records = recordsAtCap * 2
+
+        val transcript = transcriptOf(records)
+
+        // Only the most recent `recordsAtCap` commands survive.
+        assertEquals("cmd${records - recordsAtCap + 1}", transcript.entries.first().text)
+        assertEquals("out$records", transcript.entries.last().text)
+    }
+
+    @Test
+    fun `trimming never orphans an output from its input`() {
+        // The reason the cap is even. An input is always followed by its own output, so a
+        // scrollback can never open on an answer to a question that's already been dropped.
+        val transcript = transcriptOf(MAX_TRANSCRIPT_ENTRIES * 2)
+
+        transcript.entries.forEachIndexed { index, entry ->
+            assertEquals("entry $index", index % 2 == 0, entry is TranscriptEntry.Input)
+        }
+    }
+
+    @Test
+    fun `a transcript under the cap is left completely alone`() {
+        val transcript = transcriptOf(3)
+
+        assertEquals(6, transcript.entries.size)
+        assertEquals("cmd1", transcript.entries.first().text)
+    }
+
+    @Test
+    fun `blank input does not consume cap headroom`() {
+        // record() ignores blank input entirely, so a run of stray Enters can't evict real history.
+        val filled = transcriptOf(1)
+
+        val afterBlanks = (1..10).fold(filled) { acc, _ -> acc.record("   ", "ignored") }
+
+        assertEquals(filled, afterBlanks)
+    }
+
     @Test
     fun `record returns a new instance rather than the receiver`() {
         val original = Transcript()

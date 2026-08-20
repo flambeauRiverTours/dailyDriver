@@ -114,8 +114,12 @@ fun ShellScreen(
      * the input"). An `Int` rather than a one-shot event/callback so the existing focus
      * [LaunchedEffect] below can simply add it as a second key, the same way [editor]'s own state
      * already re-triggers that effect.
+     *
+     * Deliberately has no default: `modifier` must stay the *first optional* parameter (Compose
+     * convention, and lint's `ModifierParameter` check), and there's exactly one call site, which
+     * always has a real value to pass.
      */
-    focusRegainedSignal: Int = 0,
+    focusRegainedSignal: Int,
     modifier: Modifier = Modifier,
 ) {
     // Apps has a browse-mode UI, and so does Notif — but only once access is granted; without it

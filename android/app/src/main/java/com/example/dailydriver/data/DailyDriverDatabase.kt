@@ -33,15 +33,19 @@ class Converters {
  * putting them anywhere else buys a second connection pool and a second migration history in
  * exchange for nothing.
  *
- * **`exportSchema = false`, reluctantly — this is a known gap, tracked as T151.** Exporting the
- * schema is what would make future migrations reviewable and testable (`MigrationTestHelper`
- * reads that JSON), and it was enabled during T018 before being backed out: on Room 2.8.4 here it
- * exports successfully exactly once, then fails *every* subsequent build with
- * `AbstractMethodError: …FieldBundle$$serializer… typeParametersSerializers()` — Room's schema
- * bundles use kotlinx-serialization and the version on the KSP processor classpath is
- * incompatible. Reading back an existing schema is what trips it, which is why a clean build
- * looks fine and the next one doesn't. Worth solving before the first real migration, not by
- * flipping this flag and rediscovering the same failure.
+ * **`exportSchema = true` (T151).** The exported JSON under `app/schemas/` is what makes future
+ * migrations reviewable in a diff and testable via `MigrationTestHelper`. T018 enabled this and
+ * had to back it out — it exported once and then failed *every* subsequent build with
+ * `AbstractMethodError: …FieldBundle$$serializer… typeParametersSerializers()`. The cause turned
+ * out to be the KSP processor's classloader rather than Room or a bad dependency version: KSP1
+ * loads processors into the Kotlin compiler's own classloader, where the compiler-embedded
+ * kotlinx-serialization shadows the newer one Room 2.8.4 compiles its schema-bundle serializers
+ * against. Reading an existing schema back is the path that touches those serializers, which is
+ * why a clean build looked fine and the next one didn't. Switching to KSP2 (`ksp.useKSP2=true`)
+ * gives the processor its own classloader and resolves it — see the note in `gradle.properties`.
+ *
+ * **If that error ever reappears, do not flip this back to `false`**: it means the KSP2 flag was
+ * lost, and that flag is the thing to restore.
  *
  * Still version 1: this is a *new* database file, not a migration of `aliases.db`. Room
  * migrations operate within one file, so the old aliases are carried across by
@@ -56,7 +60,7 @@ class Converters {
         SyncState::class,
     ],
     version = 1,
-    exportSchema = false,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class DailyDriverDatabase : RoomDatabase() {
