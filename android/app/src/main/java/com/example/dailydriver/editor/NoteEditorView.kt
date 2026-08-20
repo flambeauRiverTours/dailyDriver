@@ -31,6 +31,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.dailydriver.notes.ChecklistItem
+import com.example.dailydriver.notes.NoteType
 
 /**
  * Header action glyphs.
@@ -61,6 +63,9 @@ internal object EditorTestTags {
     const val BODY_FIELD = "editor_body_field"
     const val KEEP_BUTTON = "editor_keep"
     const val DISCARD_BUTTON = "editor_discard"
+    const val OVERFLOW_BUTTON = "editor_overflow"
+    const val CONVERT_ACTION = "editor_convert"
+    const val HIDE_CHECKED_ACTION = "editor_hide_checked"
 }
 
 /**
@@ -90,6 +95,8 @@ fun NoteEditorView(
     onBodyChange: (String) -> Unit,
     onKeep: () -> Unit,
     onDiscard: () -> Unit,
+    /** The checklist surface's state and callbacks (T023/T024) — see [ChecklistBinding]. */
+    checklist: ChecklistBinding,
     textStyle: TextStyle,
     // `modifier` stays the first optional parameter, per Compose convention (and lint's
     // ModifierParameter check) — `expanded` goes after it, not before.
@@ -174,26 +181,125 @@ fun NoteEditorView(
             )
         }
 
-        BasicTextField(
-            value = draft.body,
-            onValueChange = onBodyChange,
-            textStyle = textStyle,
-            cursorBrush = SolidColor(textStyle.color),
-            keyboardOptions = KeyboardOptions(autoCorrectEnabled = true),
-            modifier = Modifier
-                .fillMaxWidth()
-                // Growing from a couple of lines up to a ceiling is the quick-capture shape;
-                // past the ceiling the body scrolls internally rather than pushing the transcript
-                // off the top. Opening an existing note skips straight to full height instead —
-                // re-reading a journal entry through a six-line window is miserable.
-                .then(
-                    if (expanded) Modifier.fillMaxHeight() else Modifier.heightIn(min = 48.dp, max = 420.dp),
-                )
-                .verticalScroll(rememberScrollState())
-                .padding(top = 8.dp)
-                .focusRequester(bodyFocus)
-                .testTag(EditorTestTags.BODY_FIELD),
+        // Prose or checkboxes — the type picks the surface, and the body underneath is the same
+        // Markdown either way (T023). A checklist doesn't get the freeform field at all: mixing
+        // them would mean two ways to edit the same lines that could disagree mid-keystroke.
+        val bodyModifier = Modifier
+            .fillMaxWidth()
+            // Growing from a couple of lines up to a ceiling is the quick-capture shape;
+            // past the ceiling the body scrolls internally rather than pushing the transcript
+            // off the top. Opening an existing note skips straight to full height instead —
+            // re-reading a journal entry through a six-line window is miserable.
+            //
+            // `weight(1f)`, not `fillMaxHeight()`: the latter takes the whole column and leaves
+            // nothing for the overflow row below, which on-device meant convert and hide-checked
+            // simply weren't on screen for any note opened from `:notes`. Weight lets the row
+            // claim its height first and gives the body the rest.
+            .then(
+                if (expanded) Modifier.weight(1f) else Modifier.heightIn(min = 48.dp, max = 420.dp),
+            )
+
+        if (draft.type == NoteType.CHECKLIST) {
+            ChecklistView(
+                items = checklist.items,
+                onItemTextChange = checklist.onItemTextChange,
+                onItemCheckedChange = checklist.onItemCheckedChange,
+                onDeleteItem = checklist.onDeleteItem,
+                onMoveItem = checklist.onMoveItem,
+                onAddItem = checklist.onAddItem,
+                textStyle = textStyle,
+                modifier = bodyModifier.padding(top = 8.dp),
+            )
+        } else {
+            BasicTextField(
+                value = draft.body,
+                onValueChange = onBodyChange,
+                textStyle = textStyle,
+                cursorBrush = SolidColor(textStyle.color),
+                keyboardOptions = KeyboardOptions(autoCorrectEnabled = true),
+                modifier = bodyModifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = 8.dp)
+                    .focusRequester(bodyFocus)
+                    .testTag(EditorTestTags.BODY_FIELD),
+            )
+        }
+
+        // The overflow row (T024, inherited from T022). §4.6 puts it along the bottom next to the
+        // tag chips, which is also where T139's chips will land — so this row is their home too,
+        // built once rather than added and then rearranged.
+        OverflowRow(
+            isChecklist = draft.type == NoteType.CHECKLIST,
+            hideChecked = checklist.hideChecked,
+            onToggleType = checklist.onToggleType,
+            onToggleHideChecked = checklist.onToggleHideChecked,
+            textStyle = dim,
         )
+    }
+}
+
+/**
+ * Everything the checklist surface and its overflow actions need, bundled rather than passed as
+ * eight more parameters to [NoteEditorView].
+ *
+ * Exists because the editor's parameter list was already at the point where adding a feature
+ * meant adding six arguments to a call site that has no opinion about any of them — `ShellScreen`
+ * builds one of these from the ViewModel and hands it straight through.
+ */
+data class ChecklistBinding(
+    val items: List<ChecklistItem>,
+    val hideChecked: Boolean,
+    val onItemTextChange: (index: Int, text: String) -> Unit,
+    val onItemCheckedChange: (index: Int, checked: Boolean) -> Unit,
+    val onDeleteItem: (index: Int) -> Unit,
+    val onMoveItem: (from: Int, to: Int) -> Unit,
+    val onAddItem: () -> Unit,
+    val onToggleType: () -> Unit,
+    val onToggleHideChecked: () -> Unit,
+)
+
+/**
+ * The bottom action row: convert, and — for a checklist — hide/show checked items.
+ *
+ * **Not a popup menu.** `⋯` opening a floating list would be the conventional Android answer, but
+ * this surface is a terminal: everything else in it is a labelled line of text you tap. Two
+ * actions also don't earn the indirection of hiding them behind a tap that reveals them, and
+ * `DiscardConfirmation` already set the precedent of an inline row over a dialog. If this ever
+ * grows past three or four, revisit.
+ */
+@Composable
+private fun OverflowRow(
+    isChecklist: Boolean,
+    hideChecked: Boolean,
+    onToggleType: () -> Unit,
+    onToggleHideChecked: () -> Unit,
+    textStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(EditorTestTags.OVERFLOW_BUTTON),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        EditorAction(
+            // Names the destination, not the operation: "→ checklist" says what you'll get, where
+            // "convert" would leave you guessing which direction it goes.
+            label = if (isChecklist) "→ note" else "→ checklist",
+            tag = EditorTestTags.CONVERT_ACTION,
+            style = textStyle,
+            onClick = onToggleType,
+        )
+
+        if (isChecklist) {
+            EditorAction(
+                label = if (hideChecked) "show checked" else "hide checked",
+                tag = EditorTestTags.HIDE_CHECKED_ACTION,
+                style = textStyle,
+                onClick = onToggleHideChecked,
+            )
+        }
     }
 }
 
@@ -205,7 +311,7 @@ fun NoteEditorView(
  * these deletes your note.
  */
 @Composable
-private fun EditorAction(label: String, tag: String, style: TextStyle, onClick: () -> Unit) {
+internal fun EditorAction(label: String, tag: String, style: TextStyle, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .testTag(tag)

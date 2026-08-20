@@ -25,6 +25,15 @@ data class NoteDraft(
     val createdAt: Long,
     val rev: Long? = null,
     val persisted: Boolean = false,
+    /**
+     * Prose or checkbox list (T023/T024). Decides which surface the editor renders, and is the
+     * only thing note↔checklist conversion changes besides reformatting [body].
+     *
+     * **[body] stays the single source of truth either way** — a checklist's items are parsed out
+     * of it on demand ([com.example.dailydriver.notes.parseChecklist]) rather than held beside it,
+     * so this field selects a *view*, never a second copy of the data.
+     */
+    val type: NoteType = NoteType.NOTE,
 )
 
 /** Whether there's anything worth keeping. An untouched draft is discarded silently on close. */
@@ -63,9 +72,6 @@ fun defaultNoteTitle(
 /**
  * Converts a draft into the row to store. Tags aren't passed — `NoteDao.upsertLocal` derives them
  * from the body (T019), which is what keeps the body the single source of truth.
- *
- * [NoteType.NOTE] unconditionally for now; `:note` only creates prose, and the checklist type is
- * reached by conversion at T024.
  */
 fun NoteDraft.toNote(
     sourceDevice: String,
@@ -75,7 +81,7 @@ fun NoteDraft.toNote(
     locale: Locale = Locale.getDefault(),
 ): Note = Note(
     id = id,
-    type = NoteType.NOTE,
+    type = type,
     title = resolvedTitle(zone, is24Hour, locale),
     body = body,
     createdAt = createdAt,

@@ -15,6 +15,9 @@ appcompat = "1.7.0"
 room = "2.8.4"
 ksp = "2.0.21-1.0.28"
 orgJson = "20250107"
+# Must match what room-migration 2.8.4 compiled its schema-bundle serializers against — see the
+# kotlinx-serialization-core note in app/build.gradle.kts (T023).
+kotlinxSerialization = "1.8.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -34,6 +37,7 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 # MigrationTestHelper, for validating the exported schema against the compiled entities (T151).
 androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }

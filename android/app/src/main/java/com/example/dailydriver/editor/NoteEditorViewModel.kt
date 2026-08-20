@@ -6,8 +6,17 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.dailydriver.notes.ChecklistItem
 import com.example.dailydriver.notes.Note
+import com.example.dailydriver.notes.NoteType
 import com.example.dailydriver.notes.NotesRepository
+import com.example.dailydriver.notes.moved
+import com.example.dailydriver.notes.normalized
+import com.example.dailydriver.notes.parseChecklist
+import com.example.dailydriver.notes.renderChecklist
+import com.example.dailydriver.notes.toChecklistBody
+import com.example.dailydriver.notes.toNoteBody
+import com.example.dailydriver.notes.cleaned
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -82,6 +91,8 @@ class NoteEditorViewModel(
         val name = initialTitle.trim()
         confirmingDiscard = false
 
+        hideChecked = false
+
         if (name.isEmpty()) {
             draft = NoteDraft(id = newId(), title = "", createdAt = now())
             expanded = false
@@ -111,14 +122,117 @@ class NoteEditorViewModel(
             createdAt = note.createdAt,
             rev = note.rev,
             persisted = true,
+            type = note.type,
         )
         expanded = true
         confirmingDiscard = false
+        hideChecked = false
     }
 
     fun onTitleChange(value: String) = edit { it.copy(title = value) }
 
     fun onBodyChange(value: String) = edit { it.copy(body = value) }
+
+    // --- checklist (T023) -------------------------------------------------------------------------
+
+    /**
+     * The draft's checklist items, parsed from the body every time rather than cached beside it.
+     *
+     * That's the whole design: §6.2 permits one source of truth, so there is no item list to fall
+     * out of step with the text. Re-parsing per read is a handful of string operations on a
+     * grocery list — small enough that buying consistency with it is obviously the right trade.
+     */
+    val items: List<ChecklistItem> get() = draft?.let { parseChecklist(it.body) }.orEmpty()
+
+    /**
+     * Items as *displayed*: [items], minus the checked ones while [hideChecked] is on (T024).
+     *
+     * Indices into this list are not indices into [items] — every mutation below takes a
+     * displayed index and resolves it through here, so hiding checked items can't silently make
+     * a tap land on the wrong row.
+     */
+    val visibleItems: List<ChecklistItem> get() = items.visible(hideChecked)
+
+    /**
+     * Hide-checked-items (T024). **Transient by design** (check-in, 2026-08-20): it resets when
+     * the note closes. Persisting it would mean a new column, schema v2, and a change to §6.2's
+     * document model that the C# side has to match — a lot of moving parts for a display toggle,
+     * and one whose absence you'd notice within a day of daily-driving if it turned out to matter.
+     */
+    var hideChecked by mutableStateOf(false)
+        private set
+
+    fun toggleHideChecked() {
+        hideChecked = !hideChecked
+    }
+
+    /** Appends an empty item and leaves it for the UI to focus. */
+    fun addItem() = editItems { it + ChecklistItem("") }
+
+    fun onItemTextChange(displayedIndex: Int, text: String) =
+        editItems { current -> current.replacingAt(displayedIndex) { it.copy(text = text) } }
+
+    /**
+     * Ticking re-applies the unchecked-above-checked invariant, so the item drops below the
+     * unchecked ones (§4.6, Keep's behaviour) rather than staying put.
+     */
+    fun onItemCheckedChange(displayedIndex: Int, checked: Boolean) = editItems { current ->
+        current.replacingAt(displayedIndex) { it.copy(checked = checked) }.normalized()
+    }
+
+    fun deleteItem(displayedIndex: Int) = editItems { current ->
+        val actual = current.actualIndexOf(displayedIndex) ?: return@editItems current
+        current.filterIndexed { index, _ -> index != actual }
+    }
+
+    /**
+     * Commits a finished drag. Both indices are into the *displayed* list; they're resolved to
+     * real ones before the move, then the invariant is re-applied — so dragging an unchecked item
+     * into the checked group returns it to the bottom of the unchecked ones rather than leaving
+     * a list that ticking a box could never have produced.
+     */
+    fun moveItem(fromDisplayed: Int, toDisplayed: Int) = editItems { current ->
+        val from = current.actualIndexOf(fromDisplayed) ?: return@editItems current
+        val to = current.actualIndexOf(toDisplayed) ?: return@editItems current
+        current.moved(from, to).normalized()
+    }
+
+    /** Maps an index in [visibleItems] back to one in [items] — see `ChecklistDisplay.kt`. */
+    private fun List<ChecklistItem>.actualIndexOf(displayedIndex: Int): Int? =
+        actualIndex(displayedIndex, hideChecked)
+
+    private fun List<ChecklistItem>.replacingAt(
+        displayedIndex: Int,
+        transform: (ChecklistItem) -> ChecklistItem,
+    ): List<ChecklistItem> {
+        val actual = actualIndexOf(displayedIndex) ?: return this
+        return mapIndexed { index, item -> if (index == actual) transform(item) else item }
+    }
+
+    /** Every item mutation goes through the body, which is what keeps the body authoritative. */
+    private fun editItems(transform: (List<ChecklistItem>) -> List<ChecklistItem>) =
+        edit { it.copy(body = renderChecklist(transform(parseChecklist(it.body)))) }
+
+    // --- conversion (T024) ------------------------------------------------------------------------
+
+    /**
+     * Flips between prose and checklist, reformatting the body to match (§4.6).
+     *
+     * Turning hide-checked off on the way out of a checklist matters: it's the only place the
+     * toggle is reachable, so leaving it on would strand a prose note whose next conversion back
+     * would open with items already hidden and no obvious reason why.
+     */
+    fun toggleType() {
+        val current = draft ?: return
+        val becomingChecklist = current.type == NoteType.NOTE
+        edit {
+            it.copy(
+                type = if (becomingChecklist) NoteType.CHECKLIST else NoteType.NOTE,
+                body = if (becomingChecklist) toChecklistBody(it.body) else toNoteBody(it.body),
+            )
+        }
+        if (!becomingChecklist) hideChecked = false
+    }
 
     private fun edit(transform: (NoteDraft) -> NoteDraft) {
         val current = draft ?: return
@@ -163,9 +277,21 @@ class NoteEditorViewModel(
 
     /** ✓ — keep the note and leave. A blank draft is silently dropped rather than stored empty. */
     fun keepAndClose() {
+        // Checklist rows are tidied here rather than as you type: an item has to be allowed to
+        // sit empty (and to end in the space you just typed) while you're filling it in, but
+        // storing either would leave a blank checkbox, or stray whitespace, in the list forever.
+        dropEmptyItems()
         flush()
         draft = null
         confirmingDiscard = false
+        hideChecked = false
+    }
+
+    private fun dropEmptyItems() {
+        val current = draft ?: return
+        if (current.type != NoteType.CHECKLIST) return
+        val kept = parseChecklist(current.body).cleaned()
+        draft = current.copy(body = renderChecklist(kept))
     }
 
     /**
@@ -199,6 +325,7 @@ class NoteEditorViewModel(
         autosaveJob?.cancel()
         draft = null
         confirmingDiscard = false
+        hideChecked = false
     }
 
     companion object {

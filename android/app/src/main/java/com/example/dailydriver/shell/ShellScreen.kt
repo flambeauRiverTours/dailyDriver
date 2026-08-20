@@ -45,6 +45,7 @@ import com.example.dailydriver.apps.matchPreview
 import com.example.dailydriver.apps.soleAutoLaunchTarget
 import com.example.dailydriver.apps.topMatch
 import com.example.dailydriver.command.ReservedCommand
+import com.example.dailydriver.editor.ChecklistBinding
 import com.example.dailydriver.editor.DiscardConfirmation
 import com.example.dailydriver.editor.NoteEditorView
 import com.example.dailydriver.editor.NoteEditorViewModel
@@ -307,6 +308,17 @@ fun ShellScreen(
                 onBodyChange = editor::onBodyChange,
                 onKeep = editor::keepAndClose,
                 onDiscard = editor::requestDiscard,
+                checklist = ChecklistBinding(
+                    items = editor.visibleItems,
+                    hideChecked = editor.hideChecked,
+                    onItemTextChange = editor::onItemTextChange,
+                    onItemCheckedChange = editor::onItemCheckedChange,
+                    onDeleteItem = editor::deleteItem,
+                    onMoveItem = editor::moveItem,
+                    onAddItem = editor::addItem,
+                    onToggleType = editor::toggleType,
+                    onToggleHideChecked = editor::toggleHideChecked,
+                ),
                 textStyle = monospace,
                 expanded = editor.expanded,
                 modifier = if (editor.expanded) Modifier.weight(1f) else Modifier,
