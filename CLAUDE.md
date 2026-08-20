@@ -12,7 +12,7 @@ T146/T148/T149 added the status row (clock, date, unread-notification dot) and i
 
 **Not yet verified on-device:** T146, T147, T148, T149 — permission grant/revoke and real notification/window behavior can't be unit-tested, so these are the ones to actually run before trusting them.
 
-**Phase 1 has started ahead of Phase 0's exit gate.** T018 landed the notes/outbox/tags Room schema (`dailydriver.db`, replacing T007's aliases-only database — one DB, because a transaction can't span two SQLite files and the outbox guarantee depends on it), verified by 20 instrumented tests on an emulator. Those tests earned their keep immediately: they caught `INSERT OR REPLACE` on a note silently cascade-deleting its pending outbox row. T151 tracks Room schema export, which is off due to a kotlinx-serialization conflict.
+**Phase 1 has started ahead of Phase 0's exit gate.** **T020/T021 landed the note editor** — `:note` opens a bottom-anchored overlay that grows as you write, autosaves on a 500ms debounce, and returns you to the prompt with the keyboard up. Verified on-device. T018 landed the notes/outbox/tags Room schema (`dailydriver.db`, replacing T007's aliases-only database — one DB, because a transaction can't span two SQLite files and the outbox guarantee depends on it), verified by 20 instrumented tests on an emulator. Those tests earned their keep immediately: they caught `INSERT OR REPLACE` on a note silently cascade-deleting its pending outbox row. T151 tracks Room schema export, which is off due to a kotlinx-serialization conflict.
 
 **Still open:** T014 (training-data log — land **before** T017, since daily-driving without it throws away real usage T075 needs), T016 (scrollback cap), T017 (install as daily driver — the Phase 0 exit gate, not yet done). T015 stays blocked on T020.
 
@@ -51,7 +51,7 @@ Conventional commits, with the task ID leading the summary:
 
 e.g. `feat(android): T003 build app index from PackageManager`
 
-- **Types in use:** `feat`, `fix`, `docs`, `chore`.
+- **Types in use:** `feat`, `fix`, `docs`, `chore`, `style` — the last for changes with no behavioural effect at all (a glyph swap, a font size), where calling it `fix` would overstate what happened.
 - **Scope is the module** — `android`, `desktop`, `backend`, `infra` — and is **omitted when the change is repo-wide**, which is why `docs:` and `chore:` commits usually carry none.
 - **Reference the task ID** from `docs/tasks.md` (format `Txxx`) whenever a commit serves one. Housekeeping with no task behind it (`chore: remove fulfilled .github/TODO.txt placeholder`) legitimately has none — don't invent one to fill the slot.
 - **Multiple tasks are space-separated**, e.g. `docs: T100 T101 T102 module CLAUDE.md files`.

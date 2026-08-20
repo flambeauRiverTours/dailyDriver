@@ -1,0 +1,235 @@
+package com.example.dailydriver.editor
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+/**
+ * Header action glyphs.
+ *
+ * `×` (U+00D7 MULTIPLICATION SIGN), **not** `✗` (U+2717 BALLOT X): the ballot X is drawn with
+ * deliberately irregular, hand-inked strokes in most fonts, which reads as sketchy next to a
+ * monospace terminal. The multiplication sign is two straight strokes at a right angle — the
+ * geometric, minimal form, and the one every close affordance already uses.
+ *
+ * `✓` (U+2713) is kept: it's already two straight strokes, and the obvious "straighter"
+ * substitutes are worse here. An arrow like `↵` reads as *insert a newline* when it's sitting in
+ * the header of a text editor, which is actively misleading rather than merely plain.
+ *
+ * Sized modestly above body text because both are small glyphs — `×` in particular is a math
+ * operator and renders noticeably smaller than surrounding letters at the same point size. Held
+ * to 18sp rather than larger: the check's stroke weight scales with it, and at 22sp it read
+ * heavier and rounder than the crisp `×` beside it, which was the opposite of the intent. The
+ * touch target is set independently by [EditorAction], so this size is purely how the glyph
+ * looks — shrinking it costs nothing in tappability.
+ */
+private const val DISCARD_GLYPH = "×"
+private const val KEEP_GLYPH = "✓"
+private val GLYPH_SIZE = 18.sp
+
+/** Test anchors, following the convention in `ShellTestTags`. */
+internal object EditorTestTags {
+    const val TITLE_FIELD = "editor_title_field"
+    const val BODY_FIELD = "editor_body_field"
+    const val KEEP_BUTTON = "editor_keep"
+    const val DISCARD_BUTTON = "editor_discard"
+}
+
+/**
+ * The note editor (T020/T021), rendered inline in the shell rather than as a separate Activity —
+ * no `startActivity`, no window transition, no extra Recents entry (§4.6).
+ *
+ * **Bottom-anchored and grows with what you write** (design check-in, 2026-08-19). A one-line
+ * grocery note barely disturbs the screen; a journal entry expands upward until it's using most
+ * of it, with the transcript still visible above. That was the answer to serving quick capture
+ * and long-form writing from one surface, and it also matches the bottom-anchored convention every
+ * other view here already follows — `AppListView`, `NotifListView`, and the transcript all grow
+ * from the prompt upward.
+ *
+ * **Implemented as a layout swap rather than a floating `Box`.** §4.6's requirements are about
+ * Activities and windows, both of which this satisfies; a scrim-and-float would put the editor
+ * *over* the transcript, whereas growing in place keeps the transcript legible above it and gets
+ * the "grows with content" behaviour for free from the parent `Column`'s weights.
+ *
+ * **Body-first**: focus lands in the body, because `:note` should mean "start writing", not
+ * "start naming". The title is optional and falls back to a date-time stamp
+ * ([NoteDraft.resolvedTitle]).
+ */
+@Composable
+fun NoteEditorView(
+    draft: NoteDraft,
+    onTitleChange: (String) -> Unit,
+    onBodyChange: (String) -> Unit,
+    onKeep: () -> Unit,
+    onDiscard: () -> Unit,
+    textStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    val bodyFocus = remember { FocusRequester() }
+
+    // Straight into the body on open — a quick note should be one command and then typing.
+    LaunchedEffect(draft.id) { bodyFocus.requestFocus() }
+
+    val dim = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(vertical = 8.dp),
+    ) {
+        // Header: discard hard left, title centred between, keep hard right.
+        //
+        // The two actions started out adjacent at the right edge, which put a destructive control
+        // one thumb-width from the one you press constantly — a mis-tap waiting to happen, and
+        // visually ambiguous about which belonged to what. Opposite edges make the pairing
+        // obvious (leave / commit, the way a dialog reads) and puts the full width of the title
+        // between them, which is as far apart as this row can physically get them.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EditorAction(
+                label = DISCARD_GLYPH,
+                tag = EditorTestTags.DISCARD_BUTTON,
+                // Dimmed: destructive, and should never be the thing your eye lands on first.
+                style = dim.copy(fontSize = GLYPH_SIZE),
+                onClick = onDiscard,
+            )
+
+            BasicTextField(
+                value = draft.title,
+                onValueChange = onTitleChange,
+                // Centred to sit as a header between the two actions. Editable centred text does
+                // grow outward from the middle as you type, which is slightly unusual — accepted
+                // deliberately, since a title is glanced at far more often than it's edited.
+                textStyle = textStyle.copy(textAlign = TextAlign.Center),
+                singleLine = true,
+                cursorBrush = SolidColor(textStyle.color),
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Next,
+                    // Same reasoning as the shell's input line: a title can be a command-ish
+                    // string or a tag, and autocorrect mangling it silently is worse than typos.
+                    autoCorrectEnabled = false,
+                ),
+                decorationBox = { field ->
+                    // The placeholder is centred by a wrapping Box rather than by giving it
+                    // fillMaxWidth(). A singleLine field measures its inner content with
+                    // UNBOUNDED width so it can scroll horizontally, and fillMaxWidth against an
+                    // infinite constraint is how you hang the measure pass — which is exactly
+                    // what happened here, as an ANR. The Box sizes to its children instead, and
+                    // the inner field is the wide one, so the placeholder still lands centred.
+                    Box(contentAlignment = Alignment.Center) {
+                        // Shown so the blank-title fallback is visible up front rather than a
+                        // surprise on save.
+                        if (draft.title.isEmpty()) Text(text = "untitled", style = dim)
+                        field()
+                    }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(EditorTestTags.TITLE_FIELD),
+            )
+
+            EditorAction(
+                label = KEEP_GLYPH,
+                tag = EditorTestTags.KEEP_BUTTON,
+                style = textStyle.copy(fontSize = GLYPH_SIZE),
+                onClick = onKeep,
+            )
+        }
+
+        BasicTextField(
+            value = draft.body,
+            onValueChange = onBodyChange,
+            textStyle = textStyle,
+            cursorBrush = SolidColor(textStyle.color),
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = true),
+            modifier = Modifier
+                .fillMaxWidth()
+                // Grows with content from a couple of lines up to a ceiling, past which the body
+                // scrolls internally rather than pushing the transcript off the top entirely.
+                .heightIn(min = 48.dp, max = 420.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(top = 8.dp)
+                .focusRequester(bodyFocus)
+                .testTag(EditorTestTags.BODY_FIELD),
+        )
+    }
+}
+
+/**
+ * Text, not an icon: this project ships no icon set and the whole surface is monospace.
+ *
+ * Sized to a real touch target rather than hugging the glyph. A bare `Text` with a few dp of
+ * padding is a ~20dp tap area, which is fine to *look* at and unpleasant to *hit* — and one of
+ * these deletes your note.
+ */
+@Composable
+private fun EditorAction(label: String, tag: String, style: TextStyle, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .testTag(tag)
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            // Plain clickable, ripple and all — matching AppListView's rows rather than
+            // introducing a second tap treatment for no reason.
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, style = style)
+    }
+}
+
+/**
+ * Confirmation shown when ✗ would destroy actual writing. Not a dialog — a line above the editor,
+ * consistent with everything else in this shell being text.
+ *
+ * This exists only because T138's undo snackbar doesn't yet, and discard has no way back from the
+ * UI. Once undo lands, this should go: confirmations on reversible actions are pure friction.
+ */
+@Composable
+fun DiscardConfirmation(
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    textStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "discard this note?", style = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+        EditorAction(label = "discard", tag = "editor_confirm_discard", style = textStyle, onClick = onConfirm)
+        EditorAction(label = "keep", tag = "editor_cancel_discard", style = textStyle, onClick = onCancel)
+    }
+}

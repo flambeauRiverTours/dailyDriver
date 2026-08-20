@@ -75,14 +75,10 @@ class ShellViewModel : ViewModel() {
             // reaches here (see onNotifAccessSettingsOpened) — reaching here in that state would
             // mean that interception broke, so the same no-op is still the safe default.
             is ReservedCommand.Notif -> return
-            // T143: the real editor overlay is T020, which doesn't exist yet. Recorded as a
-            // normal exchange (not silently dropped) so the launcher gives an honest answer
-            // instead of looking broken — same shape as the T2/T3 placeholders below.
-            is ReservedCommand.Note -> {
-                transcript = transcript.record(input, NOTE_NOT_BUILT_YET)
-                input = ""
-                return
-            }
+            // T143 recorded a placeholder here until T020 existed; now ShellScreen intercepts
+            // this and opens the editor, so reaching onSubmit would mean that broke. No-op
+            // defensively rather than recording ":note" as a bogus command, same as Settings.
+            is ReservedCommand.Note -> return
             // T145. Like Note, this wants onSubmit's normal record-and-clear — helpText() is
             // pure and needs no Context or repository, so there's nothing for ShellScreen to
             // resolve first the way :alias needs the live aliases map.
@@ -122,6 +118,16 @@ class ShellViewModel : ViewModel() {
      * transcript entry either, same reasoning as [onAppLaunched] for a launched app.
      */
     fun onSettingsLaunched() {
+        input = ""
+    }
+
+    /**
+     * Clears the prompt once `:note` has handed off to the editor (T020). Nothing is recorded to
+     * the transcript: the editor appearing *is* the response, the same reasoning
+     * [onAliasExpanded] uses for a reserved command, and a `:note` line in the scrollback would
+     * be noise you'd scroll past forever.
+     */
+    fun onNoteEditorOpened() {
         input = ""
     }
 
@@ -183,11 +189,4 @@ class ShellViewModel : ViewModel() {
         input = ""
     }
 
-    private companion object {
-        /**
-         * Placeholder for `:note` (T143) until the real editor overlay (T020) exists. The last
-         * of these — T009's two T2/T3 placeholders were replaced by real output at T010.
-         */
-        const val NOTE_NOT_BUILT_YET = "will open notes in the future (T020)"
-    }
 }
