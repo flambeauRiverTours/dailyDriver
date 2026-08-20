@@ -37,7 +37,13 @@ fun parseChecklist(body: String): List<ChecklistItem> =
             val marker = TASK_MARKER.matchEntire(line)
             when {
                 marker != null -> ChecklistItem(
-                    text = marker.groupValues[2].trim(),
+                    // **Not trimmed**, and that is load-bearing. The body is the live editing
+                    // buffer, so every keystroke round-trips through render → parse; trimming here
+                    // strips the space you just typed before you can type the word after it, and
+                    // "peanut butter" comes out "peanutbutter". Leading whitespace is already
+                    // consumed by the marker pattern, and trailing whitespace is tidied on close
+                    // ([cleaned]) — where it costs nothing, because you've stopped typing.
+                    text = marker.groupValues[2],
                     checked = !marker.groupValues[1].equals(" ", ignoreCase = true),
                 )
 
@@ -82,7 +88,7 @@ fun toChecklistBody(body: String): String = renderChecklist(parseChecklist(body)
  * body, which round-trips perfectly but hands you back a "note" full of the `- [ ]` litter you
  * converted away from, and contradicts §4.6's "conversion reformats the body".
  */
-fun toNoteBody(body: String): String = parseChecklist(body).joinToString("\n") { it.text }
+fun toNoteBody(body: String): String = parseChecklist(body).cleaned().joinToString("\n") { it.text }
 
 /**
  * Unchecked items first, checked below, each group keeping its existing relative order (T023).
@@ -110,5 +116,12 @@ fun List<ChecklistItem>.moved(from: Int, to: Int): List<ChecklistItem> {
     return toMutableList().apply { add(to, removeAt(from)) }
 }
 
-/** Drops items with nothing in them — applied on close so half-typed rows aren't stored (T023). */
-fun List<ChecklistItem>.withoutEmpties(): List<ChecklistItem> = filter { it.text.isNotEmpty() }
+/**
+ * Tidies items for storage — applied on close (T023).
+ *
+ * Trims each one and drops whatever's left blank, which covers both the half-typed row you never
+ * filled in and the trailing space [parseChecklist] deliberately preserves while you're typing.
+ * Doing it here rather than at parse time is what lets a space be typed at all.
+ */
+fun List<ChecklistItem>.cleaned(): List<ChecklistItem> =
+    map { it.copy(text = it.text.trim()) }.filter { it.text.isNotEmpty() }

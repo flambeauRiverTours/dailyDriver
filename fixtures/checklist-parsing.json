@@ -5,77 +5,134 @@
     "A task marker is a '-', '*' or '+' bullet, whitespace, then '[ ]', '[x]' or '[X]'. Leading indentation is tolerated and discarded — nested checklists are not modelled.",
     "'[x]' and '[X]' are both checked. Only '[ ]' is unchecked.",
     "Any other non-blank line is an unchecked item carrying that line's trimmed text. This is what makes note-to-checklist conversion a parse rather than a special case.",
+    "Item text is NOT trimmed at parse time. Leading whitespace is already consumed by the marker pattern, but trailing whitespace is preserved: the body is the live editing buffer, so every keystroke round-trips through render and parse, and trimming here would strip the space just typed before the next word could be entered ('peanut butter' becoming 'peanutbutter'). Tidying happens on close instead, via cleaned().",
     "Blank lines are dropped: no checkbox to render, no text to keep.",
     "Rendering writes '- [ ] text' or '- [x] text', and bare '- [ ]' for an empty item (no trailing whitespace).",
     "toNoteBody strips markers and keeps text, joined by newlines. It round-trips the words, not the ticks: checklist-to-note-to-checklist returns every item unchecked, because prose has nowhere to record a checkbox.",
-    "normalized() puts unchecked items before checked ones, each group keeping its relative order. A newly checked item therefore lands at the top of the checked group, not the bottom of the list."
+    "normalized() puts unchecked items before checked ones, each group keeping its relative order. A newly checked item therefore lands at the top of the checked group, not the bottom of the list.",
+    "cleaned() trims every item and drops the ones left blank. It is what a client applies before storing, covering both the half-typed empty row and the trailing space parsing deliberately keeps."
   ],
   "knownLimits": [
     "Nested/indented checklists flatten to a single level rather than preserving depth.",
     "Markdown that is not a task item but starts with a bullet ('- milk') becomes an unchecked item with the bullet as part of its text. Distinguishing them would mean parsing general Markdown lists, which is another rule the C# side must match exactly.",
-    "Checked state is lost through a checklist -> note -> checklist round trip, by design. See the toNoteBody rule."
+    "Checked state is lost through a checklist -> note -> checklist round trip, by design. See the toNoteBody rule.",
+    "A leading space cannot be typed into an item: the marker pattern consumes whitespace after the checkbox, so it is dropped on the next parse. Leading whitespace in a list item carries no meaning, and unlike a trailing space it never blocks typing the text that follows."
   ],
   "cases": [
     {
       "name": "an unchecked item",
       "body": "- [ ] milk",
-      "items": [{ "text": "milk", "checked": false }]
+      "items": [
+        {
+          "text": "milk",
+          "checked": false
+        }
+      ]
     },
     {
       "name": "a checked item",
       "body": "- [x] milk",
-      "items": [{ "text": "milk", "checked": true }]
+      "items": [
+        {
+          "text": "milk",
+          "checked": true
+        }
+      ]
     },
     {
       "name": "a capital X is also checked",
       "body": "- [X] milk",
-      "items": [{ "text": "milk", "checked": true }]
+      "items": [
+        {
+          "text": "milk",
+          "checked": true
+        }
+      ]
     },
     {
       "name": "asterisk and plus bullets are task markers too",
       "body": "* [ ] milk\n+ [x] eggs",
       "items": [
-        { "text": "milk", "checked": false },
-        { "text": "eggs", "checked": true }
+        {
+          "text": "milk",
+          "checked": false
+        },
+        {
+          "text": "eggs",
+          "checked": true
+        }
       ]
     },
     {
       "name": "an empty item survives parsing",
       "body": "- [ ]",
-      "items": [{ "text": "", "checked": false }]
+      "items": [
+        {
+          "text": "",
+          "checked": false
+        }
+      ]
     },
     {
       "name": "an empty checked item survives too",
       "body": "- [x]",
-      "items": [{ "text": "", "checked": true }]
+      "items": [
+        {
+          "text": "",
+          "checked": true
+        }
+      ]
     },
     {
       "name": "indentation is tolerated and discarded",
       "body": "    - [ ] milk",
-      "items": [{ "text": "milk", "checked": false }]
+      "items": [
+        {
+          "text": "milk",
+          "checked": false
+        }
+      ]
     },
     {
       "name": "plain prose lines become unchecked items",
       "body": "milk\neggs",
       "items": [
-        { "text": "milk", "checked": false },
-        { "text": "eggs", "checked": false }
+        {
+          "text": "milk",
+          "checked": false
+        },
+        {
+          "text": "eggs",
+          "checked": false
+        }
       ]
     },
     {
       "name": "blank lines are dropped",
       "body": "milk\n\n\neggs",
       "items": [
-        { "text": "milk", "checked": false },
-        { "text": "eggs", "checked": false }
+        {
+          "text": "milk",
+          "checked": false
+        },
+        {
+          "text": "eggs",
+          "checked": false
+        }
       ]
     },
     {
       "name": "whitespace-only lines are blank",
       "body": "milk\n   \n\t\neggs",
       "items": [
-        { "text": "milk", "checked": false },
-        { "text": "eggs", "checked": false }
+        {
+          "text": "milk",
+          "checked": false
+        },
+        {
+          "text": "eggs",
+          "checked": false
+        }
       ]
     },
     {
@@ -89,58 +146,133 @@
       "items": []
     },
     {
-      "name": "item text is trimmed",
-      "body": "- [ ]    milk   ",
-      "items": [{ "text": "milk", "checked": false }]
+      "name": "leading whitespace after the marker is discarded",
+      "body": "- [ ]    milk",
+      "items": [
+        {
+          "text": "milk",
+          "checked": false
+        }
+      ]
+    },
+    {
+      "name": "trailing whitespace is preserved so a space can be typed",
+      "body": "- [ ] peanut ",
+      "items": [
+        {
+          "text": "peanut ",
+          "checked": false
+        }
+      ]
+    },
+    {
+      "name": "interior spaces are ordinary text",
+      "body": "- [ ] peanut butter",
+      "items": [
+        {
+          "text": "peanut butter",
+          "checked": false
+        }
+      ]
     },
     {
       "name": "a mixed list keeps document order",
       "body": "- [ ] milk\n- [x] eggs\n- [ ] bread",
       "items": [
-        { "text": "milk", "checked": false },
-        { "text": "eggs", "checked": true },
-        { "text": "bread", "checked": false }
+        {
+          "text": "milk",
+          "checked": false
+        },
+        {
+          "text": "eggs",
+          "checked": true
+        },
+        {
+          "text": "bread",
+          "checked": false
+        }
       ]
     },
     {
       "name": "hashtags inside items are left alone — tag parsing owns them",
       "body": "- [ ] milk #errands",
-      "items": [{ "text": "milk #errands", "checked": false }]
+      "items": [
+        {
+          "text": "milk #errands",
+          "checked": false
+        }
+      ]
     },
     {
       "name": "a bare bullet is text, not a task marker",
       "body": "- milk",
-      "items": [{ "text": "- milk", "checked": false }]
+      "items": [
+        {
+          "text": "- milk",
+          "checked": false
+        }
+      ]
     },
     {
       "name": "a bracket that is not a checkbox is text",
       "body": "- [maybe] milk",
-      "items": [{ "text": "- [maybe] milk", "checked": false }]
+      "items": [
+        {
+          "text": "- [maybe] milk",
+          "checked": false
+        }
+      ]
     },
     {
       "name": "text containing brackets survives",
       "body": "- [ ] milk [2 litres]",
-      "items": [{ "text": "milk [2 litres]", "checked": false }]
+      "items": [
+        {
+          "text": "milk [2 litres]",
+          "checked": false
+        }
+      ]
     }
   ],
   "renderCases": [
     {
       "name": "unchecked and checked",
       "items": [
-        { "text": "milk", "checked": false },
-        { "text": "eggs", "checked": true }
+        {
+          "text": "milk",
+          "checked": false
+        },
+        {
+          "text": "eggs",
+          "checked": true
+        }
       ],
       "body": "- [ ] milk\n- [x] eggs"
     },
     {
       "name": "an empty item renders without trailing whitespace",
-      "items": [{ "text": "", "checked": false }],
+      "items": [
+        {
+          "text": "",
+          "checked": false
+        }
+      ],
       "body": "- [ ]"
     },
     {
       "name": "no items is an empty body",
       "items": [],
       "body": ""
+    },
+    {
+      "name": "an item ending in a space renders it, so typing can continue",
+      "items": [
+        {
+          "text": "peanut ",
+          "checked": false
+        }
+      ],
+      "body": "- [ ] peanut "
     }
   ],
   "conversionCases": [
@@ -164,38 +296,141 @@
     {
       "name": "checked items sink below unchecked ones",
       "items": [
-        { "text": "milk", "checked": true },
-        { "text": "eggs", "checked": false }
+        {
+          "text": "milk",
+          "checked": true
+        },
+        {
+          "text": "eggs",
+          "checked": false
+        }
       ],
       "normalized": [
-        { "text": "eggs", "checked": false },
-        { "text": "milk", "checked": true }
+        {
+          "text": "eggs",
+          "checked": false
+        },
+        {
+          "text": "milk",
+          "checked": true
+        }
       ]
     },
     {
       "name": "relative order within each group is kept",
       "items": [
-        { "text": "a", "checked": true },
-        { "text": "b", "checked": false },
-        { "text": "c", "checked": true },
-        { "text": "d", "checked": false }
+        {
+          "text": "a",
+          "checked": true
+        },
+        {
+          "text": "b",
+          "checked": false
+        },
+        {
+          "text": "c",
+          "checked": true
+        },
+        {
+          "text": "d",
+          "checked": false
+        }
       ],
       "normalized": [
-        { "text": "b", "checked": false },
-        { "text": "d", "checked": false },
-        { "text": "a", "checked": true },
-        { "text": "c", "checked": true }
+        {
+          "text": "b",
+          "checked": false
+        },
+        {
+          "text": "d",
+          "checked": false
+        },
+        {
+          "text": "a",
+          "checked": true
+        },
+        {
+          "text": "c",
+          "checked": true
+        }
       ]
     },
     {
       "name": "an already-normalized list is untouched",
       "items": [
-        { "text": "a", "checked": false },
-        { "text": "b", "checked": true }
+        {
+          "text": "a",
+          "checked": false
+        },
+        {
+          "text": "b",
+          "checked": true
+        }
       ],
       "normalized": [
-        { "text": "a", "checked": false },
-        { "text": "b", "checked": true }
+        {
+          "text": "a",
+          "checked": false
+        },
+        {
+          "text": "b",
+          "checked": true
+        }
+      ]
+    }
+  ],
+  "cleanCases": [
+    {
+      "name": "trailing whitespace is trimmed on close",
+      "items": [
+        {
+          "text": "peanut ",
+          "checked": false
+        }
+      ],
+      "cleaned": [
+        {
+          "text": "peanut",
+          "checked": false
+        }
+      ]
+    },
+    {
+      "name": "empty and whitespace-only items are dropped",
+      "items": [
+        {
+          "text": "",
+          "checked": false
+        },
+        {
+          "text": "   ",
+          "checked": true
+        },
+        {
+          "text": "milk",
+          "checked": false
+        }
+      ],
+      "cleaned": [
+        {
+          "text": "milk",
+          "checked": false
+        }
+      ]
+    },
+    {
+      "name": "interior spacing is left alone",
+      "items": [
+        {
+          "text": "peanut butter",
+          "checked": false
+        }
+      ],
+      "cleaned": [
+        {
+          "text": "peanut butter",
+          "checked": false
+        }
       ]
     }
   ]

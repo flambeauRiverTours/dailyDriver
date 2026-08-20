@@ -16,7 +16,7 @@ import com.example.dailydriver.notes.parseChecklist
 import com.example.dailydriver.notes.renderChecklist
 import com.example.dailydriver.notes.toChecklistBody
 import com.example.dailydriver.notes.toNoteBody
-import com.example.dailydriver.notes.withoutEmpties
+import com.example.dailydriver.notes.cleaned
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -277,9 +277,9 @@ class NoteEditorViewModel(
 
     /** ✓ — keep the note and leave. A blank draft is silently dropped rather than stored empty. */
     fun keepAndClose() {
-        // Half-typed checklist rows are dropped here rather than as you type: an item has to be
-        // allowed to sit empty while you're filling it in, but storing it would leave a blank
-        // checkbox in the list forever (T023).
+        // Checklist rows are tidied here rather than as you type: an item has to be allowed to
+        // sit empty (and to end in the space you just typed) while you're filling it in, but
+        // storing either would leave a blank checkbox, or stray whitespace, in the list forever.
         dropEmptyItems()
         flush()
         draft = null
@@ -290,7 +290,7 @@ class NoteEditorViewModel(
     private fun dropEmptyItems() {
         val current = draft ?: return
         if (current.type != NoteType.CHECKLIST) return
-        val kept = parseChecklist(current.body).withoutEmpties()
+        val kept = parseChecklist(current.body).cleaned()
         draft = current.copy(body = renderChecklist(kept))
     }
 

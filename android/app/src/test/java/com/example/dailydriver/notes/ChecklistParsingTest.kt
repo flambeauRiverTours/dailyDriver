@@ -71,6 +71,17 @@ class ChecklistParsingTest {
     }
 
     @Test
+    fun `every clean case in the shared fixture corpus passes`() {
+        val failures = fixture().getJSONArray("cleanCases").objects().mapNotNull { case ->
+            val expected = case.getJSONArray("cleaned").items()
+            val actual = case.getJSONArray("items").items().cleaned()
+            if (actual == expected) null else "${case.getString("name")}: expected $expected, got $actual"
+        }
+
+        assertTrue("${failures.size} fixture case(s) failed:\n${failures.joinToString("\n")}", failures.isEmpty())
+    }
+
+    @Test
     fun `the fixture corpus is actually loaded and non-trivial`() {
         // Guards the failure where the resources srcDir breaks and every case above silently
         // passes over an empty list — see the same guard in TagParsingTest.
@@ -183,12 +194,50 @@ class ChecklistParsingTest {
         // Survives a parse/render cycle, so a half-typed row doesn't vanish under the cursor.
         assertEquals(items, parseChecklist(renderChecklist(items)))
         // ...and is dropped once the editor closes.
-        assertEquals(listOf("milk", "eggs"), items.withoutEmpties().map { it.text })
+        assertEquals(listOf("milk", "eggs"), items.cleaned().map { it.text })
     }
 
     @Test
     fun `a list with nothing but empties empties completely`() {
-        assertEquals(emptyList<ChecklistItem>(), listOf(ChecklistItem(""), ChecklistItem("", true)).withoutEmpties())
+        assertEquals(emptyList<ChecklistItem>(), listOf(ChecklistItem(""), ChecklistItem("", true)).cleaned())
+    }
+
+    // --- typing a space (regression) ----------------------------------------------------------------
+
+    @Test
+    fun `a trailing space survives the round trip through the body`() {
+        // The regression this section exists for. Item text is edited *through the body* — the
+        // editor renders to Markdown and re-parses on every keystroke — so trimming at parse time
+        // ate the space the moment it was typed, and a two-word item was impossible to enter.
+        val typed = ChecklistItem("peanut ")
+
+        assertEquals(listOf(typed), parseChecklist(renderChecklist(listOf(typed))))
+    }
+
+    @Test
+    fun `typing a two-word item one character at a time arrives intact`() {
+        // Simulates what the editor actually does: after each keystroke the whole list is rendered
+        // to the body and parsed back out again. Anything lost in that cycle is lost for good.
+        val target = "peanut butter"
+
+        var body = renderChecklist(listOf(ChecklistItem("")))
+        target.forEach { character ->
+            val current = parseChecklist(body).single()
+            body = renderChecklist(listOf(current.copy(text = current.text + character)))
+        }
+
+        assertEquals(target, parseChecklist(body).single().text)
+    }
+
+    @Test
+    fun `trailing whitespace is tidied away on close`() {
+        assertEquals(listOf("peanut"), listOf(ChecklistItem("peanut ")).cleaned().map { it.text })
+        assertEquals(listOf("peanut butter"), listOf(ChecklistItem("  peanut butter  ")).cleaned().map { it.text })
+    }
+
+    @Test
+    fun `converting to prose does not carry whitespace across`() {
+        assertEquals("peanut\nmilk", toNoteBody("- [ ] peanut \n- [x] milk  "))
     }
 
     // --- fixture loading ----------------------------------------------------------------------------
