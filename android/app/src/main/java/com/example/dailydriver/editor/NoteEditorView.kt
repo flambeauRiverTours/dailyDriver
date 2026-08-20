@@ -3,11 +3,13 @@ package com.example.dailydriver.editor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,6 +27,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /** Test anchors, following the convention in `ShellTestTags`. */
@@ -78,14 +81,32 @@ fun NoteEditorView(
             .background(MaterialTheme.colorScheme.background)
             .padding(vertical = 8.dp),
     ) {
+        // Header: discard hard left, title centred between, keep hard right.
+        //
+        // The two actions started out adjacent at the right edge, which put a destructive control
+        // one thumb-width from the one you press constantly — a mis-tap waiting to happen, and
+        // visually ambiguous about which belonged to what. Opposite edges make the pairing
+        // obvious (leave / commit, the way a dialog reads) and puts the full width of the title
+        // between them, which is as far apart as this row can physically get them.
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            EditorAction(
+                label = "✗",
+                tag = EditorTestTags.DISCARD_BUTTON,
+                // Dimmed: destructive, and should never be the thing your eye lands on first.
+                style = dim,
+                onClick = onDiscard,
+            )
+
             BasicTextField(
                 value = draft.title,
                 onValueChange = onTitleChange,
-                textStyle = textStyle,
+                // Centred to sit as a header between the two actions. Editable centred text does
+                // grow outward from the middle as you type, which is slightly unusual — accepted
+                // deliberately, since a title is glanced at far more often than it's edited.
+                textStyle = textStyle.copy(textAlign = TextAlign.Center),
                 singleLine = true,
                 cursorBrush = SolidColor(textStyle.color),
                 keyboardOptions = KeyboardOptions(
@@ -95,21 +116,30 @@ fun NoteEditorView(
                     autoCorrectEnabled = false,
                 ),
                 decorationBox = { field ->
-                    // The stamp that would be stored if this is left blank, shown as a
-                    // placeholder so the fallback is visible rather than a surprise on save.
-                    if (draft.title.isEmpty()) Text(text = "untitled", style = dim)
-                    field()
+                    // The placeholder is centred by a wrapping Box rather than by giving it
+                    // fillMaxWidth(). A singleLine field measures its inner content with
+                    // UNBOUNDED width so it can scroll horizontally, and fillMaxWidth against an
+                    // infinite constraint is how you hang the measure pass — which is exactly
+                    // what happened here, as an ANR. The Box sizes to its children instead, and
+                    // the inner field is the wide one, so the placeholder still lands centred.
+                    Box(contentAlignment = Alignment.Center) {
+                        // Shown so the blank-title fallback is visible up front rather than a
+                        // surprise on save.
+                        if (draft.title.isEmpty()) Text(text = "untitled", style = dim)
+                        field()
+                    }
                 },
                 modifier = Modifier
                     .weight(1f)
                     .testTag(EditorTestTags.TITLE_FIELD),
             )
 
-            // Text buttons, not icons: this app ships no icon set and the whole surface is
-            // monospace text. ✗ before ✓ so the destructive one isn't under the thumb's
-            // resting position at the right edge.
-            EditorAction(label = "✗", tag = EditorTestTags.DISCARD_BUTTON, style = dim, onClick = onDiscard)
-            EditorAction(label = "✓", tag = EditorTestTags.KEEP_BUTTON, style = textStyle, onClick = onKeep)
+            EditorAction(
+                label = "✓",
+                tag = EditorTestTags.KEEP_BUTTON,
+                style = textStyle,
+                onClick = onKeep,
+            )
         }
 
         BasicTextField(
@@ -131,19 +161,26 @@ fun NoteEditorView(
     }
 }
 
-/** Text, not an icon: this project ships no icon set and the whole surface is monospace. */
+/**
+ * Text, not an icon: this project ships no icon set and the whole surface is monospace.
+ *
+ * Sized to a real touch target rather than hugging the glyph. A bare `Text` with a few dp of
+ * padding is a ~20dp tap area, which is fine to *look* at and unpleasant to *hit* — and one of
+ * these deletes your note.
+ */
 @Composable
 private fun EditorAction(label: String, tag: String, style: TextStyle, onClick: () -> Unit) {
-    Text(
-        text = label,
-        style = style,
+    Box(
         modifier = Modifier
             .testTag(tag)
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             // Plain clickable, ripple and all — matching AppListView's rows rather than
             // introducing a second tap treatment for no reason.
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, style = style)
+    }
 }
 
 /**
