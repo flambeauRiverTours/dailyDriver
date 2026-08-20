@@ -31,12 +31,17 @@ android {
         getByName("test") {
             resources.srcDir("$rootDir/../fixtures")
         }
+        // Puts the exported schemas (T151) where MigrationTestHelper looks for them — it reads
+        // them from the *test app's* assets at runtime, not from the build directory.
+        getByName("androidTest") {
+            assets.srcDir("$projectDir/schemas")
+        }
     }
 
-    // NOTE: Room schema export is deliberately NOT enabled here — see DailyDriverDatabase's
-    // `exportSchema` comment and T151. Adding `ksp { arg("room.schemaLocation", ...) }` on Room
-    // 2.8.4 in this project builds once and then fails every subsequent build with an
-    // AbstractMethodError inside kotlinx-serialization. Re-enable it via T151, not by accident.
+    // Room schema export (T151). The generated JSON is committed, so a schema change shows up as
+    // a reviewable diff and `MigrationTestHelper` has something to migrate against. Requires
+    // `ksp.useKSP2=true` in gradle.properties — see the note there before touching either.
+    ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 
     buildTypes {
         release {
@@ -80,6 +85,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
