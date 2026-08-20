@@ -64,6 +64,25 @@ android {
     }
 }
 
+// Lifts kotlinx-serialization-core for the *test APK*. Same error as T151's build-time one
+// (`AbstractMethodError: ... typeParametersSerializers()`) but an entirely separate classpath:
+// MigrationTestHelper reads the exported schema at runtime through room-migration, whose
+// serializers are compiled against 1.8.1, while a transitive BOM here constrains core to 1.7.3
+// where that method is still abstract rather than defaulted.
+//
+// `force`, not a plain dependency: the 1.7.3 pin comes from a BOM *constraint*, which an ordinary
+// declaration doesn't outrank, and the bare `-core` module doesn't resolve standalone. Scoped to
+// the test configurations because that's the only place room-migration runs on-device.
+//
+// Caught by SchemaExportTest the first time it was actually executed on a device — the build,
+// unit tests and lint were all green with this broken.
+configurations.matching { it.name.contains("AndroidTest") }.configureEach {
+    resolutionStrategy {
+        force("org.jetbrains.kotlinx:kotlinx-serialization-core:${libs.versions.kotlinxSerialization.get()}")
+        force("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:${libs.versions.kotlinxSerialization.get()}")
+    }
+}
+
 dependencies {
 
     implementation(libs.androidx.core.ktx)
@@ -86,6 +105,7 @@ dependencies {
     testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.room.testing)
+
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
