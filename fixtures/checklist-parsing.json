@@ -1,0 +1,202 @@
+{
+  "description": "Shared contract for reading and writing checklist items in a note body (design doc §4.6; root CLAUDE.md pins '- [ ]' / '- [x]' as the wire and storage format for both Android and desktop). Kotlin implements this in android/.../notes/ChecklistParsing.kt; Notes.Shared implements the same rules in C# (T042). §4.6 has both UIs rendering 'two views of one Markdown body', which is the same drift seam §7.3 warns about for tag parsing — so both test suites execute THIS file rather than their own examples. If they disagree, a test fails instead of a grocery list quietly reordering itself between devices.",
+  "rules": [
+    "A line carrying a task marker is an item, even when its text is empty. '- [ ]' alone is a half-typed row, and dropping it would make new items vanish as they were created.",
+    "A task marker is a '-', '*' or '+' bullet, whitespace, then '[ ]', '[x]' or '[X]'. Leading indentation is tolerated and discarded — nested checklists are not modelled.",
+    "'[x]' and '[X]' are both checked. Only '[ ]' is unchecked.",
+    "Any other non-blank line is an unchecked item carrying that line's trimmed text. This is what makes note-to-checklist conversion a parse rather than a special case.",
+    "Blank lines are dropped: no checkbox to render, no text to keep.",
+    "Rendering writes '- [ ] text' or '- [x] text', and bare '- [ ]' for an empty item (no trailing whitespace).",
+    "toNoteBody strips markers and keeps text, joined by newlines. It round-trips the words, not the ticks: checklist-to-note-to-checklist returns every item unchecked, because prose has nowhere to record a checkbox.",
+    "normalized() puts unchecked items before checked ones, each group keeping its relative order. A newly checked item therefore lands at the top of the checked group, not the bottom of the list."
+  ],
+  "knownLimits": [
+    "Nested/indented checklists flatten to a single level rather than preserving depth.",
+    "Markdown that is not a task item but starts with a bullet ('- milk') becomes an unchecked item with the bullet as part of its text. Distinguishing them would mean parsing general Markdown lists, which is another rule the C# side must match exactly.",
+    "Checked state is lost through a checklist -> note -> checklist round trip, by design. See the toNoteBody rule."
+  ],
+  "cases": [
+    {
+      "name": "an unchecked item",
+      "body": "- [ ] milk",
+      "items": [{ "text": "milk", "checked": false }]
+    },
+    {
+      "name": "a checked item",
+      "body": "- [x] milk",
+      "items": [{ "text": "milk", "checked": true }]
+    },
+    {
+      "name": "a capital X is also checked",
+      "body": "- [X] milk",
+      "items": [{ "text": "milk", "checked": true }]
+    },
+    {
+      "name": "asterisk and plus bullets are task markers too",
+      "body": "* [ ] milk\n+ [x] eggs",
+      "items": [
+        { "text": "milk", "checked": false },
+        { "text": "eggs", "checked": true }
+      ]
+    },
+    {
+      "name": "an empty item survives parsing",
+      "body": "- [ ]",
+      "items": [{ "text": "", "checked": false }]
+    },
+    {
+      "name": "an empty checked item survives too",
+      "body": "- [x]",
+      "items": [{ "text": "", "checked": true }]
+    },
+    {
+      "name": "indentation is tolerated and discarded",
+      "body": "    - [ ] milk",
+      "items": [{ "text": "milk", "checked": false }]
+    },
+    {
+      "name": "plain prose lines become unchecked items",
+      "body": "milk\neggs",
+      "items": [
+        { "text": "milk", "checked": false },
+        { "text": "eggs", "checked": false }
+      ]
+    },
+    {
+      "name": "blank lines are dropped",
+      "body": "milk\n\n\neggs",
+      "items": [
+        { "text": "milk", "checked": false },
+        { "text": "eggs", "checked": false }
+      ]
+    },
+    {
+      "name": "whitespace-only lines are blank",
+      "body": "milk\n   \n\t\neggs",
+      "items": [
+        { "text": "milk", "checked": false },
+        { "text": "eggs", "checked": false }
+      ]
+    },
+    {
+      "name": "an empty body has no items",
+      "body": "",
+      "items": []
+    },
+    {
+      "name": "a blank body has no items",
+      "body": "\n\n   \n",
+      "items": []
+    },
+    {
+      "name": "item text is trimmed",
+      "body": "- [ ]    milk   ",
+      "items": [{ "text": "milk", "checked": false }]
+    },
+    {
+      "name": "a mixed list keeps document order",
+      "body": "- [ ] milk\n- [x] eggs\n- [ ] bread",
+      "items": [
+        { "text": "milk", "checked": false },
+        { "text": "eggs", "checked": true },
+        { "text": "bread", "checked": false }
+      ]
+    },
+    {
+      "name": "hashtags inside items are left alone — tag parsing owns them",
+      "body": "- [ ] milk #errands",
+      "items": [{ "text": "milk #errands", "checked": false }]
+    },
+    {
+      "name": "a bare bullet is text, not a task marker",
+      "body": "- milk",
+      "items": [{ "text": "- milk", "checked": false }]
+    },
+    {
+      "name": "a bracket that is not a checkbox is text",
+      "body": "- [maybe] milk",
+      "items": [{ "text": "- [maybe] milk", "checked": false }]
+    },
+    {
+      "name": "text containing brackets survives",
+      "body": "- [ ] milk [2 litres]",
+      "items": [{ "text": "milk [2 litres]", "checked": false }]
+    }
+  ],
+  "renderCases": [
+    {
+      "name": "unchecked and checked",
+      "items": [
+        { "text": "milk", "checked": false },
+        { "text": "eggs", "checked": true }
+      ],
+      "body": "- [ ] milk\n- [x] eggs"
+    },
+    {
+      "name": "an empty item renders without trailing whitespace",
+      "items": [{ "text": "", "checked": false }],
+      "body": "- [ ]"
+    },
+    {
+      "name": "no items is an empty body",
+      "items": [],
+      "body": ""
+    }
+  ],
+  "conversionCases": [
+    {
+      "name": "prose becomes an unchecked list",
+      "noteBody": "milk\neggs",
+      "checklistBody": "- [ ] milk\n- [ ] eggs"
+    },
+    {
+      "name": "blank lines do not become items",
+      "noteBody": "milk\n\neggs",
+      "checklistBody": "- [ ] milk\n- [ ] eggs"
+    },
+    {
+      "name": "an empty body converts to an empty body",
+      "noteBody": "",
+      "checklistBody": ""
+    }
+  ],
+  "normalizeCases": [
+    {
+      "name": "checked items sink below unchecked ones",
+      "items": [
+        { "text": "milk", "checked": true },
+        { "text": "eggs", "checked": false }
+      ],
+      "normalized": [
+        { "text": "eggs", "checked": false },
+        { "text": "milk", "checked": true }
+      ]
+    },
+    {
+      "name": "relative order within each group is kept",
+      "items": [
+        { "text": "a", "checked": true },
+        { "text": "b", "checked": false },
+        { "text": "c", "checked": true },
+        { "text": "d", "checked": false }
+      ],
+      "normalized": [
+        { "text": "b", "checked": false },
+        { "text": "d", "checked": false },
+        { "text": "a", "checked": true },
+        { "text": "c", "checked": true }
+      ]
+    },
+    {
+      "name": "an already-normalized list is untouched",
+      "items": [
+        { "text": "a", "checked": false },
+        { "text": "b", "checked": true }
+      ],
+      "normalized": [
+        { "text": "a", "checked": false },
+        { "text": "b", "checked": true }
+      ]
+    }
+  ]
+}
