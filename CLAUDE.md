@@ -51,7 +51,7 @@ Conventional commits, with the task ID leading the summary:
 
 e.g. `feat(android): T003 build app index from PackageManager`
 
-- **Types in use:** `feat`, `fix`, `docs`, `chore`.
+- **Types in use:** `feat`, `fix`, `docs`, `chore`, `style` — the last for changes with no behavioural effect at all (a glyph swap, a font size), where calling it `fix` would overstate what happened.
 - **Scope is the module** — `android`, `desktop`, `backend`, `infra` — and is **omitted when the change is repo-wide**, which is why `docs:` and `chore:` commits usually carry none.
 - **Reference the task ID** from `docs/tasks.md` (format `Txxx`) whenever a commit serves one. Housekeeping with no task behind it (`chore: remove fulfilled .github/TODO.txt placeholder`) legitimately has none — don't invent one to fill the slot.
 - **Multiple tasks are space-separated**, e.g. `docs: T100 T101 T102 module CLAUDE.md files`.
