@@ -117,6 +117,50 @@ class NoteQueryTest {
         assertEquals(escapeLike("%%%").count { it == LIKE_ESCAPE }, 3)
     }
 
+    // --- sole auto-open target -------------------------------------------------------------------------
+
+    private fun note(id: String) = Note(
+        id = id,
+        type = NoteType.NOTE,
+        title = id,
+        body = "",
+        createdAt = 0L,
+        updatedAt = 0L,
+        sourceDevice = "test",
+    )
+
+    @Test
+    fun `exactly one result with a real query is an auto-open target`() {
+        assertEquals(note("a"), listOf(note("a")).soleAutoOpenTarget("standup"))
+    }
+
+    @Test
+    fun `several results are not an auto-open target`() {
+        assertEquals(null, listOf(note("a"), note("b")).soleAutoOpenTarget("standup"))
+    }
+
+    @Test
+    fun `no results are not an auto-open target`() {
+        assertEquals(null, emptyList<Note>().soleAutoOpenTarget("standup"))
+    }
+
+    @Test
+    fun `a blank query never auto-opens, even with a single note stored`() {
+        // Auto-open is a response to *filtering down* to one result, never to simply owning one
+        // note — bare `:notes` means "show me my notes", and you should be able to just look.
+        // Same rule `:apps` applies, for the same reason.
+        assertEquals(null, listOf(note("only")).soleAutoOpenTarget(""))
+        assertEquals(null, listOf(note("only")).soleAutoOpenTarget("   "))
+    }
+
+    @Test
+    fun `filtering down to one is what makes auto-open fire`() {
+        val two = listOf(note("a"), note("b"))
+
+        assertEquals(null, two.soleAutoOpenTarget("note"))
+        assertEquals(note("a"), listOf(note("a")).soleAutoOpenTarget("note"))
+    }
+
     // --- snippets ------------------------------------------------------------------------------------
 
     @Test

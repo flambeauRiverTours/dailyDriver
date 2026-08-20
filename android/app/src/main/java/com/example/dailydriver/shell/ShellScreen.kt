@@ -50,6 +50,7 @@ import com.example.dailydriver.editor.NoteEditorView
 import com.example.dailydriver.editor.NoteEditorViewModel
 import com.example.dailydriver.notes.Note
 import com.example.dailydriver.notes.NotesRepository
+import com.example.dailydriver.notes.soleAutoOpenTarget
 import com.example.dailydriver.notifications.NotificationRecord
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -129,6 +130,10 @@ fun ShellScreen(
     val noteResults by remember(notesCommand?.query) {
         notesCommand?.let { observeNotes(it.query) } ?: flowOf(emptyList())
     }.collectAsState(initial = emptyList())
+
+    // Narrowed to exactly one note — Enter or a typing pause opens it, the same affordance (and
+    // the same blank-query guard) :apps has when its filter reaches a single app.
+    val noteAutoOpenTarget = notesCommand?.let { noteResults.soleAutoOpenTarget(it.query) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -194,6 +199,19 @@ fun ShellScreen(
         val target = currentAutoLaunchTarget ?: return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
         onAppClick(target)
+    }
+
+    // The same pause-to-act behaviour for a sole note result. Kept as its own effect rather than
+    // folded into the one above: that one resolves to an AppEntry and ends in onAppClick, and
+    // unifying them would mean a nullable-of-either just to share four lines.
+    //
+    // Keyed on the note's id, not the Note itself — an autosave elsewhere changes updatedAt and
+    // would otherwise restart the timer for what is still the same note.
+    LaunchedEffect(noteAutoOpenTarget?.id, input) {
+        val target = noteAutoOpenTarget ?: return@LaunchedEffect
+        delay(AUTO_LAUNCH_DELAY_MS)
+        editor.openExisting(target)
+        onNoteEditorOpened()
     }
 
     Column(
@@ -304,6 +322,13 @@ fun ShellScreen(
                     // Enter opens a uniquely-matched app immediately rather than waiting out the
                     // pause.
                     autoLaunchTarget != null -> onAppClick(autoLaunchTarget)
+                    // Same idea for :notes — Enter opens the sole remaining note rather than
+                    // waiting out the pause. Sits beside the :apps case because they're the same
+                    // affordance, not near the other reserved-command branches.
+                    noteAutoOpenTarget != null -> {
+                        editor.openExisting(noteAutoOpenTarget)
+                        onNoteEditorOpened()
+                    }
                     // :settings (T142) has no browse mode to select from like :apps does — Enter
                     // is what fires it. Checked ahead of the alias branches below only because
                     // it's the more specific state; the two never actually overlap (alias names

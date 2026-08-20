@@ -60,6 +60,18 @@ fun escapeLike(term: String): String = buildString {
     }
 }
 
+/**
+ * The note to open on its own when the `:notes` list has narrowed to exactly one — via Enter, or
+ * after a second's pause in typing.
+ *
+ * Deliberately identical in shape to `:apps`' `soleAutoLaunchTarget`, **including the blank-query
+ * guard**: auto-open is a response to *filtering down* to one result, never to simply having one
+ * note. Bare `:notes` means "show me my notes", and someone with a single note should still see
+ * it listed rather than be thrown straight into the editor with no way to have just looked.
+ */
+fun List<Note>.soleAutoOpenTarget(query: String): Note? =
+    if (query.isBlank()) null else singleOrNull()
+
 /** How much of the body a list row shows before trailing off. */
 private const val SNIPPET_MAX = 80
 
