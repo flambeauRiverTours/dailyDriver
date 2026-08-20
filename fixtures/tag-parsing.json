@@ -1,0 +1,44 @@
+{
+  "description": "Shared contract for hashtag extraction from a note body (design doc §4.6, §7.3). Kotlin implements this in android/.../notes/TagParsing.kt; Notes.Shared implements the same rules in C# (T042). §7.3 names tag parsing as one of the places the two will drift, so both test suites execute THIS file rather than their own examples. If they disagree, a test fails instead of tags quietly differing between devices.",
+  "rules": [
+    "A tag is '#' followed by one or more of: Unicode letter, Unicode digit, underscore, hyphen.",
+    "The run must contain at least one letter, so issue references like '#123' in prose are not tags.",
+    "The '#' must be preceded by start-of-input, a line start, or whitespace. This excludes 'example.com#anchor' and 'C#'.",
+    "Tags are lowercased, so '#Work' and '#work' are one tag. note_tags is keyed (noteId, tag) and would otherwise hold both.",
+    "Fenced code blocks (``` or ~~~, up to 3 leading spaces) are skipped entirely, so pasted '#include' and CSS '#fff' do not tag the note. An unclosed fence runs to end of input, per CommonMark.",
+    "Results are de-duplicated and returned in order of first appearance."
+  ],
+  "knownLimits": [
+    "Indented (4-space) code blocks are NOT skipped — only fenced ones. Fences are what people actually paste.",
+    "Inline code spans are NOT parsed. '`#fff`' happens to be excluded anyway because a backtick is not whitespace, but 'see `#fff`' would tag. Accepted: full inline parsing means matching Markdig exactly, which is the divergence §7.3 warns about.",
+    "Parenthesised tags like '(#work)' do not match, because '(' is not whitespace. A deliberate cost of the preceding-character rule."
+  ],
+  "cases": [
+    { "name": "a single tag", "body": "standup notes #work", "tags": ["work"] },
+    { "name": "several tags", "body": "#work #urgent #standup", "tags": ["work", "urgent", "standup"] },
+    { "name": "tag at the very start of the body", "body": "#work is the tag", "tags": ["work"] },
+    { "name": "tag at the start of a later line", "body": "first line\n#work", "tags": ["work"] },
+    { "name": "duplicates collapse", "body": "#work and more #work", "tags": ["work"] },
+    { "name": "case is normalised, and case-variants are one tag", "body": "#Work #WORK #work", "tags": ["work"] },
+    { "name": "order is first appearance, not sorted", "body": "#zebra #apple", "tags": ["zebra", "apple"] },
+    { "name": "digits allowed alongside letters", "body": "#2026goals and #q4", "tags": ["2026goals", "q4"] },
+    { "name": "all-digit runs are not tags — prose issue references", "body": "fixed #123 and #1", "tags": [] },
+    { "name": "underscore and hyphen are allowed", "body": "#work-item #work_item", "tags": ["work-item", "work_item"] },
+    { "name": "trailing punctuation is not part of the tag", "body": "about #work, and #urgent.", "tags": ["work", "urgent"] },
+    { "name": "a hash mid-word is not a tag", "body": "see example.com#anchor for details", "tags": [] },
+    { "name": "a language name ending in hash is not a tag", "body": "written in C# mostly", "tags": [] },
+    { "name": "a markdown heading is not a tag", "body": "# Heading\ncontent", "tags": [] },
+    { "name": "a doubled hash is not a tag", "body": "##work", "tags": [] },
+    { "name": "a bare hash is not a tag", "body": "the # symbol", "tags": [] },
+    { "name": "parenthesised tags do not match — documented limit", "body": "(#work)", "tags": [] },
+    { "name": "non-ASCII tags are supported", "body": "#café and #日本語", "tags": ["café", "日本語"] },
+    { "name": "backtick-fenced code is skipped", "body": "```\n#include <stdio.h>\n```", "tags": [] },
+    { "name": "tilde-fenced code is skipped", "body": "~~~\n#define X 1\n~~~", "tags": [] },
+    { "name": "tags outside a fence still count", "body": "#before\n```\n#include <stdio.h>\n```\n#after", "tags": ["before", "after"] },
+    { "name": "a css colour inside a fence does not tag", "body": "styles:\n```css\nbody { color: #fff; }\n```", "tags": [] },
+    { "name": "an indented fence is still a fence", "body": "   ```\n   #include <stdio.h>\n   ```", "tags": [] },
+    { "name": "an unclosed fence runs to the end", "body": "#kept\n```\n#swallowed", "tags": ["kept"] },
+    { "name": "an empty body has no tags", "body": "", "tags": [] },
+    { "name": "a body with no tags", "body": "just some ordinary prose about nothing", "tags": [] }
+  ]
+}

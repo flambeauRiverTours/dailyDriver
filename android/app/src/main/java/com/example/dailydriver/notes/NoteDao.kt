@@ -48,14 +48,21 @@ abstract class NoteDao {
     // --- local mutations: always enqueue ----------------------------------------------------------
 
     /**
-     * Creates or updates a note from local editing, and queues it for sync. Tags are rewritten
-     * wholesale rather than diffed — they're derived from the body (T019), so the incoming set is
-     * authoritative by definition and a diff would only be a slower way to reach the same rows.
+     * Creates or updates a note from local editing, and queues it for sync.
+     *
+     * **Tags are derived here rather than passed in** (T019). Taking them as a parameter would
+     * let a caller supply a set that disagrees with the body, which is exactly the "one source of
+     * truth" property §6.2 protects for checklist items — the same argument applies to tags.
+     * Deriving them inside the transaction makes it structurally impossible, in the same spirit as
+     * the `protected` raw operations below.
+     *
+     * They're rewritten wholesale rather than diffed: the body is authoritative, so the freshly
+     * parsed set already *is* the answer and a diff would only be a slower route to it.
      */
     @Transaction
-    open suspend fun upsertLocal(note: Note, tags: List<String>, queuedAt: Long) {
+    open suspend fun upsertLocal(note: Note, queuedAt: Long) {
         insert(note)
-        replaceTags(note.id, tags)
+        replaceTags(note.id, parseTags(note.body))
         enqueue(OutboxEntry(noteId = note.id, baseRev = note.rev, queuedAt = queuedAt))
     }
 
@@ -77,6 +84,11 @@ abstract class NoteDao {
      * Applies a note pulled from the server. **Deliberately does not touch the outbox** — this is
      * already the server's state, so queueing it would push it straight back and, worse, would
      * make every pull look like a local edit for conflict purposes.
+     *
+     * Unlike [upsertLocal], this *does* take tags: they're whatever the server sent. That
+     * asymmetry is deliberate and becomes load-bearing if tag assignment moves server-side —
+     * locally-authored notes still need tags immediately (§7.1 is local-first, and T026's search
+     * would otherwise miss anything unsynced), while synced notes defer to what the server says.
      */
     @Transaction
     open suspend fun applyRemote(note: Note, tags: List<String>) {
