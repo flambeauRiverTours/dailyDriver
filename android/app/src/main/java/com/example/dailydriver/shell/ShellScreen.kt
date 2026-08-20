@@ -1,5 +1,6 @@
 package com.example.dailydriver.shell
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,9 @@ import com.example.dailydriver.apps.matchPreview
 import com.example.dailydriver.apps.soleAutoLaunchTarget
 import com.example.dailydriver.apps.topMatch
 import com.example.dailydriver.command.ReservedCommand
+import com.example.dailydriver.editor.DiscardConfirmation
+import com.example.dailydriver.editor.NoteEditorView
+import com.example.dailydriver.editor.NoteEditorViewModel
 import com.example.dailydriver.notifications.NotificationRecord
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -91,6 +95,9 @@ fun ShellScreen(
     onNotifAccessSettings: () -> Unit,
     /** A lambda, not a Boolean — see [StatusLine], which polls it on its own tick. */
     hasUnreadNotifications: () -> Boolean,
+    editor: NoteEditorViewModel,
+    /** Clears the `:note ...` text off the prompt once the editor has taken over. */
+    onNoteEditorOpened: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Apps has a browse-mode UI, and so does Notif — but only once access is granted; without it
@@ -114,7 +121,13 @@ fun ShellScreen(
     )
 
     // IME open by default (design doc §4.1) — focusing the field is what raises it.
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    // Keyed on whether the editor is up, not Unit. §4.6 requires that dismissing the editor
+    // "returns to the prompt with focus restored to the input line and the IME open" — with a
+    // Unit key this fires once at startup and never again, so closing the editor left the prompt
+    // unfocused and the keyboard down. Caught on-device; a build can't see it.
+    LaunchedEffect(editor.isOpen) {
+        if (!editor.isOpen) focusRequester.requestFocus()
+    }
 
     // Keep the newest entry visible as the transcript grows.
     LaunchedEffect(transcript.entries.size) {
@@ -212,15 +225,42 @@ fun ShellScreen(
             }
         }
 
-        if (previewText != null) {
-            Text(
-                text = "→ $previewText",
-                style = monospace.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-                modifier = Modifier.padding(top = 4.dp),
+        val draft = editor.draft
+        if (draft != null) {
+            // The editor takes the prompt's place rather than floating over it: while writing a
+            // note there is no command to type, and §4.6's "returns to the prompt with focus
+            // restored" only makes sense if the prompt was genuinely out of play.
+            if (editor.confirmingDiscard) {
+                DiscardConfirmation(
+                    onConfirm = editor::confirmDiscard,
+                    onCancel = editor::cancelDiscard,
+                    textStyle = monospace,
+                )
+            }
+            NoteEditorView(
+                draft = draft,
+                onTitleChange = editor::onTitleChange,
+                onBodyChange = editor::onBodyChange,
+                onKeep = editor::keepAndClose,
+                onDiscard = editor::requestDiscard,
+                textStyle = monospace,
             )
-        }
+            // BACK keeps rather than discards. It's the ambiguous gesture — people use it to mean
+            // "go back", not "throw this away" — and autosave has already written the text, so
+            // treating it as ✓ is both the safe reading and the truthful one. (T015 owns BACK
+            // generally; handled here because an overlay with no back-out is a trap, and BACK is
+            // otherwise a deliberate no-op at the prompt.)
+            BackHandler(enabled = true, onBack = editor::keepAndClose)
+        } else {
+            if (previewText != null) {
+                Text(
+                    text = "→ $previewText",
+                    style = monospace.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
 
-        InputLine(
+            InputLine(
             value = input,
             onValueChange = onInputChange,
             onSubmit = {
@@ -252,6 +292,14 @@ fun ShellScreen(
                     // no-sole-match case does.
                     reservedCommand is ReservedCommand.Notif && !hasNotificationAccess ->
                         onNotifAccessSettings()
+                    // :note (T143 registered it, T020 finally gives it something to open). The
+                    // query becomes the initial title, so `:note standup` starts a named note and
+                    // bare `:note` starts an untitled one that gets a date-time stamp on save.
+                    // Opening an EXISTING note by name is T025's job, not this.
+                    reservedCommand is ReservedCommand.Note -> {
+                        editor.open(reservedCommand.query)
+                        onNoteEditorOpened()
+                    }
                     // Checked before the definition branch only for readability — the two shapes
                     // are disjoint, since an alias name can't contain the spaces or "=" that a
                     // definition requires.
@@ -275,12 +323,13 @@ fun ShellScreen(
                     else -> onSubmit()
                 }
             },
-            textStyle = monospace,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
-                .focusRequester(focusRequester),
-        )
+                textStyle = monospace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .focusRequester(focusRequester),
+            )
+        }
     }
 }
 

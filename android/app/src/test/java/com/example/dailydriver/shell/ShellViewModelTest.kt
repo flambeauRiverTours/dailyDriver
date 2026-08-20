@@ -292,28 +292,29 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `submitting colon-note records the not-built-yet placeholder and clears the input`() {
-        // The real editor overlay is T020, which doesn't exist yet — this is a placeholder
-        // answer, not silence, per explicit request.
+    fun `submitting colon-note records nothing — ShellScreen opens the editor instead`() {
+        // T143's placeholder is gone as of T020. Reaching onSubmit at all would mean the
+        // interception in ShellScreen broke, so this no-ops rather than recording ":note" as a
+        // command that ran.
         val viewModel = ShellViewModel()
         viewModel.onInputChange(":note")
 
         viewModel.onSubmit()
 
-        val entries = viewModel.transcript.entries
-        assertEquals(":note", entries[0].text)
-        assertEquals("will open notes in the future (T020)", entries[1].text)
-        assertEquals("", viewModel.input)
+        assertTrue(viewModel.transcript.entries.isEmpty())
     }
 
     @Test
-    fun `submitting colon-note with a query still gets the placeholder — the query is unused for now`() {
+    fun `opening the editor clears the prompt and records nothing`() {
+        // The editor appearing is the response — a ":note" line in the scrollback would be noise
+        // you scroll past forever. Same reasoning as expanding an alias into a reserved command.
         val viewModel = ShellViewModel()
         viewModel.onInputChange(":note standup")
 
-        viewModel.onSubmit()
+        viewModel.onNoteEditorOpened()
 
-        assertEquals("will open notes in the future (T020)", viewModel.transcript.entries[1].text)
+        assertEquals("", viewModel.input)
+        assertTrue(viewModel.transcript.entries.isEmpty())
     }
 
     // --- T144: :alias ---------------------------------------------------------------------------

@@ -43,6 +43,16 @@ Write the test before the implementation for anything with logic in it. This mod
 - **Compose UI tests** (`androidx-ui-test-junit4`, already in the scaffold) cover the critical interaction paths — editor overlay open/dismiss, checklist check/reorder, keyboard shortcuts — using semantics/test tags rather than brittle text matching. UI tests are lower priority than the logic tests above; don't let them block on the emulator becoming available.
 - No test dependencies beyond what's already in `libs.versions.toml` (JUnit4, AndroidX Test, Espresso, Compose UI test) are assumed. Adding a framework (Robolectric, Turbine, MockK, etc.) is a deliberate one-line addition to the version catalog, not an incidental import.
 
+## Note editor (`editor/`, T020/T021)
+
+Opened by `:note` (bare) or `:note <name>` (pre-fills the title); opening an *existing* note by name is T025. Rendered inline in `ShellScreen` as a **layout swap, not a floating `Box`** — it takes the prompt's place and grows upward from the bottom as you write, capped at 420dp, which is what lets one surface serve both quick capture and long-form journalling.
+
+- **`NoteDraft` is the pure half** — blank-vs-content, the blank-title stamp, conversion to a `Note` row. Keep logic there rather than in the ViewModel; it's the only part that can be unit-tested.
+- **Nothing is persisted until there's content**, so an accidental `:note` leaves no row. `NoteDraft.persisted` is what tells discard the difference between "forget this" and "soft-delete a real note".
+- **A blank title becomes a `Wed 19 Aug - 14:32` stamp derived from `createdAt`, never `now()`** — otherwise the title drifts on every autosave, and an entry written past midnight would change date mid-write.
+- **✓ keeps, ✗ discards** (soft delete). ✗ confirms when there's content to lose **only because T138's undo doesn't exist yet — delete that confirmation when it does.**
+- **BACK keeps rather than discards.** It's ambiguous, and autosave has already written the text.
+
 ## Kotlin/Compose conventions
 
 - **One Activity.** The launcher, the editor, and every overlay live in the same Activity as Compose surfaces — no `startActivity`, no navigation library, no extra Recents entries. The editor (§4.6 of the design doc) is a Compose overlay composited over the launcher, not a separate screen.

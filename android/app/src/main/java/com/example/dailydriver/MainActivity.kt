@@ -12,6 +12,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dailydriver.alias.AliasRepository
 import com.example.dailydriver.apps.AppIndexRepository
 import com.example.dailydriver.apps.AppLauncher
+import com.example.dailydriver.editor.NoteEditorViewModel
+import com.example.dailydriver.notes.NotesRepository
 import com.example.dailydriver.notifications.NotificationRepository
 import com.example.dailydriver.settings.SettingsLauncher
 import com.example.dailydriver.shell.ShellScreen
@@ -28,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var settingsLauncher: SettingsLauncher
     private lateinit var aliasRepository: AliasRepository
     private lateinit var notificationRepository: NotificationRepository
+    private lateinit var notesRepository: NotesRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Forces this app's own night-mode Configuration flag on, independent of the system-wide
@@ -44,6 +47,7 @@ class MainActivity : AppCompatActivity() {
         appLauncher = AppLauncher(this)
         settingsLauncher = SettingsLauncher(this)
         notificationRepository = NotificationRepository(this)
+        notesRepository = NotesRepository(this)
         // onCreate/onDestroy, not onStart/onStop: unlike a typical app, this Activity IS the home
         // screen — it gets paused/resumed on every app switch but rarely destroyed, so pairing
         // registration with onStart/onStop would mean constant re-registration and re-querying
@@ -57,6 +61,8 @@ class MainActivity : AppCompatActivity() {
         setContent {
             DailyDriverTheme {
                 val viewModel: ShellViewModel = viewModel()
+                val editor: NoteEditorViewModel =
+                    viewModel(factory = NoteEditorViewModel.factory(notesRepository))
                 ShellScreen(
                     transcript = viewModel.transcript,
                     input = viewModel.input,
@@ -107,6 +113,10 @@ class MainActivity : AppCompatActivity() {
                     // its own tick, so the dot updates without waiting for this scope to
                     // recompose. See StatusLine's doc comment.
                     hasUnreadNotifications = { notificationRepository.hasUnreadNotifications },
+                    editor = editor,
+                    // The editor has taken over the bottom of the screen, so ":note ..." should
+                    // not still be sitting on the prompt behind it.
+                    onNoteEditorOpened = viewModel::onNoteEditorOpened,
                 )
             }
         }
