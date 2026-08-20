@@ -23,6 +23,16 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // The repo-root fixtures/ corpus is put on the unit-test classpath so tests load it as a
+    // resource rather than by walking relative paths out of the module directory. It lives
+    // outside android/ on purpose: design doc §7.3 has the C# suite executing the same files, so
+    // neither language owns them (T019, and T070's sync corpus later).
+    sourceSets {
+        getByName("test") {
+            resources.srcDir("$rootDir/../fixtures")
+        }
+    }
+
     // NOTE: Room schema export is deliberately NOT enabled here — see DailyDriverDatabase's
     // `exportSchema` comment and T151. Adding `ksp { arg("room.schemaLocation", ...) }` on Room
     // 2.8.4 in this project builds once and then fails every subsequent build with an
@@ -68,6 +78,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     testImplementation(libs.junit)
+    testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

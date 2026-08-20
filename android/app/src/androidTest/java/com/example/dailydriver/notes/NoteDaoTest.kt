@@ -65,7 +65,10 @@ class NoteDaoTest {
 
     @Test
     fun localUpsertWritesNoteTagsAndOutboxTogether() = runBlocking {
-        notes.upsertLocal(note(), tags = listOf("work", "urgent"), queuedAt = 5_000L)
+        // Tags aren't passed in — they're parsed from the body inside the transaction (T019), so
+        // this also covers "the body is the single source of truth" end to end rather than
+        // trusting a caller to have supplied a set that matches.
+        notes.upsertLocal(note(body = "ship it #work #urgent"), queuedAt = 5_000L)
 
         assertEquals("Standup", notes.byId("n1")?.title)
         assertEquals(listOf("urgent", "work"), notes.tagsOf("n1"))
@@ -73,11 +76,22 @@ class NoteDaoTest {
     }
 
     @Test
+    fun editingTheBodyRewritesTheTags() = runBlocking {
+        // A tag removed from the body has to disappear from the index — otherwise T026's search
+        // keeps returning the note under a tag it no longer carries.
+        notes.upsertLocal(note(body = "#work #urgent"), queuedAt = 1L)
+
+        notes.upsertLocal(note(body = "#personal", updatedAt = 2L), queuedAt = 2L)
+
+        assertEquals(listOf("personal"), notes.tagsOf("n1"))
+    }
+
+    @Test
     fun everyLocalMutationLeavesSomethingInTheOutbox() = runBlocking {
         // The property §7.1 actually depends on: there is no way to change a note locally and
         // end up with nothing queued, because that note would never sync and never be noticed.
-        notes.upsertLocal(note(id = "a"), tags = emptyList(), queuedAt = 1L)
-        notes.upsertLocal(note(id = "b"), tags = emptyList(), queuedAt = 2L)
+        notes.upsertLocal(note(id = "a"), queuedAt = 1L)
+        notes.upsertLocal(note(id = "b"), queuedAt = 2L)
         notes.markDeletedLocal("a", updatedAt = 9L, queuedAt = 3L)
 
         assertEquals(setOf("a", "b"), outbox.pending().map { it.noteId }.toSet())
@@ -89,7 +103,7 @@ class NoteDaoTest {
     fun repeatedEditsCoalesceToOnePendingRow() = runBlocking {
         // Stands in for §4.6's debounced autosave, which fires continuously while typing.
         repeat(50) { i ->
-            notes.upsertLocal(note(body = "draft $i", updatedAt = i.toLong()), emptyList(), queuedAt = i.toLong())
+            notes.upsertLocal(note(body = "draft $i", updatedAt = i.toLong()), queuedAt = i.toLong())
         }
 
         assertEquals(1, outbox.pending().size)
@@ -102,8 +116,8 @@ class NoteDaoTest {
         // remote edit would stop being detectable.
         notes.applyRemote(note(rev = 7L), tags = emptyList())
 
-        notes.upsertLocal(note(rev = 7L, body = "first edit"), emptyList(), queuedAt = 100L)
-        notes.upsertLocal(note(rev = 7L, body = "second edit"), emptyList(), queuedAt = 200L)
+        notes.upsertLocal(note(rev = 7L, body = "first edit"), queuedAt = 100L)
+        notes.upsertLocal(note(rev = 7L, body = "second edit"), queuedAt = 200L)
 
         val pending = outbox.pending().single()
         assertEquals(7L, pending.baseRev)
@@ -117,9 +131,9 @@ class NoteDaoTest {
         // so every re-save silently deleted the pending row and re-queued it with a fresh
         // baseRev. Asserting row *identity* survives an update is what catches that; asserting
         // the row merely exists would not, since a re-created row also exists.
-        notes.upsertLocal(note(rev = 7L), emptyList(), queuedAt = 100L)
+        notes.upsertLocal(note(rev = 7L), queuedAt = 100L)
 
-        notes.upsertLocal(note(rev = 7L, body = "edited", updatedAt = 2_000L), emptyList(), queuedAt = 200L)
+        notes.upsertLocal(note(rev = 7L, body = "edited", updatedAt = 2_000L), queuedAt = 200L)
 
         val pending = outbox.pending().single()
         assertEquals("outbox row was re-created, not preserved", 100L, pending.queuedAt)
@@ -131,7 +145,7 @@ class NoteDaoTest {
         // local changes must not silently drop them from the queue. Reconciling the two is
         // T067/T069's conflict handling — losing the row here would mean there's nothing left to
         // reconcile.
-        notes.upsertLocal(note(rev = 7L), emptyList(), queuedAt = 100L)
+        notes.upsertLocal(note(rev = 7L), queuedAt = 100L)
 
         notes.applyRemote(note(rev = 8L, body = "from server"), tags = emptyList())
 
@@ -142,8 +156,8 @@ class NoteDaoTest {
     fun pendingNotesReflectCurrentStateNotWhatWasQueued() = runBlocking {
         // The outbox stores a pointer, not a payload snapshot — so a push always sends the latest
         // body rather than whatever was true when the row was first queued.
-        notes.upsertLocal(note(body = "old"), emptyList(), queuedAt = 1L)
-        notes.upsertLocal(note(body = "new"), emptyList(), queuedAt = 2L)
+        notes.upsertLocal(note(body = "old"), queuedAt = 1L)
+        notes.upsertLocal(note(body = "new"), queuedAt = 2L)
 
         assertEquals("new", outbox.pendingNotes().single().body)
     }
@@ -173,7 +187,7 @@ class NoteDaoTest {
 
     @Test
     fun tombstonesAreHiddenFromTheNoteListButStillReadable() = runBlocking {
-        notes.upsertLocal(note(), emptyList(), queuedAt = 1L)
+        notes.upsertLocal(note(), queuedAt = 1L)
         notes.markDeletedLocal("n1", updatedAt = 2L, queuedAt = 2L)
 
         assertTrue(notes.observeAll().first().isEmpty())
@@ -222,7 +236,7 @@ class NoteDaoTest {
 
     @Test
     fun confirmingAPushStoresTheRevAndDrainsTheQueue() = runBlocking {
-        notes.upsertLocal(note(updatedAt = 500L), emptyList(), queuedAt = 1L)
+        notes.upsertLocal(note(updatedAt = 500L), queuedAt = 1L)
 
         notes.confirmPushed("n1", assignedRev = 12L, pushedUpdatedAt = 500L)
 
@@ -235,8 +249,8 @@ class NoteDaoTest {
         // The failure mode coalescing would otherwise introduce: the push sends updatedAt=500,
         // the user types while it's in flight (updatedAt=600, same outbox row), and a blind clear
         // would strand that edit with nothing left to push it.
-        notes.upsertLocal(note(updatedAt = 500L), emptyList(), queuedAt = 1L)
-        notes.upsertLocal(note(updatedAt = 600L, body = "typed mid-push"), emptyList(), queuedAt = 2L)
+        notes.upsertLocal(note(updatedAt = 500L), queuedAt = 1L)
+        notes.upsertLocal(note(updatedAt = 600L, body = "typed mid-push"), queuedAt = 2L)
 
         notes.confirmPushed("n1", assignedRev = 12L, pushedUpdatedAt = 500L)
 
@@ -259,7 +273,7 @@ class NoteDaoTest {
 
     @Test
     fun tagLookupExcludesTombstones() = runBlocking {
-        notes.upsertLocal(note(), tags = listOf("work"), queuedAt = 1L)
+        notes.upsertLocal(note(body = "#work"), queuedAt = 1L)
         notes.markDeletedLocal("n1", updatedAt = 2L, queuedAt = 2L)
 
         assertTrue(notes.observeByTag("work").first().isEmpty())
