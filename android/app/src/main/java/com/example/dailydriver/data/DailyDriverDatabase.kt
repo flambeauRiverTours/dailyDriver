@@ -33,10 +33,15 @@ class Converters {
  * putting them anywhere else buys a second connection pool and a second migration history in
  * exchange for nothing.
  *
- * **`exportSchema = true`, unlike T007.** The schema is about to become load-bearing: notes will
- * evolve, and every future change needs a real migration rather than a destructive rebuild. The
- * exported JSON in `app/schemas/` is what makes those migrations reviewable and testable
- * (`room-testing`'s `MigrationTestHelper` reads it), so it's committed alongside the code.
+ * **`exportSchema = false`, reluctantly — this is a known gap, tracked as T151.** Exporting the
+ * schema is what would make future migrations reviewable and testable (`MigrationTestHelper`
+ * reads that JSON), and it was enabled during T018 before being backed out: on Room 2.8.4 here it
+ * exports successfully exactly once, then fails *every* subsequent build with
+ * `AbstractMethodError: …FieldBundle$$serializer… typeParametersSerializers()` — Room's schema
+ * bundles use kotlinx-serialization and the version on the KSP processor classpath is
+ * incompatible. Reading back an existing schema is what trips it, which is why a clean build
+ * looks fine and the next one doesn't. Worth solving before the first real migration, not by
+ * flipping this flag and rediscovering the same failure.
  *
  * Still version 1: this is a *new* database file, not a migration of `aliases.db`. Room
  * migrations operate within one file, so the old aliases are carried across by
@@ -51,7 +56,7 @@ class Converters {
         SyncState::class,
     ],
     version = 1,
-    exportSchema = true,
+    exportSchema = false,
 )
 @TypeConverters(Converters::class)
 abstract class DailyDriverDatabase : RoomDatabase() {

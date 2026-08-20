@@ -11,3 +11,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Kotlin 2.x build-tool scratch (errors/, sessions/) — appeared once the KSP/Room work at T018
+# started exercising the compiler harder. Pure build output, nothing reproducible from it.
+.kotlin/

@@ -111,6 +111,34 @@ class NoteDaoTest {
     }
 
     @Test
+    fun updatingANoteDoesNotDestroyItsPendingOutboxRow() = runBlocking {
+        // Regression test. `@Insert(onConflict = REPLACE)` on notes looked harmless but SQLite
+        // implements it as delete-then-insert, and both outbox and note_tags CASCADE off notes —
+        // so every re-save silently deleted the pending row and re-queued it with a fresh
+        // baseRev. Asserting row *identity* survives an update is what catches that; asserting
+        // the row merely exists would not, since a re-created row also exists.
+        notes.upsertLocal(note(rev = 7L), emptyList(), queuedAt = 100L)
+
+        notes.upsertLocal(note(rev = 7L, body = "edited", updatedAt = 2_000L), emptyList(), queuedAt = 200L)
+
+        val pending = outbox.pending().single()
+        assertEquals("outbox row was re-created, not preserved", 100L, pending.queuedAt)
+    }
+
+    @Test
+    fun applyingRemoteStateDoesNotDestroyAPendingLocalEdit() = runBlocking {
+        // Same cascade hazard from the other direction: a pull landing on a note with unpushed
+        // local changes must not silently drop them from the queue. Reconciling the two is
+        // T067/T069's conflict handling — losing the row here would mean there's nothing left to
+        // reconcile.
+        notes.upsertLocal(note(rev = 7L), emptyList(), queuedAt = 100L)
+
+        notes.applyRemote(note(rev = 8L, body = "from server"), tags = emptyList())
+
+        assertEquals(listOf("n1"), outbox.pending().map { it.noteId })
+    }
+
+    @Test
     fun pendingNotesReflectCurrentStateNotWhatWasQueued() = runBlocking {
         // The outbox stores a pointer, not a payload snapshot — so a push always sends the latest
         // body rather than whatever was true when the row was first queued.

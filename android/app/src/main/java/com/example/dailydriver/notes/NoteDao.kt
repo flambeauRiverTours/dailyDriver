@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -101,7 +102,21 @@ abstract class NoteDao {
 
     // --- raw operations, reachable only through the transactions above -------------------------------
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * `@Upsert`, **not** `@Insert(onConflict = REPLACE)`, and this is not a style preference —
+     * the REPLACE version was a real bug, caught by `coalescingKeepsTheBaseRevFromWhenTheNote…`.
+     *
+     * SQLite implements `INSERT OR REPLACE` as *delete the conflicting row, then insert*. Both
+     * `outbox` and `note_tags` hold `ON DELETE CASCADE` foreign keys onto `notes`, so that delete
+     * cascaded: every re-save silently destroyed the note's pending outbox row, which was then
+     * re-created with a freshly captured [OutboxEntry.baseRev]. The `IGNORE` on [enqueue] was
+     * correct and simply unreachable, because there was never a row left to conflict with — so
+     * the conflict comparison point §7.2 depends on reset on every debounced autosave, and
+     * `applyRemote` would have wiped a pending local edit's queue entry outright.
+     *
+     * `@Upsert` issues an UPDATE on conflict instead. No delete, no cascade, row identity intact.
+     */
+    @Upsert
     protected abstract suspend fun insert(note: Note)
 
     @Query("UPDATE notes SET deleted = 1, updatedAt = :updatedAt WHERE id = :id")
