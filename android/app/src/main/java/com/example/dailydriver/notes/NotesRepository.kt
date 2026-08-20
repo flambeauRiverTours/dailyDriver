@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.text.format.DateFormat
 import com.example.dailydriver.data.DatabaseProvider
+import kotlinx.coroutines.flow.Flow
 import java.time.ZoneId
 
 /**
@@ -49,4 +50,18 @@ class NotesRepository(context: Context) {
         dao.markDeletedLocal(id, updatedAt = now, queuedAt = now)
 
     suspend fun byId(id: String): Note? = dao.byId(id)
+
+    suspend fun byTitle(title: String): Note? = dao.byTitle(title.trim())
+
+    /**
+     * The live note list for a `:notes` query (T025/T026).
+     *
+     * The only place [escapeLike] is applied, which is why `observeMatching`'s escaping
+     * requirement can't be forgotten at a call site — there is exactly one call site.
+     */
+    fun observe(query: NoteQuery): Flow<List<Note>> = when (query) {
+        is NoteQuery.All -> dao.observeAll()
+        is NoteQuery.Tag -> dao.observeByTag(query.tag)
+        is NoteQuery.Text -> dao.observeMatching(escapeLike(query.term))
+    }
 }

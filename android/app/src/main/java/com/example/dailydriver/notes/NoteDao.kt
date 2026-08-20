@@ -45,6 +45,41 @@ abstract class NoteDao {
     )
     abstract fun observeByTag(tag: String): Flow<List<Note>>
 
+    /**
+     * Free-text search over title and body (T026), newest first.
+     *
+     * `LIKE`, not FTS: a personal note store is hundreds of rows, and an FTS table would mean a
+     * schema migration — awkward while T151 has schema export broken. Revisit if it gets slow.
+     *
+     * **`ESCAPE` is load-bearing.** `%` and `_` are `LIKE` wildcards, so without it a search for
+     * "50%" matches every note and "snake_case" matches "snakeXcase". Callers must pass the term
+     * through [escapeLike]; the pairing is enforced by [NotesRepository], which is the only
+     * caller.
+     *
+     * Case-insensitivity comes from SQLite's `LIKE`, which folds ASCII only — a search for "CAFÉ"
+     * won't match "café". Accepted rather than adding `COLLATE` gymnastics for a personal tool.
+     */
+    @Query(
+        """
+        SELECT * FROM notes
+        WHERE deleted = 0
+          AND (title LIKE '%' || :escapedTerm || '%' ESCAPE '\'
+            OR body LIKE '%' || :escapedTerm || '%' ESCAPE '\')
+        ORDER BY updatedAt DESC
+        """,
+    )
+    abstract fun observeMatching(escapedTerm: String): Flow<List<Note>>
+
+    /**
+     * Finds a live note by title for `:note <name>`'s open-or-create (T025).
+     *
+     * `COLLATE NOCASE` because the user is typing a name from memory, not copying an identifier —
+     * `:note Standup` should find the note they called "standup". Tombstones are excluded, so
+     * naming a new note after a deleted one creates a fresh one rather than resurrecting it.
+     */
+    @Query("SELECT * FROM notes WHERE deleted = 0 AND title = :title COLLATE NOCASE LIMIT 1")
+    abstract suspend fun byTitle(title: String): Note?
+
     // --- local mutations: always enqueue ----------------------------------------------------------
 
     /**

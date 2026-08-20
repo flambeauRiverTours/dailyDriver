@@ -11,7 +11,7 @@ import com.example.dailydriver.command.ReservedCommand
 import com.example.dailydriver.command.escalationTier
 import com.example.dailydriver.command.helpText
 import com.example.dailydriver.command.parseReservedCommand
-import com.example.dailydriver.command.reservedCommandTokens
+import com.example.dailydriver.command.autoSpaceableTokens
 import com.example.dailydriver.command.unmatchedResponse
 
 /**
@@ -49,7 +49,9 @@ class ShellViewModel : ViewModel() {
         // just deleted would reappear immediately and backspace would get stuck. Generalized
         // across every registered token, not just :apps: harmless even for a command that turns
         // out to take no argument, and saves each of T142-T145 from reimplementing it.
-        val justCompletedToken = value in reservedCommandTokens && value.length > input.length
+        // autoSpaceableTokens, not every token: a token another one extends (`:note` vs `:notes`)
+        // must not auto-space, or typing the longer one is impossible — the space lands mid-word.
+        val justCompletedToken = value in autoSpaceableTokens && value.length > input.length
         input = if (justCompletedToken) "$value " else value
     }
 
@@ -79,6 +81,10 @@ class ShellViewModel : ViewModel() {
             // this and opens the editor, so reaching onSubmit would mean that broke. No-op
             // defensively rather than recording ":note" as a bogus command, same as Settings.
             is ReservedCommand.Note -> return
+            // Browse mode, like Apps and Notif — ShellScreen shows the list and selection is by
+            // tapping a row, so Enter has nothing to commit to and must not record ":notes foo"
+            // as a command that ran.
+            is ReservedCommand.Notes -> return
             // T145. Like Note, this wants onSubmit's normal record-and-clear — helpText() is
             // pure and needs no Context or repository, so there's nothing for ShellScreen to
             // resolve first the way :alias needs the live aliases map.

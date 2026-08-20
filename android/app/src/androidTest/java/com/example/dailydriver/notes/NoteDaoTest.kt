@@ -279,6 +279,100 @@ class NoteDaoTest {
         assertTrue(notes.observeByTag("work").first().isEmpty())
     }
 
+    // --- search and lookup (T025/T026) --------------------------------------------------------------------
+
+    @Test
+    fun searchMatchesTitleAndBody() = runBlocking {
+        notes.applyRemote(note(id = "a", title = "Standup", body = "nothing here"), emptyList())
+        notes.applyRemote(note(id = "b", title = "Other", body = "about the standup"), emptyList())
+        notes.applyRemote(note(id = "c", title = "Third", body = "unrelated"), emptyList())
+
+        val found = notes.observeMatching(escapeLike("standup")).first().map { it.id }
+
+        assertEquals(setOf("a", "b"), found.toSet())
+    }
+
+    @Test
+    fun searchIsCaseInsensitiveForAscii() = runBlocking {
+        notes.applyRemote(note(title = "Standup"), emptyList())
+
+        assertEquals(1, notes.observeMatching(escapeLike("STANDUP")).first().size)
+        assertEquals(1, notes.observeMatching(escapeLike("stAnDuP")).first().size)
+    }
+
+    @Test
+    fun searchExcludesTombstones() = runBlocking {
+        notes.upsertLocal(note(body = "findable"), queuedAt = 1L)
+        notes.markDeletedLocal("n1", updatedAt = 2L, queuedAt = 2L)
+
+        assertTrue(notes.observeMatching(escapeLike("findable")).first().isEmpty())
+    }
+
+    @Test
+    fun searchReturnsNewestFirst() = runBlocking {
+        notes.applyRemote(note(id = "old", title = "match", updatedAt = 100L), emptyList())
+        notes.applyRemote(note(id = "new", title = "match", updatedAt = 300L), emptyList())
+
+        assertEquals(listOf("new", "old"), notes.observeMatching(escapeLike("match")).first().map { it.id })
+    }
+
+    @Test
+    fun percentIsSearchedLiterallyRatherThanAsAWildcard() = runBlocking {
+        // The reason escapeLike + ESCAPE exist. Unescaped, "%" is a LIKE wildcard and this query
+        // would return every note in the database.
+        notes.applyRemote(note(id = "pct", body = "battery at 50% today"), emptyList())
+        notes.applyRemote(note(id = "other", body = "nothing relevant"), emptyList())
+
+        val found = notes.observeMatching(escapeLike("50%")).first().map { it.id }
+
+        assertEquals(listOf("pct"), found)
+    }
+
+    @Test
+    fun underscoreIsSearchedLiterallyRatherThanAsASingleCharacterWildcard() = runBlocking {
+        // Unescaped, "_" matches any one character, so "snake_case" would also match "snakeXcase".
+        notes.applyRemote(note(id = "snake", body = "snake_case naming"), emptyList())
+        notes.applyRemote(note(id = "decoy", body = "snakeXcase naming"), emptyList())
+
+        assertEquals(listOf("snake"), notes.observeMatching(escapeLike("snake_case")).first().map { it.id })
+    }
+
+    @Test
+    fun aBackslashInTheTermDoesNotCorruptTheSearch() = runBlocking {
+        // The escape character escaping itself — wrong order here silently breaks any term
+        // containing a backslash.
+        notes.applyRemote(note(id = "path", body = """C:\Users\notes"""), emptyList())
+
+        assertEquals(listOf("path"), notes.observeMatching(escapeLike("""C:\Users""")).first().map { it.id })
+    }
+
+    @Test
+    fun lookupByTitleIgnoresCase() = runBlocking {
+        // `:note Standup` should find the note you called "standup" — you're typing a name from
+        // memory, not copying an identifier.
+        notes.applyRemote(note(title = "standup"), emptyList())
+
+        assertEquals("n1", notes.byTitle("Standup")?.id)
+        assertEquals("n1", notes.byTitle("STANDUP")?.id)
+    }
+
+    @Test
+    fun lookupByTitleSkipsTombstones() = runBlocking {
+        // Naming a new note after a deleted one should create a fresh note, not resurrect the
+        // tombstone with its old body still in it.
+        notes.upsertLocal(note(title = "standup"), queuedAt = 1L)
+        notes.markDeletedLocal("n1", updatedAt = 2L, queuedAt = 2L)
+
+        assertNull(notes.byTitle("standup"))
+    }
+
+    @Test
+    fun lookupByTitleIsExactNotPartial() = runBlocking {
+        notes.applyRemote(note(title = "standup notes"), emptyList())
+
+        assertNull(notes.byTitle("standup"))
+    }
+
     // --- sync watermark ------------------------------------------------------------------------------------
 
     @Test

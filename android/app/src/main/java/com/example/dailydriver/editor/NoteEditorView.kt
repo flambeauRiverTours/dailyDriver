@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -90,7 +91,14 @@ fun NoteEditorView(
     onKeep: () -> Unit,
     onDiscard: () -> Unit,
     textStyle: TextStyle,
+    // `modifier` stays the first optional parameter, per Compose convention (and lint's
+    // ModifierParameter check) — `expanded` goes after it, not before.
     modifier: Modifier = Modifier,
+    /**
+     * Full height instead of growing from a few lines — set when an existing note was opened
+     * (T025). See [NoteEditorViewModel.expanded].
+     */
+    expanded: Boolean = false,
 ) {
     val bodyFocus = remember { FocusRequester() }
 
@@ -174,9 +182,13 @@ fun NoteEditorView(
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = true),
             modifier = Modifier
                 .fillMaxWidth()
-                // Grows with content from a couple of lines up to a ceiling, past which the body
-                // scrolls internally rather than pushing the transcript off the top entirely.
-                .heightIn(min = 48.dp, max = 420.dp)
+                // Growing from a couple of lines up to a ceiling is the quick-capture shape;
+                // past the ceiling the body scrolls internally rather than pushing the transcript
+                // off the top. Opening an existing note skips straight to full height instead —
+                // re-reading a journal entry through a six-line window is miserable.
+                .then(
+                    if (expanded) Modifier.fillMaxHeight() else Modifier.heightIn(min = 48.dp, max = 420.dp),
+                )
                 .verticalScroll(rememberScrollState())
                 .padding(top = 8.dp)
                 .focusRequester(bodyFocus)

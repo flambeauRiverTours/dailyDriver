@@ -2,6 +2,7 @@ package com.example.dailydriver.shell
 
 import com.example.dailydriver.alias.DefineAliasResult
 import com.example.dailydriver.command.ReservedCommand
+import com.example.dailydriver.command.autoSpaceableTokens
 import com.example.dailydriver.command.reservedCommandHelp
 import com.example.dailydriver.command.reservedCommandTokens
 import org.junit.Assert.assertEquals
@@ -472,8 +473,8 @@ class ShellViewModelTest {
     // covered the moment it's registered.
 
     @Test
-    fun `every registered token auto-appends a separating space when typed forward`() {
-        reservedCommandTokens.forEach { token ->
+    fun `every auto-spaceable token appends a separating space when typed forward`() {
+        autoSpaceableTokens.forEach { token ->
             val viewModel = ShellViewModel()
             viewModel.onInputChange(token.dropLast(1))
 
@@ -484,11 +485,41 @@ class ShellViewModelTest {
     }
 
     @Test
+    fun `a token another token extends is typeable — auto-space must not block it`() {
+        // The concrete bug this rule exists for. ":note" auto-spacing on completion meant typing
+        // ":notes" produced ":note s" — a new note titled "s" — and the note browser was
+        // unreachable. Simulated here the way a keyboard actually delivers it: one character at
+        // a time.
+        val viewModel = ShellViewModel()
+
+        ":notes".forEachIndexed { index, _ ->
+            viewModel.onInputChange(":notes".take(index + 1))
+        }
+
+        // ":notes " — it auto-spaces on its own completion, which is correct: nothing extends
+        // *it*. What matters is that the command is Notes, not Note("s").
+        assertEquals(":notes ", viewModel.input)
+        assertEquals(ReservedCommand.Notes(""), viewModel.reservedCommand)
+    }
+
+    @Test
+    fun `extendable tokens are excluded from auto-spacing, and only those`() {
+        // Pins the rule itself, so a future token that creates a new prefix pair is handled
+        // rather than silently becoming untypeable.
+        val extendable = reservedCommandTokens.filter { token ->
+            reservedCommandTokens.any { it != token && it.startsWith(token) }
+        }
+
+        assertEquals(reservedCommandTokens - extendable.toSet(), autoSpaceableTokens)
+        assertTrue("':note' should be excluded — ':notes' extends it", ":note" in extendable)
+    }
+
+    @Test
     fun `backspacing down to any token does not re-add the space`() {
         // Without the `value.length > input.length` guard, backspace would be permanently stuck
         // at "<token> " — the space you just deleted would reappear immediately, making it
         // impossible to edit back past it.
-        reservedCommandTokens.forEach { token ->
+        autoSpaceableTokens.forEach { token ->
             val viewModel = ShellViewModel()
             viewModel.onInputChange("$token x")
 

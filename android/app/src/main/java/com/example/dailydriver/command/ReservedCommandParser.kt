@@ -9,6 +9,16 @@ const val SETTINGS_TOKEN = ":settings"
 /** Command token for `:note`, exposed for the same reason as [APPS_TOKEN]. */
 const val NOTE_TOKEN = ":note"
 
+/**
+ * Command token for `:notes`, exposed for the same reason as [APPS_TOKEN].
+ *
+ * **The first token that is a strict prefix of another** ([NOTE_TOKEN] plus an `s`). That's safe
+ * because `matchCommandToken` requires an exact match or token-then-*space*, so `:notes` never
+ * satisfies `:note` — but it means registry order genuinely doesn't matter here, and there's a
+ * test pinning that rather than leaving it to luck.
+ */
+const val NOTES_TOKEN = ":notes"
+
 /** Command token for `:alias`, exposed for the same reason as [APPS_TOKEN]. */
 const val ALIAS_TOKEN = ":alias"
 
@@ -58,8 +68,11 @@ private val registry = listOf(
     RegisteredCommand(SETTINGS_TOKEN, CommandHelp(":settings", "open system settings")) {
         ReservedCommand.Settings
     },
-    RegisteredCommand(NOTE_TOKEN, CommandHelp(":note [name]", "create a note (not built yet)")) { query ->
+    RegisteredCommand(NOTE_TOKEN, CommandHelp(":note [name]", "write a note")) { query ->
         ReservedCommand.Note(query)
+    },
+    RegisteredCommand(NOTES_TOKEN, CommandHelp(":notes [query]", "browse and search notes")) { query ->
+        ReservedCommand.Notes(query)
     },
     RegisteredCommand(ALIAS_TOKEN, CommandHelp(":alias", "list defined aliases")) {
         ReservedCommand.Alias
@@ -75,8 +88,24 @@ private val registry = listOf(
     RegisteredCommand(HELP_SHORTHAND, help = null) { ReservedCommand.Help },
 )
 
-/** Every registered command's token — e.g. for ShellViewModel's auto-space-on-completion behavior. */
+/** Every registered command's token. */
 val reservedCommandTokens: List<String> = registry.map { it.token }
+
+/**
+ * The tokens `ShellViewModel` may auto-space on completion — those that **no other token
+ * extends**.
+ *
+ * T140 generalised auto-space to every token, which was correct while no token was a prefix of
+ * another. `:notes` (T025) broke that: typing it character by character reaches `:note` first,
+ * auto-space turns it into `:note ` on the spot, and the following `s` lands *after* the space —
+ * producing `:note s`, a new note titled "s". **`:notes` would have been untypeable.**
+ *
+ * Excluding extendable tokens costs `:note` its auto-space, so `:note standup` now needs the
+ * space typed. That is one keystroke, and the thing it buys back is a reachable command.
+ */
+val autoSpaceableTokens: List<String> = reservedCommandTokens.filter { token ->
+    reservedCommandTokens.none { other -> other != token && other.startsWith(token) }
+}
 
 /**
  * What `:help` lists, in registry order (T145). Generated rather than hand-written so a command
