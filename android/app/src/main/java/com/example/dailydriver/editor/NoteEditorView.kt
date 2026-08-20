@@ -43,12 +43,16 @@ import androidx.compose.ui.unit.sp
  * substitutes are worse here. An arrow like `↵` reads as *insert a newline* when it's sitting in
  * the header of a text editor, which is actively misleading rather than merely plain.
  *
- * Sized up from body text because both are small glyphs — `×` in particular is a math operator
- * and renders noticeably smaller than surrounding letters at the same point size.
+ * Sized modestly above body text because both are small glyphs — `×` in particular is a math
+ * operator and renders noticeably smaller than surrounding letters at the same point size. Held
+ * to 18sp rather than larger: the check's stroke weight scales with it, and at 22sp it read
+ * heavier and rounder than the crisp `×` beside it, which was the opposite of the intent. The
+ * touch target is set independently by [EditorAction], so this size is purely how the glyph
+ * looks — shrinking it costs nothing in tappability.
  */
 private const val DISCARD_GLYPH = "×"
 private const val KEEP_GLYPH = "✓"
-private val GLYPH_SIZE = 22.sp
+private val GLYPH_SIZE = 18.sp
 
 /** Test anchors, following the convention in `ShellTestTags`. */
 internal object EditorTestTags {
