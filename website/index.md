@@ -95,7 +95,7 @@ The parts where the obvious answer was not the one I took.
 The repository also holds the working engineering documents: the
 [design document](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/design.md), a
 [task log](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/tasks.md) recording what
-was decided and what broke while building each feature, and five
+was decided and what broke while building each feature, and six
 [architecture decision records](https://github.com/flambeauRiverTours/dailyDriver/tree/main/docs/adr).
 This site is the overview and links to them.
 

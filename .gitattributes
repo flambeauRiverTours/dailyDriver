@@ -3,10 +3,24 @@
 # disagreement here is exactly the kind of formatting-only diff noise .editorconfig exists to avoid.
 * text=auto eol=crlf
 
-# Bash scripts must stay LF regardless of platform — CRLF breaks the shebang line
+# Bash scripts must stay LF regardless of platform — CRLF breaks the shebang line.
+#
+# ⚠️ These patterns are deliberately NOT anchored with a leading slash. They were written as
+# `/gradlew`, which anchors to the directory holding this file — the repo root — and there is no
+# root-level gradlew: the wrapper lives at android/gradlew. So the rule matched nothing, the
+# blanket `* eol=crlf` above applied instead, and because `eol=crlf` forces CRLF on *every*
+# platform rather than just Windows, Linux CI checked out a gradlew whose shebang read
+# `#!/usr/bin/env sh`. Every job then failed with
+#
+#     /usr/bin/env: 'sh': No such file or directory     (exit 127)
+#
+# Unanchored patterns match at any depth, which is what was meant. Verify after any change with:
+#
+#     git check-attr text eol -- android/gradlew
+#
 *.sh text eol=lf
-/gradlew text eol=lf
-/gradlew.bat text eol=crlf
+gradlew text eol=lf
+gradlew.bat text eol=crlf
 
 # Binary — never touch line endings, never diff, never attempt a text merge
 *.png binary

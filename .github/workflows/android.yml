@@ -1,0 +1,152 @@
+name: Android
+
+# Build, test and lint the launcher.
+#
+# **This coexists with Azure Pipelines rather than replacing it** (design check-in, 2026-08-21).
+# Section 10 of docs/tasks.md keeps Azure Pipelines for the AZ-400 work — environments, approval
+# gates, slot swaps, IaC what-if — because that is 50-55% of the exam and the point of those tasks.
+# This handles what is wanted today and needs no Azure org, billing link or service connection to
+# exist first: fast feedback on a pull request, and a build that is known to work.
+#
+# **Inclusion, not exclusion.** This started as `paths-ignore` listing website/ and docs/, which
+# is the wrong polarity in a monorepo: `desktop/`, `backend/` and `infra/` were not listed, so
+# .NET and Bicep changes would have run the whole Android suite for nothing — and every top-level
+# directory added in future would silently do the same until somebody remembered to exclude it.
+# An allow-list fails safe: a new directory triggers nothing until it is named here.
+#
+# `fixtures/` is the non-obvious entry and the reason this list is written out rather than just
+# `android/**`. The cross-language corpora are on the Android unit-test classpath
+# (`resources.srcDir("$rootDir/../fixtures")`), so a change to a fixture *is* a change to what the
+# Android tests assert. Leaving it out would let someone edit a contract both clients must satisfy
+# without running the tests that enforce it.
+#
+# The list is written out twice rather than shared with a YAML anchor: GitHub Actions parses
+# workflows with its own parser and does not support anchors or aliases, so `&x` / `*x` fails at
+# runtime even though every YAML linter accepts it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'fixtures/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'fixtures/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          # AGP 8.10 requires 17 or newer; the local machine uses Android Studio's bundled JBR,
+          # which android/CLAUDE.md notes is pinned in a machine-local gradle.properties a fresh
+          # clone does not get. CI has no such file, so the JDK is chosen explicitly here.
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: ./gradlew :app:testDebugUnitTest :app:lintDebug
+        working-directory: android
+
+      # Uploaded on failure only. A green run's reports are noise; a red one is the first thing
+      # you want, and a failing Gradle test task prints a summary rather than the assertion.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            android/app/build/reports/tests/
+            android/app/build/reports/lint-results-debug.html
+          retention-days: 7
+
+  instrumented:
+    name: Instrumented tests
+    runs-on: ubuntu-latest
+    # Deliberately not gated behind the unit job. They are independent, and serialising them would
+    # add several minutes to every run to save quota only on runs that were failing anyway.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # GitHub's ubuntu runners support nested virtualisation, but /dev/kvm is not world-writable
+      # by default and the emulator cannot open it. Without this the emulator falls back to
+      # software rendering and the job effectively hangs rather than failing cleanly.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # API 33 matches minSdk/targetSdk and the S20 FE the project is pinned to (android/CLAUDE.md).
+      # `aosp_atd` is a stripped-down image built for test runs: no Play Services, much faster to
+      # boot. Nothing here needs Google APIs — the suite is Room, migrations and schema export.
+      - name: Instrumented tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: aosp_atd
+          arch: x86_64
+          profile: pixel_5
+          ram-size: 4096M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          working-directory: android
+          script: ./gradlew :app:connectedDebugAndroidTest
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-test-reports
+          path: android/app/build/reports/androidTests/
+          retention-days: 7
+
+  # Proves the release variant still builds, so a release-only failure is not discovered at tag
+  # time. **Not run on pull requests**: it was, and a check called "Assemble release" sitting on a
+  # PR reads like the PR is cutting a release, which it is not. It also doubled CI time per PR for
+  # very little — `isMinifyEnabled` is false, so the release variant differs from debug only by a
+  # signing config that is deliberately absent here anyway.
+  #
+  # Pushes to main still catch it, which is early enough: main is protected, and the release
+  # workflow builds and tests again at tag time regardless.
+  release-build-check:
+    name: Release build check (unsigned)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # No signing secrets here on purpose. The build degrades to an unsigned APK, which is enough
+      # to prove it assembles, and it keeps the keystore out of every routine CI run — including
+      # runs from a fork, which cannot read secrets anyway.
+      - run: ./gradlew :app:assembleRelease
+        working-directory: android
