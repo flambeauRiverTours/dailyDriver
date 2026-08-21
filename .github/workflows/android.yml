@@ -123,10 +123,17 @@ jobs:
           path: android/app/build/reports/androidTests/
           retention-days: 7
 
-  # Proves the thing that gets released still assembles, on every change. A release-only build
-  # failure discovered at tag time is discovered at the worst possible moment.
-  assemble:
-    name: Assemble release
+  # Proves the release variant still builds, so a release-only failure is not discovered at tag
+  # time. **Not run on pull requests**: it was, and a check called "Assemble release" sitting on a
+  # PR reads like the PR is cutting a release, which it is not. It also doubled CI time per PR for
+  # very little — `isMinifyEnabled` is false, so the release variant differs from debug only by a
+  # signing config that is deliberately absent here anyway.
+  #
+  # Pushes to main still catch it, which is early enough: main is protected, and the release
+  # workflow builds and tests again at tag time regardless.
+  release-build-check:
+    name: Release build check (unsigned)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
