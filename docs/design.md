@@ -217,7 +217,11 @@ Rationale: a vim emulator is a large amount of work whose payoff is ergonomics f
 
 **Autosave is the real save mechanism.** The buttons stay, because an editor with no visible commit affordance feels unfinished — but they are *not* what protects the data. Every change is debounced and written to Room continuously, so a killed process, a phone call, or a swipe-away loses nothing. The check button means "done", not "commit". This costs almost nothing given the outbox already exists (§7.1), and it is how Keep itself behaves.
 
-**Keyboard path preserved.** The premise of the project is keyboard-first, so the editor must not force a reach for the screen: `Esc` closes, `Ctrl+Enter` confirms and closes, `Tab`/`Enter` moves between checklist items. A note started from the keyboard should be finishable from the keyboard.
+**Keyboard path preserved.** The premise of the project is keyboard-first, so the editor must not force a reach for the screen.
+
+*Revised at T027 (2026-08-21).* This originally specified `Esc` to close, `Ctrl+Enter` to confirm, and `Tab`/`Enter` to move between items. Those keys do not exist on the target device: the S20 FE has a soft keyboard, and its only spare key is the IME action. The rule is therefore expressed in terms the device can honour — **Enter on a trailing empty checklist row finishes the note**, which is the idiom every checklist app uses, and the title's action moves to the body.
+
+**A prose body cannot be finished from the soft keyboard, and that is accepted rather than solved.** Making the IME action finish the note would take Enter away from inserting newlines, which is a worse trade for the long-form journalling this surface also serves. A prose note ends with a tap on ✓. If a hardware keyboard is ever in scope, `Esc` and `Ctrl+Enter` are the right shapes to add and nothing here forecloses them.
 
 **Storage format is still Markdown** — but note the rationale has shifted. In v2 the argument was that a rich-text JSON model (Quill Delta, ProseMirror) is hostile to a plain-text modal editor. With the modal editor gone, that argument is weaker. Markdown stays anyway, for reasons that still hold: desktop parity with the WPF Markdig editor (§5.3), clean diffing, portability, and no proprietary lock-in. Checklists remain `- [ ]` / `- [x]` lines, parsed into structured items for both UIs — so the Keep-style checkbox list and the desktop checkbox list are two views of one Markdown body.
 

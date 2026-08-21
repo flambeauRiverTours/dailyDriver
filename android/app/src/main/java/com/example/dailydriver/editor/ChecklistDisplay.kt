@@ -45,3 +45,17 @@ fun List<ChecklistItem>.actualIndex(displayedIndex: Int, hideChecked: Boolean): 
  */
 fun rowToFocusAfterConversion(visibleCount: Int): Int =
     if (visibleCount <= 0) 0 else visibleCount - 1
+
+/**
+ * Whether Enter on a checklist row should finish the note rather than add another (T027).
+ *
+ * A trailing empty row is the universal "I'm done" signal in a checklist, and adding yet another
+ * blank row in response is the one thing it cannot mean. Everywhere else Enter keeps building the
+ * list.
+ *
+ * Extracted as a predicate because on a soft keyboard this is the *only* spare key there is, so
+ * the condition is load-bearing and worth pinning rather than leaving inline in a composable
+ * nothing can reach.
+ */
+fun enterFinishesNote(text: String, index: Int, lastIndex: Int): Boolean =
+    text.isEmpty() && index == lastIndex

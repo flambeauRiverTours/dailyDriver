@@ -1,6 +1,8 @@
 package com.example.dailydriver.editor
 
 import com.example.dailydriver.notes.ChecklistItem
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -108,5 +110,29 @@ class ChecklistDisplayTest {
     @Test
     fun `a negative count cannot produce a negative row`() {
         assertEquals(0, rowToFocusAfterConversion(-1))
+    }
+
+    // --- Enter on the trailing empty row (T027) ----------------------------------------------------
+
+    @Test
+    fun `enter on a trailing empty row finishes the note`() {
+        assertTrue(enterFinishesNote(text = "", index = 2, lastIndex = 2))
+    }
+
+    @Test
+    fun `enter on a row with text always adds another`() {
+        assertFalse(enterFinishesNote(text = "milk", index = 2, lastIndex = 2))
+    }
+
+    @Test
+    fun `an empty row that is not last still adds another`() {
+        // Otherwise clearing a row in the middle and pressing Enter would close the note, which is
+        // not what emptying a row in the middle of a list means.
+        assertFalse(enterFinishesNote(text = "", index = 0, lastIndex = 2))
+    }
+
+    @Test
+    fun `the only row, when empty, finishes`() {
+        assertTrue(enterFinishesNote(text = "", index = 0, lastIndex = 0))
     }
 }

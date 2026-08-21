@@ -96,6 +96,8 @@ fun ChecklistView(
     onDeleteItem: (index: Int) -> Unit,
     onMoveItem: (from: Int, to: Int) -> Unit,
     onAddItem: () -> Unit,
+    /** Enter on the trailing empty row finishes the note (T027). */
+    onFinish: () -> Unit,
     onCommitItem: (index: Int) -> Unit,
     onClearDue: (index: Int) -> Unit,
     /** The row to put the cursor in, decided by the ViewModel. Null when focus shouldn't move. */
@@ -148,7 +150,14 @@ fun ChecklistView(
                     draggingIndex = -1
                     dragOffset = 0f
                 },
-                onEnter = onAddItem,
+                // Enter adds the next row, except on a trailing empty one, where it finishes
+                // the note instead (T027). That is the idiom every checklist app uses, and on a
+                // soft keyboard it is the only spare key there is: an empty last row is the
+                // universal "I'm done" signal, and adding yet another blank row in response is
+                // the one thing it cannot mean.
+                onEnter = {
+                    if (enterFinishesNote(item.text, index, items.lastIndex)) onFinish() else onAddItem()
+                },
                 onCommit = { onCommitItem(index) },
                 onClearDue = { onClearDue(index) },
                 today = today,
