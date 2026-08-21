@@ -1,0 +1,116 @@
+site_name: dailyDriver
+site_description: >-
+  A keyboard-first CLI-style Android launcher with an on-device SLM, a native WPF
+  notes client, and a C# Azure Functions backend — design, decisions, and progress.
+site_url: https://flambeauRiverTours.github.io/dailyDriver/
+repo_url: https://github.com/flambeauRiverTours/dailyDriver
+repo_name: flambeauRiverTours/dailyDriver
+copyright: Jack Treadwell
+
+# Renders the existing docs/ folder as-is. Nothing here is a second copy of the
+# documentation — design.md, tasks.md and the ADRs stay the single source, edited in the repo
+# exactly as before, and this only decides how they're presented. A site whose content has to be
+# maintained separately from the docs is a site that goes stale.
+docs_dir: docs
+
+# `cli-launcher-hld.md` is byte-identical to `design.md` — a duplicate that predates this site and
+# has no inbound links. Publishing both would put two copies of every design section in the search
+# index, which is most of what a site like this is for. Excluded rather than deleted, because
+# removing a doc is a separate call from setting up a site; if it goes, delete this line with it.
+# The PDF of the same name is a different artifact and is still published.
+exclude_docs: |
+  cli-launcher-hld.md
+
+theme:
+  name: material
+  language: en
+  font:
+    text: Inter
+    # The project is a terminal. Code, task IDs and the CLI examples throughout the design doc
+    # all read better in the typeface the app itself uses.
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    # Section index pages, so "ADRs" in the nav opens the ADR README rather than being a dead
+    # label you have to click past.
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.action.edit
+  palette:
+    # Defaults to the reader's system setting, with a manual toggle either way — the same
+    # three-state behaviour the rest of this project's surfaces assume.
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Follow system
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light
+
+# "Edit this page" points at the file in the repo, which is where corrections actually belong.
+edit_uri: edit/main/docs/
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      # The design doc is one long page with numbered sections; without this its subsections
+      # collapse out of the sidebar and §7.1 becomes unlinkable.
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.superfences:
+      # Mermaid support, enabled ahead of need: T088 owes an architecture diagram, and a diagram
+      # committed as a fenced code block stays reviewable in a diff — unlike an exported image.
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Design: design.md
+  - Tasks: tasks.md
+  - Decisions:
+      # Kept as README.md rather than renamed to index.md so GitHub still renders it when
+      # browsing docs/adr/ — listing it first is what makes it the section landing page here.
+      - adr/README.md
+      - 0001 · Monorepo over split repos: adr/0001-monorepo-over-split-repos.md
+      - 0002 · WPF over Avalonia/WinUI: adr/0002-wpf-over-avalonia-winui.md
+      - 0003 · MediaPipe over llama.cpp: adr/0003-mediapipe-over-llama-cpp.md
+      - 0004 · Markdown over rich-text JSON: adr/0004-markdown-over-rich-text-json.md
+      - 0005 · Conflict copies over plain LWW: adr/0005-conflict-copies-over-plain-lww.md

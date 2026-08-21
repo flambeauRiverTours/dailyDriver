@@ -747,6 +747,17 @@ The long pole. Gated on the section 06 go/no-go.
 - [ ] **T088** — README + architecture diagram  
   `P0` `M` · after: T083
   - Recruiters skim. A diagram plus the benchmark table does more work than the code.
+- [x] **T152** — Documentation site (MkDocs Material → GitHub Pages)  
+  `P2` `S`
+  - **New (2026-08-21, user request.)** A browsable, searchable site for the design and technical detail, rather than asking anyone to read raw Markdown in a repo tree.
+  - **Renders `docs/` in place — there is no second copy.** `design.md`, `tasks.md` and the ADRs stay the single source and are edited exactly as before; `mkdocs.yml` only decides how they're presented. A docs site whose content is maintained separately from the docs is a docs site that goes stale, and this project already has one duplication problem (below).
+  - **MkDocs Material over the GitHub wiki** — the wiki needs no setup but lives in a *separate* repo, so its content would have to be duplicated and would drift, and it offers no theming, no nav, and weak search. The one-time cost here is a config file.
+  - **`docs/index.md` is a purpose-built landing page**, deliberately not a copy of `README.md`: the README addresses someone evaluating the repo, the site's home addresses someone about to read the design. Both are short enough that keeping them distinct is cheaper than making one generate the other.
+  - **🔎 Found while wiring the nav: `docs/cli-launcher-hld.md` is byte-identical to `docs/design.md`** and has no inbound links. Excluded from the site rather than deleted — publishing both would put two copies of every design section in the search index, which is most of what the site is for, but removing a doc is a separate call. **Worth resolving**: delete the duplicate and drop the `exclude_docs` line with it. The PDF of the same name is a genuinely different artifact and is still published.
+  - **Mermaid is enabled ahead of need** — T088 owes an architecture diagram, and a diagram committed as a fenced code block stays reviewable in a diff, unlike an exported image.
+  - **CI builds with `--strict` on pull requests too**, so a broken internal link or a page missing from the nav fails the check instead of shipping a 404. Deployment is a separate job gated on `main`, so a fork's PR can build but never publish.
+  - **Verified locally**: `mkdocs build --strict` clean; home, design, tasks and all five ADRs render; the design doc's numbered subsections (§4.1 and friends) are individually linkable; the task list renders as 150 real checkboxes with 48 ticked, matching the count below; search, the light/dark toggle, and per-page edit links all work.
+  - ⚠️ **Needs one manual step before it's live**: GitHub → Settings → Pages → Source → **GitHub Actions**. Nothing in the repo can flip that.
 - [ ] **T089** — Publish benchmark table  
   `P0` `S` · after: T083
   - Commit as `docs/benchmarks/*.md` — don't let the numbers live only in a terminal scrollback.
@@ -788,4 +799,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**150 tasks — 48 done, 102 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**151 tasks — 49 done, 102 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

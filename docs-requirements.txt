@@ -1,0 +1,13 @@
+# Documentation site only — nothing here is a build or runtime dependency of the app.
+#
+# Kept at the repo root rather than inside docs/, because docs/ is mkdocs' docs_dir and
+# everything in it gets copied into the published site.
+#
+# Pinned so a rebuild months from now produces the same site rather than silently picking up a
+# theme release that moved something.
+#
+#   python -m venv .venv && .venv/Scripts/pip install -r docs-requirements.txt
+#   .venv/Scripts/mkdocs serve      # live preview on http://127.0.0.1:8000
+#   .venv/Scripts/mkdocs build      # one-shot render into site/
+mkdocs==1.6.1
+mkdocs-material==9.5.49
