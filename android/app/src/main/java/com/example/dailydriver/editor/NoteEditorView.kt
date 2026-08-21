@@ -66,6 +66,10 @@ internal object EditorTestTags {
     const val OVERFLOW_BUTTON = "editor_overflow"
     const val CONVERT_ACTION = "editor_convert"
     const val HIDE_CHECKED_ACTION = "editor_hide_checked"
+    const val UNDO_ACTION = "editor_undo"
+    const val TAG_CHIPS = "editor_tag_chips"
+    const val ADD_TAG = "editor_add_tag"
+    fun tagChip(tag: String) = "editor_tag_chip_$tag"
 }
 
 /**
@@ -91,6 +95,10 @@ internal object EditorTestTags {
 @Composable
 fun NoteEditorView(
     draft: NoteDraft,
+    /** The note's tags, parsed from the body (T139). */
+    tags: List<String>,
+    onRemoveTag: (String) -> Unit,
+    onAddTag: () -> Unit,
     onTitleChange: (String) -> Unit,
     onBodyChange: (String) -> Unit,
     onKeep: () -> Unit,
@@ -207,6 +215,7 @@ fun NoteEditorView(
                 onDeleteItem = checklist.onDeleteItem,
                 onMoveItem = checklist.onMoveItem,
                 onAddItem = checklist.onAddItem,
+                onFinish = checklist.onFinish,
                 onCommitItem = checklist.onCommitItem,
                 onClearDue = checklist.onClearDue,
                 focusIndex = checklist.focusIndex,
@@ -232,6 +241,13 @@ fun NoteEditorView(
         // The overflow row (T024, inherited from T022). §4.6 puts it along the bottom next to the
         // tag chips, which is also where T139's chips will land — so this row is their home too,
         // built once rather than added and then rearranged.
+        TagChipsRow(
+            tags = tags,
+            onRemoveTag = onRemoveTag,
+            onAddTag = onAddTag,
+            textStyle = textStyle,
+        )
+
         OverflowRow(
             isChecklist = draft.type == NoteType.CHECKLIST,
             hideChecked = checklist.hideChecked,
@@ -260,6 +276,7 @@ data class ChecklistBinding(
     val onAddItem: () -> Unit,
     val onCommitItem: (index: Int) -> Unit,
     val onClearDue: (index: Int) -> Unit,
+    val onFinish: () -> Unit,
     val focusIndex: Int?,
     val onFocusConsumed: () -> Unit,
     val onToggleType: () -> Unit,
@@ -337,13 +354,16 @@ internal fun EditorAction(label: String, tag: String, style: TextStyle, onClick:
  * Confirmation shown when ✗ would destroy actual writing. Not a dialog — a line above the editor,
  * consistent with everything else in this shell being text.
  *
- * This exists only because T138's undo snackbar doesn't yet, and discard has no way back from the
- * UI. Once undo lands, this should go: confirmations on reversible actions are pure friction.
+ * **An inline row rather than a Material `Snackbar`** (design check-in, 2026-08-21). The task
+ * called for a snackbar, but there is no `Scaffold`, `Snackbar` or dialog anywhere in this app —
+ * it would be the first floating Material chrome over a monospace terminal, and it would look like
+ * it came from a different program. `DiscardConfirmation` set the inline precedent before it was
+ * retired, and this takes its place in the same slot.
  */
 @Composable
-fun DiscardConfirmation(
-    onConfirm: () -> Unit,
-    onCancel: () -> Unit,
+fun UndoRow(
+    label: String,
+    onUndo: () -> Unit,
     textStyle: TextStyle,
     modifier: Modifier = Modifier,
 ) {
@@ -354,8 +374,47 @@ fun DiscardConfirmation(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = "discard this note?", style = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
-        EditorAction(label = "discard", tag = "editor_confirm_discard", style = textStyle, onClick = onConfirm)
-        EditorAction(label = "keep", tag = "editor_cancel_discard", style = textStyle, onClick = onCancel)
+        Text(text = label, style = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+        EditorAction(label = "undo", tag = EditorTestTags.UNDO_ACTION, style = textStyle, onClick = onUndo)
+    }
+}
+
+/**
+ * The tag chips row (T139).
+ *
+ * **A view over the body's hashtags, not a second place tags live.** Tapping a chip removes that
+ * tag from the body; `+ tag` appends a `#` and hands the cursor back to the body so you type the
+ * name in the one field that already exists. `NoteDao` still derives tags from the body and still
+ * ignores anything passed in, so nothing downstream can tell a chip from typing.
+ *
+ * Hidden entirely when a note has no tags and you haven't asked to add one — an empty row of
+ * nothing is worse than no row on a surface this small.
+ */
+@Composable
+private fun TagChipsRow(
+    tags: List<String>,
+    onRemoveTag: (String) -> Unit,
+    onAddTag: () -> Unit,
+    textStyle: TextStyle,
+) {
+    val dim = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+            .testTag(EditorTestTags.TAG_CHIPS),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        tags.forEach { tag ->
+            EditorAction(
+                label = "#$tag",
+                tag = EditorTestTags.tagChip(tag),
+                style = dim,
+                onClick = { onRemoveTag(tag) },
+            )
+        }
+        EditorAction(label = "+ tag", tag = EditorTestTags.ADD_TAG, style = dim, onClick = onAddTag)
     }
 }

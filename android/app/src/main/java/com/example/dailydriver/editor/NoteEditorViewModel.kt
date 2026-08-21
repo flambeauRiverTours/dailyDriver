@@ -12,6 +12,8 @@ import com.example.dailydriver.notes.NoteType
 import com.example.dailydriver.notes.NotesRepository
 import com.example.dailydriver.notes.moved
 import com.example.dailydriver.notes.normalized
+import com.example.dailydriver.notes.parseTags
+import com.example.dailydriver.notes.withoutTag
 import com.example.dailydriver.notes.parseChecklist
 import com.example.dailydriver.notes.renderChecklist
 import com.example.dailydriver.notes.toChecklistBody
@@ -51,13 +53,34 @@ class NoteEditorViewModel(
     val isOpen: Boolean get() = draft != null
 
     /**
-     * Set when ✗ is pressed on a note that has something in it. §4.6 assigns delete to the
-     * overflow menu, but the design check-in gave ✗ a genuinely destructive meaning, and T138's
-     * undo snackbar doesn't exist yet — so the one case that could actually lose writing asks
-     * first. Remove this once T138 lands and discard becomes reversible from the UI.
+     * The last destructive action, and how to put it back (T138).
+     *
+     * **This replaces the ✗ confirmation entirely.** That prompt existed only because discard had
+     * no way back; asking first is what you do when you cannot undo, and doing both is friction
+     * charged twice. Now that every destructive action is reversible, ✗ just acts.
+     *
+     * Survives the editor closing on purpose. Discarding a note closes the editor, so an undo
+     * offer that died with it would be an undo you can never reach — the shell renders this
+     * whether or not a draft is open.
      */
-    var confirmingDiscard by mutableStateOf(false)
+    var pendingUndo by mutableStateOf<UndoableAction?>(null)
         private set
+
+    /** Drops the undo offer without acting on it. Called when it times out or is superseded. */
+    fun dismissUndo() {
+        pendingUndo = null
+    }
+
+    /** Puts back whatever [pendingUndo] describes, and clears the offer. */
+    fun undo() {
+        val action = pendingUndo ?: return
+        pendingUndo = null
+        action.restore()
+    }
+
+    private fun offerUndo(label: String, restore: () -> Unit) {
+        pendingUndo = UndoableAction(label = label, restore = restore)
+    }
 
     private var autosaveJob: Job? = null
 
@@ -91,7 +114,6 @@ class NoteEditorViewModel(
      */
     fun open(initialTitle: String = "") {
         val name = initialTitle.trim()
-        confirmingDiscard = false
 
         hideChecked = false
 
@@ -127,7 +149,6 @@ class NoteEditorViewModel(
             type = note.type,
         )
         expanded = true
-        confirmingDiscard = false
         hideChecked = false
     }
 
@@ -230,7 +251,17 @@ class NoteEditorViewModel(
         current.replacingAt(displayedIndex) { it.copy(checked = checked) }.normalized()
     }
 
-    fun deleteItem(displayedIndex: Int) = editItems { current ->
+    /** Deleting a row offers it back (T138) — the body before the delete is the whole snapshot. */
+    fun deleteItem(displayedIndex: Int) {
+        val before = draft?.body
+        val removed = visibleItems.getOrNull(displayedIndex)?.text?.ifBlank { "item" }
+        deleteItemInternal(displayedIndex)
+        if (before != null && removed != null) {
+            offerUndo("deleted \"$removed\"") { edit { it.copy(body = before) } }
+        }
+    }
+
+    private fun deleteItemInternal(displayedIndex: Int) = editItems { current ->
         val actual = current.actualIndexOf(displayedIndex) ?: return@editItems current
         current.filterIndexed { index, _ -> index != actual }
     }
@@ -263,6 +294,35 @@ class NoteEditorViewModel(
     private fun editItems(transform: (List<ChecklistItem>) -> List<ChecklistItem>) =
         edit { it.copy(body = renderChecklist(transform(parseChecklist(it.body)))) }
 
+    // --- tags (T139) --------------------------------------------------------------------------------
+
+    /** The note's tags, parsed from the body — the same set `NoteDao` derives on save. */
+    val tags: List<String> get() = draft?.let { parseTags(it.body) }.orEmpty()
+
+    /**
+     * Removes a tag by editing the body (T139).
+     *
+     * The chip is a view over the body's hashtags, so removing one is a text edit and everything
+     * downstream carries on unchanged. Offered back like any other destructive action.
+     */
+    fun removeTag(tag: String) {
+        val before = draft?.body ?: return
+        edit { it.copy(body = withoutTag(it.body, tag)) }
+        offerUndo("removed #$tag") { edit { it.copy(body = before) } }
+    }
+
+    /**
+     * `+ tag` — appends a bare `#` to the body and hands the cursor back to it (T139).
+     *
+     * Deliberately not a second text field. The body is already the one place tags are written,
+     * and a separate input would need its own validation, its own idea of what a tag may contain,
+     * and would be a second writer of the same fact. Typing the name after the `#` is the same
+     * gesture that has always created a tag here.
+     */
+    fun startAddingTag() {
+        edit { it.copy(body = if (it.body.isEmpty()) "#" else it.body.trimEnd() + "\n#") }
+    }
+
     // --- conversion (T024) ------------------------------------------------------------------------
 
     /**
@@ -274,6 +334,14 @@ class NoteEditorViewModel(
      */
     fun toggleType() {
         val current = draft ?: return
+        // Snapshotted before the reformat. Converting a checklist to prose drops every tick, which
+        // is the one conversion that genuinely loses information, so both directions are offered
+        // back rather than trusting "just convert it again" to be lossless.
+        val beforeBody = current.body
+        val beforeType = current.type
+        offerUndo(if (beforeType == NoteType.NOTE) "converted to checklist" else "converted to note") {
+            edit { it.copy(body = beforeBody, type = beforeType) }
+        }
         val becomingChecklist = current.type == NoteType.NOTE
         edit {
             it.copy(
@@ -343,7 +411,6 @@ class NoteEditorViewModel(
         tidyChecklistForStorage()
         flush()
         draft = null
-        confirmingDiscard = false
         hideChecked = false
     }
 
@@ -355,16 +422,17 @@ class NoteEditorViewModel(
     }
 
     /**
-     * ✗ — discard. Silent when there's nothing to lose; otherwise raises [confirmingDiscard]
-     * first, because until T138 there's no way back.
+     * ✗ — discard.
+     *
+     * **No longer asks first** (T138). The confirmation existed only because discard had no way
+     * back: asking first is what you do when you cannot undo, and doing both charges the same
+     * friction twice. A note with content is soft-deleted and offered back through [pendingUndo];
+     * an empty one is dropped silently, since there is nothing to restore and an undo offer for
+     * nothing is noise.
      */
     fun requestDiscard() {
         val current = draft ?: return
-        if (current.hasContent()) confirmingDiscard = true else close()
-    }
-
-    fun cancelDiscard() {
-        confirmingDiscard = false
+        if (current.hasContent()) confirmDiscard() else close()
     }
 
     /**
@@ -379,12 +447,24 @@ class NoteEditorViewModel(
             viewModelScope.launch { notes.discard(current.id, now()) }
         }
         close()
+
+        // Restoring re-saves the draft as it stood, which un-tombstones the row: `save` writes
+        // `deleted = false` and queues the outbox entry that propagates the resurrection. Holding
+        // the draft rather than the id is what makes an unpersisted note recoverable too.
+        offerUndo("discarded \"${current.resolvedTitle(notes.zone(), notes.is24Hour())}\"") {
+            val restoredAt = now()
+            viewModelScope.launch {
+                notes.save(
+                    current.toNote(notes.deviceName, restoredAt, notes.zone(), notes.is24Hour()),
+                    restoredAt,
+                )
+            }
+        }
     }
 
     private fun close() {
         autosaveJob?.cancel()
         draft = null
-        confirmingDiscard = false
         hideChecked = false
     }
 

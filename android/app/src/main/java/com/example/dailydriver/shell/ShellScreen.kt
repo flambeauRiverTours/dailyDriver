@@ -46,7 +46,7 @@ import com.example.dailydriver.apps.soleAutoLaunchTarget
 import com.example.dailydriver.apps.topMatch
 import com.example.dailydriver.command.ReservedCommand
 import com.example.dailydriver.editor.ChecklistBinding
-import com.example.dailydriver.editor.DiscardConfirmation
+import com.example.dailydriver.editor.UndoRow
 import com.example.dailydriver.editor.NoteEditorView
 import com.example.dailydriver.editor.NoteEditorViewModel
 import com.example.dailydriver.notes.Note
@@ -70,6 +70,15 @@ private const val AUTO_LAUNCH_DELAY_MS = 1_000L
  * rather than brittle text matching" convention in android/CLAUDE.md. Nothing consumes these yet
  * — they exist so the first UI test doesn't also have to invent them.
  */
+/**
+ * How long an undo offer stands (T138).
+ *
+ * Longer than a Material snackbar's default four seconds: this replaces a confirmation dialog, so
+ * the window has to be long enough to notice a mistake you did not expect to have made, and
+ * nothing is competing for the space.
+ */
+private const val UNDO_TIMEOUT_MS = 8_000L
+
 internal object ShellTestTags {
     const val TRANSCRIPT_LIST = "shell_transcript_list"
     const val INPUT_FIELD = "shell_input_field"
@@ -335,20 +344,28 @@ fun ShellScreen(
             }
         }
 
+        // Rendered whether or not the editor is open (T138): discarding a note closes it, so an
+        // undo offer that lived inside the editor would be one you could never reach.
+        editor.pendingUndo?.let { undo ->
+            // Auto-dismissed rather than left standing. Keyed on the action so a second
+            // destructive action restarts the clock instead of inheriting the first one's.
+            LaunchedEffect(undo) {
+                delay(UNDO_TIMEOUT_MS)
+                editor.dismissUndo()
+            }
+            UndoRow(label = undo.label, onUndo = editor::undo, textStyle = monospace)
+        }
+
         val draft = editor.draft
         if (draft != null) {
             // The editor takes the prompt's place rather than floating over it: while writing a
             // note there is no command to type, and §4.6's "returns to the prompt with focus
             // restored" only makes sense if the prompt was genuinely out of play.
-            if (editor.confirmingDiscard) {
-                DiscardConfirmation(
-                    onConfirm = editor::confirmDiscard,
-                    onCancel = editor::cancelDiscard,
-                    textStyle = monospace,
-                )
-            }
             NoteEditorView(
                 draft = draft,
+                tags = editor.tags,
+                onRemoveTag = editor::removeTag,
+                onAddTag = editor::startAddingTag,
                 onTitleChange = editor::onTitleChange,
                 onBodyChange = editor::onBodyChange,
                 onKeep = editor::keepAndClose,
@@ -363,6 +380,7 @@ fun ShellScreen(
                     onAddItem = editor::addItem,
                 onCommitItem = { editor.commitItem(it) },
                 onClearDue = editor::clearDue,
+                onFinish = { editor.keepAndClose() },
                 focusIndex = editor.pendingItemFocus,
                 onFocusConsumed = editor::consumeItemFocus,
                     onToggleType = editor::toggleType,

@@ -4,7 +4,7 @@
 
     Launcher shell, command pipeline, app browser, aliases, notifications and the notes and
     checklist system are built and verified on hardware (Galaxy S20 FE) and emulator.
-    **608 automated tests**: 563 unit, 45 instrumented.
+    **633 automated tests**: 585 unit, 48 instrumented.
 
     Not built yet: the on-device model itself (tier T2), which is
     [a separate workstream](ml-pipeline.md).
@@ -131,7 +131,13 @@ flattening nested checklists, so a future implementer can tell a design limit fr
 - Ticking an item moves it below the unticked ones. That ordering is an invariant reapplied after
   every change, so a drag cannot produce a state that ticking a box could not.
 - Convert between prose and checklist in either direction, and hide completed items.
-- `#hashtag` parsing and local full-text search.
+- `#hashtag` parsing, a tag chip row, and local full-text search. Chips edit the hashtags in the
+  body rather than writing tags anywhere else, so there is still one writer.
+- Undo for anything destructive: discarding a note, deleting a row, converting between types.
+  Discard used to ask for confirmation, which is what you do when you cannot undo. Now it just
+  acts, and offers the note back.
+- Enter on a trailing empty checklist row finishes the note, so a list can be completed without
+  reaching for the screen.
 
 ### Tasks
 
@@ -173,7 +179,7 @@ bars hidden.
 
 ## Testing
 
-563 unit tests on the JVM covering parsing, matching, view models and formatting. 45 instrumented
+585 unit tests on the JVM covering parsing, matching, view models and formatting. 48 instrumented
 tests covering Room, migrations and schema export. Room's exported schema is diffed against the
 compiled entities by a test, so a schema change without a migration fails the build instead of
 corrupting a database in the field.

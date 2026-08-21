@@ -444,15 +444,26 @@ Room schema, Markdown format, outbox from day one.
   - **Not a popup menu.** `⋯` opening a floating list is the conventional answer, but this surface is a terminal where everything is a labelled line you tap, `DiscardConfirmation` already set the inline-row precedent, and two actions don't earn being hidden behind a tap that reveals them. Labels name the destination (`→ checklist`), not the operation, so the direction isn't a guess.
   - **🐛 T151's schema guard failed the first time it ever ran**, which is the whole reason it was written. `SchemaExportTest` threw the *same* `AbstractMethodError: …typeParametersSerializers()` as T151 — but at runtime in the test APK, an entirely separate classpath from the KSP one KSP2 fixed. `MigrationTestHelper` reads the schema through `room-migration`, whose serializers are compiled against kotlinx-serialization 1.8.1, while a transitive BOM constrained `-core` to 1.7.3 here, where that method is still abstract rather than defaulted. Fixed by forcing core to 1.8.1 on the test configurations — `force` rather than a plain dependency, since the pin is a BOM *constraint* an ordinary declaration doesn't outrank, and the bare `-core` module doesn't resolve standalone. Note this is the fix T018 originally *guessed* at ("pinning a compatible kotlinx-serialization-json on the KSP classpath") — wrong classpath, right idea, and it only became true on the one T151 never touched.
   - **Verified on-device** alongside T023 — see that entry.
-- [ ] **T027** — Keyboard shortcuts so the editor stays keyboard-finishable  
+- [x] **T027** — Keyboard shortcuts so the editor stays keyboard-finishable  
   `P0` `S` · after: T022
-  - `Esc` closes, `Ctrl+Enter` confirms, `Tab`/`Enter` walks items. A note started at the prompt must be finishable without reaching for the screen.
-- [ ] **T138** — Undo snackbar for destructive actions  
+  - **Re-specified for the actual device** (check-in, 2026-08-21). `Esc`, `Ctrl+Enter` and `Tab` do not exist on the S20 FE; its only spare key is the IME action. Implemented as **Enter on a trailing empty checklist row finishes the note**, the idiom every checklist app uses, plus the title's action moving to the body. §4.6 updated to match rather than left describing keys the target device has never had.
+  - **A prose body still cannot be finished from the soft keyboard, and that is accepted rather than hidden.** Making the IME action finish the note would take Enter away from newlines, which is a worse trade for the long-form journalling this surface also serves. A prose note ends with a tap on ✓. If a hardware keyboard is ever in scope, `Esc`/`Ctrl+Enter` remain the right shapes and nothing here forecloses them.
+  - The condition is extracted as `enterFinishesNote` and tested, rather than left inline in a composable no test can reach — on a soft keyboard it is the only spare key there is, so it is load-bearing.
+- [x] **T138** — Undo snackbar for destructive actions  
   `P1` `M` · after: T023, T024
-  - Autosave removed the `:w` safety net — a mis-tap is now instantly durable and syncs. Undo replaces it. Soft-delete + timer, reusing the tombstone mechanism.
-- [ ] **T139** — Tag chips row + inline #hashtag parity  
+  - Autosave removed the `:w` safety net — a mis-tap is now instantly durable and syncs. Undo replaces it.
+  - **An inline row, not a Material `Snackbar`** (check-in). There is no `Scaffold`, `Snackbar` or dialog anywhere in this app; a floating Material surface over a monospace terminal would be the first, and would look like it came from a different program. `DiscardConfirmation` set the inline precedent, and this takes its slot.
+  - **The ✗ confirmation is retired**, which `android/CLAUDE.md` had said should happen the moment undo existed. Asking first is what you do when you *cannot* undo; doing both charges the same friction twice.
+  - **One action deep, not a stack.** `UndoableAction` is a label plus a closure over whatever the action replaced, so undo needs no history: there is only ever one offer and it carries everything it needs. A stack would mean reasoning about undoing a delete after three unrelated edits, which is a much larger promise than "that wasn't what I meant".
+  - **The offer outlives the editor**, because discarding a note closes it — an undo living inside the editor would be one you could never reach. `ShellScreen` renders it whether or not a draft is open, auto-dismissing after 8s (longer than a snackbar's 4s, since it replaces a confirmation and nothing competes for the space).
+  - **🐛 The riskiest claim was that re-saving a discarded draft un-tombstones it.** `toNote()` yields `deleted = false` and `@Upsert` updates every column, so it should — but that is the same "reasonable reading of Room" that was wrong at T018, and if it were wrong here undo would *look* like it worked while the note stayed deleted. Pinned by instrumented tests covering restore, tag re-indexing, and the outbox row that propagates the resurrection.
+- [x] **T139** — Tag chips row + inline #hashtag parity  
   `P1` `M` · after: T021, T019
-  - Chips and inline `#work` must produce the same `tags` array — one operation, not two sources of truth.
+  - **Chips edit the body's hashtags** (check-in). Tapping a chip strips that tag from the body; `+ tag` appends a `#` and hands the cursor back to the body, so the name is typed in the field that already exists.
+  - **The "union them" suggestion this task originally carried is the wrong answer, and was rejected.** `NoteDao.upsertLocal` derives tags from the body and deliberately ignores any set passed in; a union means a tag can exist in `note_tags` with nothing in the body backing it, which requires removing that guarantee and creates two writers of one fact — the drift §6.2 and ADR-0004 exist to prevent.
+  - **Removing a chip removes every occurrence, not the first.** A tag is a property of the note rather than of a position in it, so leaving a second `#work` further down would put the chip straight back on the next parse and read as the tap having failed.
+  - **No second text input.** One would need its own validation and its own idea of what a tag may contain, and would be the second writer again. Typing after a `#` is the gesture that has always created a tag here.
+  - 18 unit tests, including that a tag added by chip and one typed inline produce identical `parseTags` output, which is what the task actually asked for.
 
 
 ## 05a · Tasks (`:task` / `:tasks`)
@@ -873,4 +884,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**156 tasks — 54 done, 102 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**156 tasks — 57 done, 99 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
