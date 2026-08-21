@@ -1,0 +1,156 @@
+{
+  "description": "Shared contract for due dates on checklist items (design doc §4.8). A due date is an '@' token inside a checklist line, alongside the '#hashtags' that fixtures/tag-parsing.json owns. Kotlin implements this in android/.../notes/DueDateParsing.kt; Notes.Shared implements the same rules in C# (T042). Both test suites execute THIS file rather than their own examples, for the same reason as tag and checklist parsing: two clients that disagree about a date would silently show a task on different days.",
+  "storedFormAndInputForms": "The two halves of this file are NOT equally binding. `storedCases` define the STORED format, which is always a literal ISO date, and every client MUST implement them to read and write bodies safely. `inputCases` define shortcut spellings ('tomorrow', 't+3') that are resolved to an ISO date at the moment of entry and never persisted. A client that implements only `storedCases` is correct but less pleasant to type into; a client that gets `storedCases` wrong corrupts data.",
+  "rules": [
+    "A due date is '@' followed by an ISO 8601 calendar date, 'YYYY-MM-DD'. That is the only form that is ever stored.",
+    "Dates are date-only. There is no time-of-day component, so no timezone handling and no interaction with the clock skew that sync already has to survive (§7).",
+    "The '@' must be preceded by start-of-line or whitespace, matching how '#' hashtags are recognized. An '@' inside a word (an email address, for instance) is ordinary text.",
+    "At most one due date per item. If a line carries several, the first is the item's due date and the rest stay as literal text.",
+    "The due date is removed from the item's display text but left in the body. Storage keeps '- [ ] milk @2026-08-25'; the editor shows 'milk' with the date attached to the row.",
+    "An '@' token that is not a valid stored date and not a recognized input shortcut is ordinary text, left exactly as written. Garbage is never silently dropped.",
+    "Input shortcuts are resolved against the local calendar date at the moment of entry and immediately rewritten to ISO. They are never persisted, so a note means the same thing tomorrow as it does today.",
+    "'t+N' adds N days, 'w+N' adds N weeks, 'm+N' adds N months, 'y+N' adds N years, all counted from today.",
+    "Month and year arithmetic clamps to the end of the target month rather than overflowing. 31 January plus one month is 28 or 29 February, never 2 or 3 March.",
+    "Resolution is case-insensitive, so '@Tomorrow' and '@tomorrow' agree.",
+    "A checklist item with no '@' token has no due date. Undated items are ordinary checklist items and are not tasks."
+  ],
+  "knownLimits": [
+    "No time of day, no recurrence, and no start/scheduled date as distinct from a due date. Each of those would need its own token and its own agreement between both clients.",
+    "Shortcuts with a space in them ('next week') are only recognized at the end of a line, where the trailing words are unambiguous. Mid-line, write the hyphenated form ('@next-week') or an ISO date. This is why every spaced shortcut has a hyphenated equivalent.",
+    "Shortcuts resolve against the device's local date. Two devices either side of midnight in different timezones can resolve the same typed shortcut to different dates. The resolved ISO date is what syncs, so the note itself never becomes ambiguous after the fact.",
+    "'m+N' clamping means the operation is not reversible: 31 Jan plus one month minus one month is 28 Feb minus one month, which is 28 Jan.",
+    "An item may carry a date but the note it lives in has no notion of being a 'task list'. Tasks are found by scanning bodies (§4.8), which is linear in the number of notes."
+  ],
+  "storedCases": [
+    {
+      "name": "a dated item",
+      "body": "- [ ] renew passport @2026-08-25",
+      "text": "renew passport",
+      "due": "2026-08-25",
+      "checked": false
+    },
+    {
+      "name": "a checked dated item",
+      "body": "- [x] renew passport @2026-08-25",
+      "text": "renew passport",
+      "due": "2026-08-25",
+      "checked": true
+    },
+    {
+      "name": "an undated item has no due date",
+      "body": "- [ ] milk",
+      "text": "milk",
+      "due": null,
+      "checked": false
+    },
+    {
+      "name": "the date may appear before the text",
+      "body": "- [ ] @2026-08-25 renew passport",
+      "text": "renew passport",
+      "due": "2026-08-25",
+      "checked": false
+    },
+    {
+      "name": "a date mid-line is still recognized",
+      "body": "- [ ] call @2026-08-25 about the invoice",
+      "text": "call about the invoice",
+      "due": "2026-08-25",
+      "checked": false
+    },
+    {
+      "name": "hashtags and due dates coexist",
+      "body": "- [ ] renew passport @2026-08-25 #admin",
+      "text": "renew passport #admin",
+      "due": "2026-08-25",
+      "checked": false
+    },
+    {
+      "name": "an at-sign inside a word is text",
+      "body": "- [ ] email jack@example.com",
+      "text": "email jack@example.com",
+      "due": null,
+      "checked": false
+    },
+    {
+      "name": "an unparseable at-token is left as text",
+      "body": "- [ ] ask @bob about it",
+      "text": "ask @bob about it",
+      "due": null,
+      "checked": false
+    },
+    {
+      "name": "an invalid calendar date is text, not a date",
+      "body": "- [ ] review @2026-02-30",
+      "text": "review @2026-02-30",
+      "due": null,
+      "checked": false
+    },
+    {
+      "name": "a malformed date is text, not a date",
+      "body": "- [ ] review @2026-8-5",
+      "text": "review @2026-8-5",
+      "due": null,
+      "checked": false
+    },
+    {
+      "name": "the first of several dates wins, the rest stay as text",
+      "body": "- [ ] move @2026-08-25 @2026-09-01",
+      "text": "move @2026-09-01",
+      "due": "2026-08-25",
+      "checked": false
+    },
+    {
+      "name": "a stored shortcut word is text, since shortcuts are never persisted",
+      "body": "- [ ] milk @tomorrow",
+      "text": "milk @tomorrow",
+      "due": null,
+      "checked": false
+    }
+  ],
+  "renderCases": [
+    {
+      "name": "a due date renders at the end of the line",
+      "text": "renew passport",
+      "due": "2026-08-25",
+      "checked": false,
+      "body": "- [ ] renew passport @2026-08-25"
+    },
+    {
+      "name": "clearing a due date removes the token",
+      "text": "renew passport",
+      "due": null,
+      "checked": false,
+      "body": "- [ ] renew passport"
+    },
+    {
+      "name": "a checked dated item",
+      "text": "renew passport",
+      "due": "2026-08-25",
+      "checked": true,
+      "body": "- [x] renew passport @2026-08-25"
+    }
+  ],
+  "inputCases": [
+    { "name": "today", "today": "2026-08-21", "input": "today", "resolved": "2026-08-21" },
+    { "name": "tomorrow", "today": "2026-08-21", "input": "tomorrow", "resolved": "2026-08-22" },
+    { "name": "case insensitive", "today": "2026-08-21", "input": "Tomorrow", "resolved": "2026-08-22" },
+    { "name": "next week", "today": "2026-08-21", "input": "next week", "resolved": "2026-08-28" },
+    { "name": "next week, hyphenated", "today": "2026-08-21", "input": "next-week", "resolved": "2026-08-28" },
+    { "name": "next month", "today": "2026-08-21", "input": "next month", "resolved": "2026-09-21" },
+    { "name": "next year", "today": "2026-08-21", "input": "next year", "resolved": "2027-08-21" },
+    { "name": "t+N adds days", "today": "2026-08-21", "input": "t+3", "resolved": "2026-08-24" },
+    { "name": "t+0 is today", "today": "2026-08-21", "input": "t+0", "resolved": "2026-08-21" },
+    { "name": "t+N crossing a month boundary", "today": "2026-08-30", "input": "t+3", "resolved": "2026-09-02" },
+    { "name": "w+N adds weeks", "today": "2026-08-21", "input": "w+2", "resolved": "2026-09-04" },
+    { "name": "m+N adds months", "today": "2026-08-21", "input": "m+1", "resolved": "2026-09-21" },
+    { "name": "m+N clamps to the end of a short month", "today": "2026-01-31", "input": "m+1", "resolved": "2026-02-28" },
+    { "name": "m+N clamps in a leap year", "today": "2028-01-31", "input": "m+1", "resolved": "2028-02-29" },
+    { "name": "m+N crossing a year boundary", "today": "2026-11-30", "input": "m+2", "resolved": "2027-01-30" },
+    { "name": "y+N adds years", "today": "2026-08-21", "input": "y+1", "resolved": "2027-08-21" },
+    { "name": "y+N clamps 29 February", "today": "2028-02-29", "input": "y+1", "resolved": "2029-02-28" },
+    { "name": "an ISO date passes through unchanged", "today": "2026-08-21", "input": "2026-12-25", "resolved": "2026-12-25" },
+    { "name": "an unrecognized word does not resolve", "today": "2026-08-21", "input": "someday", "resolved": null },
+    { "name": "a negative offset does not resolve", "today": "2026-08-21", "input": "t-3", "resolved": null },
+    { "name": "a bare unit does not resolve", "today": "2026-08-21", "input": "w+", "resolved": null }
+  ]
+}

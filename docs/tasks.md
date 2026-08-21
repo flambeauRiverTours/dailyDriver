@@ -455,6 +455,40 @@ Room schema, Markdown format, outbox from day one.
   - Chips and inline `#work` must produce the same `tags` array — one operation, not two sources of truth.
 
 
+## 05a · Tasks (`:task` / `:tasks`)
+
+**Added 2026-08-21 (user scope addition).** Due-dated tasks, creatable from the prompt and pulled out of existing checklists. Settled at a design check-in the same day, and written up in [ADR-0006](adr/0006-tasks-as-dated-checklist-items.md) plus §4.8 *before* any code, which is the first time that ordering has been followed rather than backfilled.
+
+**The whole feature rests on one decision: a task is a checklist item with a due date.** No tasks table, no `NoteType.TASK`, no change to §6.2's document model. §6.2 already forbids storing checklist items outside the body, and a task living in both a table and a `- [ ]` line would be two copies of one fact. The payoff is that the two creation routes, `:task` and dating an existing item, produce byte-identical lines, so there is no way to end up with two classes of task that behave differently. Sync also gets it for nothing, since a due date is just body text moving through the existing outbox and conflict machinery.
+
+- [ ] **T153** — Due-date parsing + shared fixture corpus  
+  `P1` `M` · after: T023
+  - `@YYYY-MM-DD` inside a checklist line, alongside the `#hashtags` §4.6 already puts there. Date-only, so timezones stay out of the wire format and out of sync, where clock skew is already a hazard (§7).
+  - **`fixtures/due-date-parsing.json` is written and is the contract** — 12 stored cases, 3 render cases, 21 input cases. Third corpus in the §7.3 pattern, after tags and checklists.
+  - **Its two halves are not equally binding, and the file says so.** `storedCases` define what is persisted and every client must implement them. `inputCases` define shortcut spellings that never reach storage, so a client can skip them and still be correct, just less pleasant to type into.
+  - **Shortcuts are input sugar, never a storage format** (check-in): `@today`, `@tomorrow`, `@next week`, `@next month`, `@next year`, `@t+N` days, `@w+N` weeks, `@m+N` months, `@y+N` years. All rewritten to ISO before the body is written, so a note means the same thing next week as today, and C# only ever parses a literal date.
+  - **Month arithmetic clamps rather than overflowing** — 31 Jan `m+1` is 28 Feb, and 29 Feb `y+1` is 28 Feb. Noted in the corpus as non-reversible, since clamping loses the original day.
+  - **Garbage is never silently dropped.** An `@` token that is neither a valid date nor a known shortcut stays as literal text, so `email jack@example.com` and `ask @bob` survive untouched.
+  - **Spaced shortcuts only resolve at end of line**, which is why every one of them has a hyphenated form (`@next-week`). Recorded as a known limit.
+- [ ] **T154** — Due dates in the checklist editor  
+  `P1` `M` · after: T153, T024
+  - Add, change and clear a date on any checklist row. The date shows on the row; the token stays in the body.
+  - Reuses the T023 pipeline exactly: parse the body, transform the item, render back. Nothing new is cached beside the body.
+  - **Watch the T023 trap.** Item text is edited *through* the body on every keystroke, which is what made trailing spaces impossible to type until it was fixed. A date token being rewritten mid-edit is the same shape of bug, so date editing must not round-trip the text field on every keypress.
+- [ ] **T155** — `:task` command  
+  `P1` `S` · after: T153
+  - `:task buy milk @fri` appends one dated line to a note titled `tasks`, opening or creating it by name. That is T025's existing `byTitle` path, so there is no new storage code.
+  - Registers in T140's command table, which carries its own help text, so `:help` cannot drift out of step.
+- [ ] **T156** — `:tasks` list view  
+  `P1` `M` · after: T153, T155
+  - Scans every non-deleted note body, collects dated items, groups them overdue / today / upcoming, soonest first.
+  - **Ticking from this list writes back to the source note**, because the body is the only place the item exists. That write is the whole reason this view cannot be backed by its own table.
+  - Reuses the `:notes` and `:apps` list surface rather than inventing a third one.
+  - **Known cost, accepted**: linear in the number of notes, since every body is parsed per invocation. A few hundred short strings at personal scale. The tempting fix is an index of dated items, which would be a cache of what the body already says, and therefore the exact drift this design exists to avoid. If one is ever needed it must be rebuildable from the bodies and disposable.
+
+**Not in scope, and each would need its own token both clients agree on:** recurrence, a start date distinct from a due date, priorities, and time of day. Deliberately starting with one token and date-only values.
+
+
 ## 06 · SLM spike (GO/NO-GO)
 
 **Timeboxed.** Deliberately early: answers the highest-uncertainty question while changing course is still cheap. Days, not weeks.
@@ -804,4 +838,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**151 tasks — 49 done, 102 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**155 tasks — 49 done, 106 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

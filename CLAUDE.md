@@ -48,6 +48,7 @@ These are easy to get wrong by defaulting to the more common/tutorial answer. Do
 - **Cosmos DB: provisioned throughput, not serverless.** The free tier requires the provisioned-throughput capacity mode and is only selectable **at account creation**. Selecting serverless silently forfeits the free tier and cannot be fixed later without recreating the account. ("Serverless" applies to Functions compute, not to Cosmos.)
 - **The SLM never sits on the launcher's fast path.** It is one tier (T2) of a cascade behind T0 (exact match) and T1 (fuzzy match); T3 is the non-ML fallback. The launcher must stay fast and fully usable even if the model is absent, loading, or wrong.
 - **Notes are stored as Markdown, not rich-text JSON.** Checklists are `- [ ]` / `- [x]` lines parsed into structured items. This is the wire and storage format for both Android (Room) and desktop (EF Core/SQLite) — do not introduce a rich-text document model (Quill Delta, ProseMirror, etc.).
+- **A task is a dated checklist item, not a row in a table.** Due dates are `@YYYY-MM-DD` tokens inside the note body, next to the `#hashtags` (§4.8, ADR-0006). Do not add a tasks table, a `NoteType.TASK`, or a due-date column — a task that exists both as a row and as a `- [ ]` line is two copies of one fact. Date-only, never a time, so timezones stay out of the wire format. Input shortcuts (`@tomorrow`, `@t+3`) are rewritten to ISO before the body is written and must never be persisted.
 
 ## Branching
 

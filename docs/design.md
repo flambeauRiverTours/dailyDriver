@@ -118,7 +118,7 @@ The single most important design decision: **the SLM is one tier of a cascade, n
 
 | Tier | Handler | Latency | Handles |
 |---|---|---|---|
-| **T0** | Exact match — user aliases, reserved commands (`:apps`, `:settings`, `:note`, `:alias`) | < 5 ms | Muscle-memory input |
+| **T0** | Exact match — user aliases, reserved commands (`:apps`, `:notes`, `:note`, `:task`, `:tasks`, `:alias`, `:notif`, `:settings`, `:help`) | < 5 ms | Muscle-memory input |
 | **T1** | Fuzzy app-name match over the `PackageManager` index (normalized edit distance + prefix/acronym boost) | < 50 ms | `chr` → Chrome |
 | **T2** | SLM intent + slot extraction | ~1 s | Free-form natural language |
 | **T3** | Fallback — treat as app-name search, else show help | — | Everything else |
@@ -228,6 +228,43 @@ Tags are inline hashtags (`#work`) parsed out of the body on save and denormaliz
 `alias gm = create_note "standup notes" #work`. Stored locally in Room, resolved at T0, listed via `:alias`. Aliases are device-local and not synced (v1) — they encode device-specific app choices.
 
 ---
+
+### 4.8 Tasks
+
+`:task` creates a due-dated item. `:tasks` lists every due-dated item across all notes, soonest first.
+
+**A task is a checklist item with a due date. It is not a separate entity**, and there is no tasks table, no `NoteType.TASK`, and no change to §6.2's document model. See ADR-0006. The rule from §6.2 that checklist items are derived from the body, never stored separately, is what forces this: a task that existed both as a table row and as a `- [ ]` line in a note body would be two copies of one fact, free to disagree. Tasks are found by parsing bodies, the same way checklist items already are.
+
+**Storage.** A due date is an `@YYYY-MM-DD` token inside the checklist line, sitting alongside the `#hashtags` that §4.6 already puts there:
+
+```markdown
+- [ ] renew passport @2026-08-25 #admin
+- [x] book dentist @2026-08-19
+- [ ] milk
+```
+
+The third line is an ordinary checklist item. Undated items are not tasks and do not appear in `:tasks`.
+
+Date-only, with no time of day. That keeps timezones out of the wire format and out of sync, where clock skew is already a hazard worth designing against (§7).
+
+**Input shortcuts, which are not a storage format.** Typing an ISO date on a phone keyboard for every task is miserable, so `:task` and the checklist editor accept shortcuts and rewrite them to ISO the moment the item is saved:
+
+| Typed | Means |
+|---|---|
+| `@today`, `@tomorrow` | today, today + 1 day |
+| `@next week`, `@next month`, `@next year` | today + 1 week / month / year |
+| `@t+N` | today + N days |
+| `@w+N`, `@m+N`, `@y+N` | today + N weeks / months / years |
+
+These never reach storage. `@tomorrow` becomes `@2026-08-22` before the body is written, so a note means the same thing next week as it does today, and the C# side only ever has to parse a literal ISO date. Month arithmetic clamps rather than overflowing: 31 January plus one month is 28 February.
+
+**The cross-language contract is `fixtures/due-date-parsing.json`**, in the same pattern as tag and checklist parsing (§7.3). Its two halves are not equally binding, and the file says so: `storedCases` define the stored format and every client must implement them, while `inputCases` define the shortcut vocabulary, which a client may skip without corrupting anything.
+
+**`:task`** appends to a note titled `tasks`, opening or creating it by name exactly as `:note <name>` does (T025), so the machinery already exists. `:task buy milk @fri` is shorthand for adding one dated line to that note.
+
+**`:tasks`** scans every non-deleted note body, collects items carrying a due date, and lists them grouped as overdue, today, and upcoming. Ticking an item from that list writes back to the note it came from, because the note body is the only place the item exists.
+
+**Known cost, accepted for now.** `:tasks` is linear in the number of notes, since it parses every body on every invocation. At personal scale that is a few hundred short strings and is not worth optimizing. The tempting fix is a derived index of dated items, which would be a cache of something the body already says, and therefore exactly the drift risk this design exists to avoid. If it ever needs an index, that index has to be rebuildable from the bodies and treated as disposable.
 
 ## 5. Desktop client (WPF)
 

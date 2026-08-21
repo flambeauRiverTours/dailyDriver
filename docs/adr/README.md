@@ -31,5 +31,8 @@ What else was on the table, and why it lost.
 | [0003](0003-mediapipe-over-llama-cpp.md) | MediaPipe LLM Inference API over llama.cpp for on-device inference |
 | [0004](0004-markdown-over-rich-text-json.md) | Markdown over rich-text JSON as the note storage format |
 | [0005](0005-conflict-copies-over-plain-lww.md) | Conflict-copy resolution over plain last-write-wins |
+| [0006](0006-tasks-as-dated-checklist-items.md) | Tasks are dated checklist items, not a separate entity |
 
-These five decisions were already made — they're written up here after the fact, pulled from `docs/design.md`, so each one has its own citable home instead of being buried in a 500-line document. Anything decided from this point forward should get its ADR written at the time, not backfilled later.
+0001 to 0005 were already made — they're written up here after the fact, pulled from `docs/design.md`, so each one has its own citable home instead of being buried in a 500-line document. Anything decided from this point forward should get its ADR written at the time, not backfilled later.
+
+0006 is the first one written that way: the decision and the ADR landed together, before any code.
