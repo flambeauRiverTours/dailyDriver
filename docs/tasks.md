@@ -747,17 +747,20 @@ The long pole. Gated on the section 06 go/no-go.
 - [ ] **T088** — README + architecture diagram  
   `P0` `M` · after: T083
   - Recruiters skim. A diagram plus the benchmark table does more work than the code.
-- [x] **T152** — Documentation site (MkDocs Material → GitHub Pages)  
+- [x] **T152** — Employer-facing project site (MkDocs Material → GitHub Pages)  
   `P2` `S`
-  - **New (2026-08-21, user request.)** A browsable, searchable site for the design and technical detail, rather than asking anyone to read raw Markdown in a repo tree.
-  - **Renders `docs/` in place — there is no second copy.** `design.md`, `tasks.md` and the ADRs stay the single source and are edited exactly as before; `mkdocs.yml` only decides how they're presented. A docs site whose content is maintained separately from the docs is a docs site that goes stale, and this project already has one duplication problem (below).
-  - **MkDocs Material over the GitHub wiki** — the wiki needs no setup but lives in a *separate* repo, so its content would have to be duplicated and would drift, and it offers no theming, no nav, and weak search. The one-time cost here is a config file.
-  - **`docs/index.md` is a purpose-built landing page**, deliberately not a copy of `README.md`: the README addresses someone evaluating the repo, the site's home addresses someone about to read the design. Both are short enough that keeping them distinct is cheaper than making one generate the other.
-  - **🔎 Found while wiring the nav: `docs/cli-launcher-hld.md` is byte-identical to `docs/design.md`** and has no inbound links. Excluded from the site rather than deleted — publishing both would put two copies of every design section in the search index, which is most of what the site is for, but removing a doc is a separate call. **Worth resolving**: delete the duplicate and drop the `exclude_docs` line with it. The PDF of the same name is a genuinely different artifact and is still published.
-  - **Mermaid is enabled ahead of need** — T088 owes an architecture diagram, and a diagram committed as a fenced code block stays reviewable in a diff, unlike an exported image.
-  - **CI builds with `--strict` on pull requests too**, so a broken internal link or a page missing from the nav fails the check instead of shipping a 404. Deployment is a separate job gated on `main`, so a fork's PR can build but never publish.
-  - **Verified locally**: `mkdocs build --strict` clean; home, design, tasks and all five ADRs render; the design doc's numbered subsections (§4.1 and friends) are individually linkable; the task list renders as 150 real checkboxes with 48 ticked, matching the count below; search, the light/dark toggle, and per-page edit links all work.
-  - ⚠️ **Needs one manual step before it's live**: GitHub → Settings → Pages → Source → **GitHub Actions**. Nothing in the repo can flip that.
+  - **New (2026-08-21, user request.)** A public site for the project, aimed at an interviewer or hiring engineer.
+  - **Built from `website/`, not `docs/`.** First attempt rendered `docs/` directly; that was rejected on review because the working engineering documents and a portfolio surface are different documents for different readers. `docs/` stays long, detailed and in-progress; `website/` is short, organised by project area, and written for someone evaluating the work. The site links out to `docs/` on GitHub rather than rendering it, so nothing is duplicated — `docs/` is the source of any fact, `website/` the summary.
+  - **Organised by project area** — Android, Desktop (.NET), Azure backend, ML pipeline, Engineering practices — rather than by document. "Pipelines" was read as the on-device ML pipeline, the project's centrepiece; CI/CD is covered under Engineering practices so either reading is served.
+  - **Unbuilt areas are stubs that say so, in a status admonition at the top of the page and in a status table on the overview.** Three of the five areas are scaffolds. A portfolio site that describes designed-but-unwritten work in the present tense is worse than one that admits the gap: the gap is checkable from the repo in about thirty seconds.
+  - **Status is never conveyed by colour alone** — each row carries a distinct glyph and the words "Working" / "Not started", so the table survives greyscale and colour-blind readers.
+  - ⚠️ **Diagrams are Mermaid, which Material fetches from unpkg at runtime.** They could not be visually confirmed locally: the preview pane doesn't composite, and Mermaid measures text via `getBBox()`, which needs real layout. The diagram source parses cleanly under `mermaid.parse`, and the prose around every diagram was written to stand alone so a blocked CDN or failed render costs decoration rather than meaning. **Confirm in a real browser before relying on them.**
+  - **CI watches `website/`, not `docs/`** — so editing the design doc no longer rebuilds the site, which is correct. Strict-mode build on pull requests; deploy job gated on `main` so a fork can build but never publish.
+  - **`CLAUDE.md` now carries a standing rule to keep the site current** — which page to touch, the status table, the "Last updated" stamp, and an instruction to replace stubs wholesale rather than amend them. Written there rather than on the site itself, because a maintenance TODO visible to an interviewer reads as neglect.
+  - **🔎 Noted, not fixed: `README.md` is stale** — it says notes "don't exist yet", which stopped being true around T018–T024. Out of scope here; worth a pass.
+  - **🔎 Noted, not fixed: `docs/cli-launcher-hld.md` is byte-identical to `docs/design.md`** with no inbound links. No longer affects the site now that `docs/` isn't rendered, so the earlier `exclude_docs` workaround is gone — but the duplicate is still there.
+  - **Verified**: `mkdocs build --strict` clean; all six pages render; nav, search, theme toggle and the custom stylesheet load.
+
 - [ ] **T089** — Publish benchmark table  
   `P0` `S` · after: T083
   - Commit as `docs/benchmarks/*.md` — don't let the numbers live only in a terminal scrollback.

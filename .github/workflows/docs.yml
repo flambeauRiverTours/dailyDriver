@@ -2,20 +2,21 @@ name: Docs
 
 # Builds the MkDocs site and publishes it to GitHub Pages.
 #
-# Only runs when something the site is actually made of changes — the app modules are a large
-# part of this repo and none of them affect the rendered docs, so building on every push would be
-# noise. `workflow_dispatch` covers the case where you want a rebuild without a docs change.
+# Only runs when something the site is actually made of changes. Note the path is `website/`, not
+# `docs/`: the site is built from the employer-facing pages in `website/`, while `docs/` holds the
+# internal engineering documents the site links out to but never renders. Editing the design doc
+# therefore does not rebuild the site, which is correct.
 on:
   push:
     branches: [main]
     paths:
-      - 'docs/**'
+      - 'website/**'
       - 'mkdocs.yml'
       - 'docs-requirements.txt'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
-      - 'docs/**'
+      - 'website/**'
       - 'mkdocs.yml'
       - 'docs-requirements.txt'
       - '.github/workflows/docs.yml'

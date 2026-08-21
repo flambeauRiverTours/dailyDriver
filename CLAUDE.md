@@ -20,8 +20,25 @@ Exit criterion: daily-drivable as the real home screen with T0/T1/T3 only, zero 
 
 ## Docs
 
+Two audiences, two sets of files. Don't confuse them:
+
 - [`docs/design.md`](docs/design.md) — architecture, decisions, and rationale. Read before making any design-affecting change.
 - [`docs/tasks.md`](docs/tasks.md) — task list and current status. Check before starting work; update as tasks move.
+- [`docs/adr/`](docs/adr/) — architecture decision records, permanent once accepted.
+- [`website/`](website/) — **the public, employer-facing site** (MkDocs Material → GitHub Pages). Short summary pages organised by project area, written for an interviewer rather than a builder. It *links out* to the files above rather than rendering them; `docs/` is the source of any fact, `website/` is the summary.
+
+### ⚠️ Keep the site current
+
+**`website/` must be updated whenever development completes a feature or changes a project area's status.** It is a portfolio surface a potential employer may be reading, and a site claiming something is unbuilt after it ships — or, worse, claiming something works that doesn't — is actively harmful in a way that stale internal docs are not.
+
+When finishing a task that changes what a project area *does* or *is*:
+
+1. Update the relevant `website/<area>.md` page.
+2. Update the status table on `website/index.md` if the area moved between not-started / working.
+3. Update the "Last updated" date on `website/index.md`.
+4. Replace a stub page wholesale when its area goes from designed to built — the stubs are written to be thrown away, not amended.
+
+Accuracy matters more than completeness here: **never describe unbuilt work in the present tense.** Every page carries a status admonition at the top; keep it honest.
 
 ## Hard constraints
 
