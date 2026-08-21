@@ -17,6 +17,8 @@ import com.example.dailydriver.notes.renderChecklist
 import com.example.dailydriver.notes.toChecklistBody
 import com.example.dailydriver.notes.toNoteBody
 import com.example.dailydriver.notes.cleaned
+import com.example.dailydriver.notes.resolveDueInText
+import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -166,11 +168,59 @@ class NoteEditorViewModel(
         hideChecked = !hideChecked
     }
 
-    /** Appends an empty item and leaves it for the UI to focus. */
-    fun addItem() = editItems { it + ChecklistItem("") }
+    /**
+     * The displayed row the editor should put the cursor in, or null when it shouldn't move focus.
+     *
+     * **Owned here rather than in [ChecklistView].** The view used to guess the new row's index
+     * itself, which worked only because `addItem` happens to append; anything that reordered on
+     * insert would have focused the wrong row, silently. The ViewModel is the only thing that
+     * knows where an item actually landed, so it says so. Consumed once, via [consumeItemFocus],
+     * so it can't steal focus back on a later recomposition.
+     */
+    var pendingItemFocus by mutableStateOf<Int?>(null)
+        private set
+
+    fun consumeItemFocus() {
+        pendingItemFocus = null
+    }
+
+    /** Appends an empty item and asks the editor to put the cursor in it. */
+    fun addItem() {
+        editItems { it + ChecklistItem("") }
+        pendingItemFocus = visibleItems.lastIndex
+    }
 
     fun onItemTextChange(displayedIndex: Int, text: String) =
         editItems { current -> current.replacingAt(displayedIndex) { it.copy(text = text) } }
+
+    /**
+     * Turns any date shortcut typed into a row into a real due date (T154).
+     *
+     * **Called when a row loses focus, never while typing into it.** Typing `@tomorrow` is the
+     * whole input mechanism — the row is already a text field, so a date needs no picker — but
+     * rewriting text under a live cursor is what T023 got wrong, and this field is a
+     * `BasicTextField(String)` whose cursor snaps to the end on any external change. Resolving at
+     * commit means the text only ever changes while nobody is typing into it.
+     *
+     * A no-op when nothing resolves, so an item carrying `@bob` is never rewritten and the body
+     * isn't dirtied by merely tabbing through a row.
+     */
+    fun commitItem(displayedIndex: Int, today: LocalDate = LocalDate.now()) = editItems { current ->
+        current.replacingAt(displayedIndex) { item ->
+            val resolved = resolveDueInText(item.text, today)
+            if (resolved == item.text) item else item.copy(text = resolved)
+        }
+    }
+
+    /**
+     * Clears a row's due date, demoting the task back to an ordinary checklist item.
+     *
+     * Tapping the date is the only way to remove one, because the token is lifted out of the text
+     * on parse and so can't be backspaced away in the field. Setting a *different* date needs no
+     * separate affordance: type another `@...` and last-wins takes it.
+     */
+    fun clearDue(displayedIndex: Int) =
+        editItems { current -> current.replacingAt(displayedIndex) { it.copy(due = null) } }
 
     /**
      * Ticking re-applies the unchecked-above-checked invariant, so the item drops below the
@@ -231,7 +281,17 @@ class NoteEditorViewModel(
                 body = if (becomingChecklist) toChecklistBody(it.body) else toNoteBody(it.body),
             )
         }
-        if (!becomingChecklist) hideChecked = false
+        if (!becomingChecklist) {
+            hideChecked = false
+            pendingItemFocus = null
+            return
+        }
+
+        // Converting *to* a checklist should leave you typing rather than hunting for `+ item`
+        // (UI tweak, 2026-08-21). A blank note converts to an empty list, so it gets its first row
+        // created here; a note with prose already has rows, and gets the cursor at the end of the
+        // last one instead of a spurious blank appended to real content.
+        if (visibleItems.isEmpty()) addItem() else pendingItemFocus = rowToFocusAfterConversion(visibleItems.size)
     }
 
     private fun edit(transform: (NoteDraft) -> NoteDraft) {
@@ -280,17 +340,17 @@ class NoteEditorViewModel(
         // Checklist rows are tidied here rather than as you type: an item has to be allowed to
         // sit empty (and to end in the space you just typed) while you're filling it in, but
         // storing either would leave a blank checkbox, or stray whitespace, in the list forever.
-        dropEmptyItems()
+        tidyChecklistForStorage()
         flush()
         draft = null
         confirmingDiscard = false
         hideChecked = false
     }
 
-    private fun dropEmptyItems() {
+    private fun tidyChecklistForStorage() {
         val current = draft ?: return
         if (current.type != NoteType.CHECKLIST) return
-        val kept = parseChecklist(current.body).cleaned()
+        val kept = parseChecklist(current.body).map { it.copy(text = resolveDueInText(it.text, LocalDate.now())) }.cleaned()
         draft = current.copy(body = renderChecklist(kept))
     }
 

@@ -480,11 +480,22 @@ Room schema, Markdown format, outbox from day one.
   - **`parse ∘ render = identity` is now written into the fixture as a rule**, not just tested, since it is the property the whole body-as-buffer design depends on and the one a future change is most likely to break silently.
   - **`cleaned()` now keeps an item that has a date but no text.** It previously dropped anything blank, which would have deleted a row the moment you set its date before typing what it was.
   - Verified: 533 unit tests (was 508), 0 failures; lint unchanged at 0 errors / 10 warnings. **Instrumented tests not run and not needed** — `ChecklistItem` is derived from the body, not a Room entity, so no schema, DAO or migration surface changed.
-- [ ] **T154** — Due dates in the checklist editor  
+- [x] **T154** — Due dates in the checklist editor  
   `P1` `M` · after: T153, T024
   - Add, change and clear a date on any checklist row. The date shows on the row; the token stays in the body.
   - Reuses the T023 pipeline exactly: parse the body, transform the item, render back. Nothing new is cached beside the body.
-  - **Watch the T023 trap.** Item text is edited *through* the body on every keystroke, which is what made trailing spaces impossible to type until it was fixed. A date token being rewritten mid-edit is the same shape of bug, so date editing must not round-trip the text field on every keypress.
+  - **No date-picker UI, because the row is already a text field.** You type `@tomorrow` into the item and it becomes a real due date. That keeps the keyboard-first premise intact and adds nothing to a row that is already carrying a handle, a checkbox and a delete.
+  - **Shortcuts resolve on focus loss, never on keystroke** — which is how the T023 trap gets sidestepped rather than fought. Rewriting text under a live cursor is exactly what broke typing before, and this field is a `BasicTextField(String)` whose cursor snaps to the end on any external change. Resolving on the way *out* of a row means the text only ever changes while nobody is typing into it.
+  - **Also resolved on close**, because the last row you type into may never lose focus — you type `@fri` and hit ✓. A shortcut stored verbatim would be a task with no due date that looks like it has one.
+  - **A no-op when nothing resolves**, deliberately. Commit fires on every focus loss, so returning a changed string would dirty the body and fire an autosave just for tabbing through a row.
+  - **Tapping the date clears it**, and that is the only way to remove one: the token is lifted out of the text on parse, so it can't be backspaced away in the field. Changing a date needs no affordance at all — type another `@...` and T153's last-wins takes it.
+  - **`shortDate` extracted so there is one definition of how this app writes a date.** The status row, the blank-note title stamp and a due date all render through it. `android/CLAUDE.md` already made this point for note titles; a second formatter that happens to agree today is one that drifts later.
+  - **`today` / `tomorrow` as words, the date otherwise.** "What is due today" is the question the whole feature exists to answer (ADR-0007), so making the reader scan a column of `Fri 21 Aug` for it is work the label should be doing. They are also shorter than the date they replace, on a row with little width to spare.
+  - **Overdue is coloured but still shows its date.** Colour is never the only signal, and "how late" is the thing you actually need to judge.
+  - **🐛 Caught by its own test:** the two-word tail replacement swallowed the separating space, so `move house @next week` resolved to `move house@2026-08-28`. The single-word path was fine; only the tail branch re-assembled the string by hand.
+  - **Converting a note to a checklist leaves you typing** (UI tweak, 2026-08-21). A blank note converts to an empty list, so it gets its first row created and focused with the keyboard up; a note with prose already has rows, so the cursor goes to the end of the last one rather than appending a spurious blank to real content.
+  - **Focus intent moved into the ViewModel** while doing it. `ChecklistView` used to guess a new row's index as `items.size`, which was right only because `addItem` happens to append — anything that reordered on insert would have focused the wrong row silently. The ViewModel is the only thing that knows where an item landed, so it now says so, and the view consumes a one-shot `pendingItemFocus`.
+  - Verified: 552 unit tests (was 533), 0 failures; lint unchanged at 0 errors / 10 warnings. **Not yet verified on-device** — focus-loss commit and the tap-to-clear target are exactly the kind of thing that has broken on hardware three times in this editor already (T023).
 - [ ] **T155** — `:task` command  
   `P1` `S` · after: T153
   - `:task buy milk @fri` appends one dated line to a note titled `tasks`, opening or creating it by name. That is T025's existing `byTitle` path, so there is no new storage code.
@@ -856,4 +867,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**156 tasks — 50 done, 106 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**156 tasks — 51 done, 105 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

@@ -89,4 +89,24 @@ class ChecklistDisplayTest {
             }
         }
     }
+
+    // --- focus after conversion (T024 tweak) -------------------------------------------------------
+
+    @Test
+    fun `an empty conversion focuses the row the caller is about to add`() {
+        assertEquals(0, rowToFocusAfterConversion(0))
+    }
+
+    @Test
+    fun `a conversion with content focuses the last existing row`() {
+        // Not a new blank row appended to real content — the prose already became rows, and you
+        // carry on from the end of the last one.
+        assertEquals(0, rowToFocusAfterConversion(1))
+        assertEquals(2, rowToFocusAfterConversion(3))
+    }
+
+    @Test
+    fun `a negative count cannot produce a negative row`() {
+        assertEquals(0, rowToFocusAfterConversion(-1))
+    }
 }

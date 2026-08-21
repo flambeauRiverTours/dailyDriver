@@ -1,6 +1,7 @@
 package com.example.dailydriver.shell
 
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
@@ -33,6 +34,24 @@ private const val UNREAD_DOT = '•'
  *
  * `java.time` needs no desugaring here — it's API 26+, well below this project's `minSdk` of 33.
  */
+/**
+ * How this app writes a date: `Wed 19 Aug`.
+ *
+ * Deliberately not zero-padded and not locale-reordered — that shape was the choice at the
+ * 2026-08-19 design check-in. The weekday and month names still come from the locale.
+ *
+ * **One definition, deliberately shared.** The status row, the blank-note title stamp, and a task's
+ * due date all render through here so they cannot disagree about how a date looks. A second
+ * formatter that happened to agree today is a second formatter that drifts later.
+ */
+fun shortDate(date: LocalDate, locale: Locale = Locale.getDefault()): String = buildString {
+    append(date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale))
+    append(' ')
+    append(date.dayOfMonth)
+    append(' ')
+    append(date.month.getDisplayName(TextStyle.SHORT, locale))
+}
+
 fun statusLineText(
     instant: Instant,
     zone: ZoneId,
@@ -52,15 +71,7 @@ fun statusLineText(
         "%d:%02d %s".format(locale, if (hour12 == 0) 12 else hour12, local.minute, meridiem)
     }
 
-    // Deliberately not zero-padded and not locale-reordered — "Wed 19 Aug" was the chosen shape
-    // (design check-in, 2026-08-19). The weekday and month names still come from the locale.
-    val date = buildString {
-        append(local.dayOfWeek.getDisplayName(TextStyle.SHORT, locale))
-        append(' ')
-        append(local.dayOfMonth)
-        append(' ')
-        append(local.month.getDisplayName(TextStyle.SHORT, locale))
-    }
+    val date = shortDate(local.toLocalDate(), locale)
 
     return StatusLineText(
         time = if (colonVisible) time else time.replace(':', ' '),

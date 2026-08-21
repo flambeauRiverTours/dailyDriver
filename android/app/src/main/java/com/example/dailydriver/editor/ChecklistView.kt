@@ -20,12 +20,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -37,6 +39,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.dailydriver.notes.ChecklistItem
+import com.example.dailydriver.notes.dueLabel
+import java.time.LocalDate
 import kotlin.math.roundToInt
 
 /**
@@ -70,6 +74,7 @@ internal object ChecklistTestTags {
     fun item(index: Int) = "checklist_item_$index"
     fun checkbox(index: Int) = "checklist_checkbox_$index"
     fun delete(index: Int) = "checklist_delete_$index"
+    fun due(index: Int) = "checklist_due_$index"
     fun handle(index: Int) = "checklist_handle_$index"
 }
 
@@ -91,8 +96,14 @@ fun ChecklistView(
     onDeleteItem: (index: Int) -> Unit,
     onMoveItem: (from: Int, to: Int) -> Unit,
     onAddItem: () -> Unit,
+    onCommitItem: (index: Int) -> Unit,
+    onClearDue: (index: Int) -> Unit,
+    /** The row to put the cursor in, decided by the ViewModel. Null when focus shouldn't move. */
+    focusIndex: Int?,
+    onFocusConsumed: () -> Unit,
     textStyle: TextStyle,
     modifier: Modifier = Modifier,
+    today: LocalDate = LocalDate.now(),
 ) {
     val dim = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
 
@@ -107,17 +118,6 @@ fun ChecklistView(
     // list having a mind of its own. Starts at 1f purely to keep the first division safe; no drag
     // can be in flight before a row has been measured.
     var rowHeightPx by remember { mutableFloatStateOf(1f) }
-
-    // The row a just-added item should land in. Without this, `+ item` (and Enter) produce a row
-    // you then have to reach up and tap before you can type into it — which is most of the reason
-    // to have `+ item` at all. Cleared once claimed so it doesn't steal focus back on the next
-    // recomposition.
-    var pendingFocusIndex by remember { mutableIntStateOf(-1) }
-
-    fun addAndFocus() {
-        pendingFocusIndex = items.size
-        onAddItem()
-    }
 
     Column(
         modifier = modifier
@@ -148,10 +148,13 @@ fun ChecklistView(
                     draggingIndex = -1
                     dragOffset = 0f
                 },
-                onEnter = { addAndFocus() },
+                onEnter = onAddItem,
+                onCommit = { onCommitItem(index) },
+                onClearDue = { onClearDue(index) },
+                today = today,
                 onMeasured = { height -> rowHeightPx = height.toFloat() },
-                autoFocus = index == pendingFocusIndex,
-                onFocusClaimed = { pendingFocusIndex = -1 },
+                autoFocus = index == focusIndex,
+                onFocusClaimed = onFocusConsumed,
                 textStyle = textStyle,
                 dimStyle = dim,
             )
@@ -163,7 +166,7 @@ fun ChecklistView(
             modifier = Modifier
                 .fillMaxWidth()
                 .sizeIn(minHeight = 48.dp)
-                .clickable { addAndFocus() }
+                .clickable(onClick = onAddItem)
                 .testTag(ChecklistTestTags.ADD),
             contentAlignment = Alignment.CenterStart,
         ) {
@@ -185,6 +188,9 @@ private fun ChecklistRow(
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
     onEnter: () -> Unit,
+    onCommit: () -> Unit,
+    onClearDue: () -> Unit,
+    today: LocalDate,
     onMeasured: (Int) -> Unit,
     autoFocus: Boolean,
     onFocusClaimed: () -> Unit,
@@ -192,6 +198,11 @@ private fun ChecklistRow(
     dimStyle: TextStyle,
 ) {
     val focusRequester = remember { FocusRequester() }
+
+    // Tracks whether this row *had* focus, so commit fires on a real focus loss rather than on the
+    // initial `false` every row reports when it first composes. Without it, every row would commit
+    // once on appearing and dirty the body for nothing.
+    var hadFocus by remember { mutableStateOf(false) }
 
     // A newly added row takes the cursor, so `+ item` and Enter both leave you typing rather than
     // aiming. Guarded on `autoFocus` so it fires for the new row only — every other row would
@@ -279,8 +290,41 @@ private fun ChecklistRow(
             modifier = Modifier
                 .weight(1f)
                 .focusRequester(focusRequester)
+                // Date shortcuts resolve here, on the way *out* of the row. Doing it on every
+                // keystroke would rewrite text under a live cursor, which is the T023 bug, and this
+                // field's cursor snaps to the end on any external change.
+                .onFocusChanged { if (!it.isFocused && hadFocus) onCommit() }
+                .onFocusChanged { hadFocus = it.isFocused }
                 .testTag(ChecklistTestTags.item(index)),
         )
+
+        // The due date sits between the text and the delete, and is tappable to clear. It is the
+        // only way to remove a date: the token is lifted out of the text on parse, so it cannot be
+        // backspaced away in the field. Changing one needs no affordance — type another `@...` and
+        // last-wins takes it.
+        item.due?.let { due ->
+            val label = dueLabel(due, today)
+            Box(
+                modifier = Modifier
+                    .sizeIn(minHeight = 48.dp)
+                    .clickable(onClick = onClearDue)
+                    .padding(horizontal = 4.dp)
+                    .testTag(ChecklistTestTags.due(index)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label.text,
+                    // Overdue is coloured, but the date is still shown either way — colour is never
+                    // the only signal, and "how late" is the thing you actually need to judge.
+                    style = if (label.overdue) {
+                        dimStyle.copy(color = MaterialTheme.colorScheme.error)
+                    } else {
+                        dimStyle
+                    },
+                    maxLines = 1,
+                )
+            }
+        }
 
         EditorAction(
             label = "×",

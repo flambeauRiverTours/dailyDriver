@@ -149,6 +149,45 @@ private fun String.asOffset(today: LocalDate): LocalDate? {
     }
 }
 
+/**
+ * Rewrites any shortcut someone typed into the item's text as a stored ISO token (T154).
+ *
+ * **Called on commit, never on keystroke**, and that timing is the whole design. The row is already
+ * a text field, so typing `@tomorrow` needs no date-picker UI at all — but rewriting text while a
+ * cursor is in it is what T023 got wrong, and the field here is a `BasicTextField(String)` whose
+ * cursor snaps to the end on any external change. Resolving when the row loses focus means the text
+ * only ever changes while nobody is typing into it.
+ *
+ * Two-word shortcuts (`@next week`) are only resolved at the very end of the text, which is the
+ * limit the corpus records: mid-line there is no way to tell the second word of a shortcut from the
+ * next word of the sentence. Every spaced form has a hyphenated equivalent that works anywhere.
+ *
+ * Anything that doesn't resolve is left exactly as typed, so `@bob` and an email address survive.
+ */
+fun resolveDueInText(text: String, today: LocalDate): String {
+    // The two-word tail first: "@next week" only means anything here, and trying it before the
+    // single-word pass stops "@next" being resolved on its own and orphaning "week".
+    TWO_WORD_TAIL.find(text)?.let { match ->
+        resolveDueInput(match.groupValues[1], today)?.let { resolved ->
+            // The match swallowed the space in front of the shortcut, so put one back rather than
+            // welding the token onto the last word ("move house@2026-08-28").
+            val head = text.removeRange(match.range)
+            return if (head.isEmpty()) dueToken(resolved) else "$head ${dueToken(resolved)}"
+        }
+    }
+
+    return SINGLE_TOKEN.replace(text) { match ->
+        val resolved = resolveDueInput(match.groupValues[1], today)
+        if (resolved == null) match.value else match.value.replace("@" + match.groupValues[1], dueToken(resolved))
+    }
+}
+
+/** `@next week` and friends, anchored to the end of the text. */
+private val TWO_WORD_TAIL = Regex("""(?:^|\s)@(\S+[ \t]+\S+)$""")
+
+/** A single-word `@token` at a word boundary. */
+private val SINGLE_TOKEN = Regex("""(?:^|\s)@(\S+)""")
+
 /** Strict ISO parse. Returns null rather than throwing, since bad input here is ordinary text. */
 private fun String.toLocalDateOrNull(): LocalDate? = try {
     LocalDate.parse(this)
