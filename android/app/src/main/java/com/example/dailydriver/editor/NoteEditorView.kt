@@ -209,6 +209,8 @@ fun NoteEditorView(
                 onAddItem = checklist.onAddItem,
                 onCommitItem = checklist.onCommitItem,
                 onClearDue = checklist.onClearDue,
+                focusIndex = checklist.focusIndex,
+                onFocusConsumed = checklist.onFocusConsumed,
                 textStyle = textStyle,
                 modifier = bodyModifier.padding(top = 8.dp),
             )
@@ -258,6 +260,8 @@ data class ChecklistBinding(
     val onAddItem: () -> Unit,
     val onCommitItem: (index: Int) -> Unit,
     val onClearDue: (index: Int) -> Unit,
+    val focusIndex: Int?,
+    val onFocusConsumed: () -> Unit,
     val onToggleType: () -> Unit,
     val onToggleHideChecked: () -> Unit,
 )

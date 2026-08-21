@@ -32,3 +32,16 @@ fun List<ChecklistItem>.actualIndex(displayedIndex: Int, hideChecked: Boolean): 
     if (!hideChecked) return displayedIndex.takeIf { it in indices }
     return indices.filter { !this[it].checked }.getOrNull(displayedIndex)
 }
+
+/**
+ * The row the cursor belongs in once a checklist surface appears (T024 tweak).
+ *
+ * Converting a note to a checklist should leave you typing, not aiming. With no items at all the
+ * caller adds one first, so the answer is row 0; with items already parsed out of the prose, the
+ * end of the last one is where you would carry on writing.
+ *
+ * Returned as an index rather than a boolean so the caller does no arithmetic of its own — the
+ * off-by-one here is the whole content of the function.
+ */
+fun rowToFocusAfterConversion(visibleCount: Int): Int =
+    if (visibleCount <= 0) 0 else visibleCount - 1

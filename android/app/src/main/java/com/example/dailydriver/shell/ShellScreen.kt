@@ -318,6 +318,8 @@ fun ShellScreen(
                     onAddItem = editor::addItem,
                 onCommitItem = { editor.commitItem(it) },
                 onClearDue = editor::clearDue,
+                focusIndex = editor.pendingItemFocus,
+                onFocusConsumed = editor::consumeItemFocus,
                     onToggleType = editor::toggleType,
                     onToggleHideChecked = editor::toggleHideChecked,
                 ),

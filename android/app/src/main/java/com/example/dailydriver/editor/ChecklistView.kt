@@ -98,6 +98,9 @@ fun ChecklistView(
     onAddItem: () -> Unit,
     onCommitItem: (index: Int) -> Unit,
     onClearDue: (index: Int) -> Unit,
+    /** The row to put the cursor in, decided by the ViewModel. Null when focus shouldn't move. */
+    focusIndex: Int?,
+    onFocusConsumed: () -> Unit,
     textStyle: TextStyle,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
@@ -115,17 +118,6 @@ fun ChecklistView(
     // list having a mind of its own. Starts at 1f purely to keep the first division safe; no drag
     // can be in flight before a row has been measured.
     var rowHeightPx by remember { mutableFloatStateOf(1f) }
-
-    // The row a just-added item should land in. Without this, `+ item` (and Enter) produce a row
-    // you then have to reach up and tap before you can type into it — which is most of the reason
-    // to have `+ item` at all. Cleared once claimed so it doesn't steal focus back on the next
-    // recomposition.
-    var pendingFocusIndex by remember { mutableIntStateOf(-1) }
-
-    fun addAndFocus() {
-        pendingFocusIndex = items.size
-        onAddItem()
-    }
 
     Column(
         modifier = modifier
@@ -156,13 +148,13 @@ fun ChecklistView(
                     draggingIndex = -1
                     dragOffset = 0f
                 },
-                onEnter = { addAndFocus() },
+                onEnter = onAddItem,
                 onCommit = { onCommitItem(index) },
                 onClearDue = { onClearDue(index) },
                 today = today,
                 onMeasured = { height -> rowHeightPx = height.toFloat() },
-                autoFocus = index == pendingFocusIndex,
-                onFocusClaimed = { pendingFocusIndex = -1 },
+                autoFocus = index == focusIndex,
+                onFocusClaimed = onFocusConsumed,
                 textStyle = textStyle,
                 dimStyle = dim,
             )
@@ -174,7 +166,7 @@ fun ChecklistView(
             modifier = Modifier
                 .fillMaxWidth()
                 .sizeIn(minHeight = 48.dp)
-                .clickable { addAndFocus() }
+                .clickable(onClick = onAddItem)
                 .testTag(ChecklistTestTags.ADD),
             contentAlignment = Alignment.CenterStart,
         ) {

@@ -168,8 +168,27 @@ class NoteEditorViewModel(
         hideChecked = !hideChecked
     }
 
-    /** Appends an empty item and leaves it for the UI to focus. */
-    fun addItem() = editItems { it + ChecklistItem("") }
+    /**
+     * The displayed row the editor should put the cursor in, or null when it shouldn't move focus.
+     *
+     * **Owned here rather than in [ChecklistView].** The view used to guess the new row's index
+     * itself, which worked only because `addItem` happens to append; anything that reordered on
+     * insert would have focused the wrong row, silently. The ViewModel is the only thing that
+     * knows where an item actually landed, so it says so. Consumed once, via [consumeItemFocus],
+     * so it can't steal focus back on a later recomposition.
+     */
+    var pendingItemFocus by mutableStateOf<Int?>(null)
+        private set
+
+    fun consumeItemFocus() {
+        pendingItemFocus = null
+    }
+
+    /** Appends an empty item and asks the editor to put the cursor in it. */
+    fun addItem() {
+        editItems { it + ChecklistItem("") }
+        pendingItemFocus = visibleItems.lastIndex
+    }
 
     fun onItemTextChange(displayedIndex: Int, text: String) =
         editItems { current -> current.replacingAt(displayedIndex) { it.copy(text = text) } }
@@ -262,7 +281,17 @@ class NoteEditorViewModel(
                 body = if (becomingChecklist) toChecklistBody(it.body) else toNoteBody(it.body),
             )
         }
-        if (!becomingChecklist) hideChecked = false
+        if (!becomingChecklist) {
+            hideChecked = false
+            pendingItemFocus = null
+            return
+        }
+
+        // Converting *to* a checklist should leave you typing rather than hunting for `+ item`
+        // (UI tweak, 2026-08-21). A blank note converts to an empty list, so it gets its first row
+        // created here; a note with prose already has rows, and gets the cursor at the end of the
+        // last one instead of a spurious blank appended to real content.
+        if (visibleItems.isEmpty()) addItem() else pendingItemFocus = rowToFocusAfterConversion(visibleItems.size)
     }
 
     private fun edit(transform: (NoteDraft) -> NoteDraft) {
