@@ -83,7 +83,13 @@ jobs:
             ls -la android/app/build/outputs/apk/release/
             exit 1
           fi
-          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$APK"
+          # Runners ship several build-tools versions, so this glob matches more than one path.
+          # Unquoted, the first became the binary and the rest were handed to it as arguments,
+          # which apksigner reports as `Unsupported command: <path>` — a message that reads like
+          # the APK is bad when the tool invocation is. Pick the newest explicitly.
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          echo "Verifying with $APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
