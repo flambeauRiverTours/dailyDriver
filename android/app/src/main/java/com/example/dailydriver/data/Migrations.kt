@@ -2,6 +2,7 @@ package com.example.dailydriver.data
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.dailydriver.command.CommandLogEntry
 
 /**
  * 1 → 2: adds the derived `tasks` index (T157, ADR-0007).
@@ -40,5 +41,34 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
             """.trimIndent(),
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_tasks_due` ON `tasks` (`due`)")
+    }
+}
+
+/**
+ * 2 → 3: adds the `command_log` training-data table (T014).
+ *
+ * Nothing to backfill: the log records what happens from now on, and inventing history for it
+ * would be inventing training data, which is exactly the opposite of why it exists.
+ *
+ * As with 1 → 2, the DDL is hand-written to match what Room generates for [CommandLogEntry], and
+ * `MigrationTestHelper` compares the result against the exported schema, so drift fails a test
+ * rather than a device.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `command_log` (
+                `input` TEXT NOT NULL,
+                `target` TEXT NOT NULL,
+                `tier` TEXT NOT NULL,
+                `count` INTEGER NOT NULL,
+                `firstSeen` INTEGER NOT NULL,
+                `lastSeen` INTEGER NOT NULL,
+                PRIMARY KEY(`input`, `target`)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_command_log_tier` ON `command_log` (`tier`)")
     }
 }

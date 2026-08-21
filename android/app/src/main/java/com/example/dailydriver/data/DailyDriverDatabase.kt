@@ -6,6 +6,8 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import com.example.dailydriver.alias.Alias
 import com.example.dailydriver.alias.AliasDao
+import com.example.dailydriver.command.CommandLogDao
+import com.example.dailydriver.command.CommandLogEntry
 import com.example.dailydriver.notes.Note
 import com.example.dailydriver.notes.NoteDao
 import com.example.dailydriver.notes.NoteTag
@@ -52,6 +54,10 @@ class Converters {
  * Version 1 was a *new* database file, not a migration of `aliases.db`. Room migrations operate
  * within one file, so the old aliases are carried across by [LegacyAliasImport] instead.
  *
+ * **Version 3 adds `command_log` (T014)** — the T0/T1/T3 training-data log. It never syncs and is
+ * not in §6.2's document model, the same exclusion aliases have but for a stronger reason: it
+ * holds everything typed at the home screen.
+ *
  * **Version 2 adds the derived `tasks` index (T157, ADR-0007).** It holds no information the note
  * bodies don't already carry, which is what makes [MIGRATION_1_2] able to create it empty and let
  * [NoteDao] refill it as notes are written. See the migration for why it is not rebuilt eagerly.
@@ -64,8 +70,9 @@ class Converters {
         OutboxEntry::class,
         SyncState::class,
         TaskRow::class,
+        CommandLogEntry::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -75,6 +82,7 @@ abstract class DailyDriverDatabase : RoomDatabase() {
     abstract fun outboxDao(): OutboxDao
     abstract fun syncStateDao(): SyncStateDao
     abstract fun taskDao(): TaskDao
+    abstract fun commandLogDao(): CommandLogDao
 
     companion object {
         const val NAME = "dailydriver.db"
