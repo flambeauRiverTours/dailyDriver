@@ -145,6 +145,19 @@ val reservedCommandHelp: List<CommandHelp> = registry.mapNotNull { it.help }
  * match anything registered — the fallthrough point where T1's fuzzy matching (T008) takes over,
  * and past that the T2/T3 escalation in `ShellViewModel.onSubmit`.
  */
+/**
+ * The token [input] matched, or null if none did (T014).
+ *
+ * Separate from [parseReservedCommand] because the command log wants to record *which command*
+ * ran, not the parsed variant with its argument — `":note standup"` and `":note groceries"` are
+ * the same command with different slots, and collapsing them is what makes the log a usable
+ * frequency table rather than a list of every note title ever created.
+ *
+ * Shares [matchCommandToken] with the parser, so the two cannot disagree about what matched.
+ */
+fun reservedCommandToken(input: String): String? =
+    registry.firstOrNull { matchCommandToken(input, it.token) != null }?.token
+
 fun parseReservedCommand(input: String): ReservedCommand? {
     for (entry in registry) {
         val query = matchCommandToken(input, entry.token) ?: continue

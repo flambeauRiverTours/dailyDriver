@@ -44,6 +44,9 @@ import com.example.dailydriver.apps.filteredBy
 import com.example.dailydriver.apps.matchPreview
 import com.example.dailydriver.apps.soleAutoLaunchTarget
 import com.example.dailydriver.apps.topMatch
+import com.example.dailydriver.command.CommandResolution
+import com.example.dailydriver.command.classifyResolution
+import com.example.dailydriver.command.reservedCommandToken
 import com.example.dailydriver.command.ReservedCommand
 import com.example.dailydriver.editor.ChecklistBinding
 import com.example.dailydriver.editor.UndoRow
@@ -133,6 +136,8 @@ fun ShellScreen(
     onToggleTask: suspend (TaskListItem) -> Unit,
     /** Resolves the note a task lives in, so tapping the text can open it. */
     onOpenTaskNote: suspend (TaskListItem) -> Note?,
+    /** T014 — records what the deterministic tiers did with a submitted line. */
+    onCommandResolved: (input: String, resolution: CommandResolution) -> Unit,
     /**
      * Bumped by [MainActivity][com.example.dailydriver.MainActivity] whenever the window regains
      * focus — HOME chief among the ways that happens (T015, design doc §4.1: "HOME re-focuses
@@ -414,6 +419,27 @@ fun ShellScreen(
                 // these branches can ever apply to a given input.
                 val aliasAttempt = parseAliasDefinition(input)
                 val aliasExpansion = aliases[input.trim()]
+
+                // T014 — logged here, once, before the branches run.
+                //
+                // This is the only place that sees every submitted line together with what each
+                // tier found, so it is the only place the log can be complete. Logging inside the
+                // branches would mean a new command silently collecting no training data, and
+                // that failure is invisible: nothing breaks, the dataset is just quietly missing a
+                // third of what you do.
+                //
+                // An alias *definition* is excluded: "alias sp = spotify" is configuration, not a
+                // command anyone will later phrase in natural language, so it is not an example of
+                // anything the model needs to learn.
+                if (input.isNotBlank() && aliasAttempt == null) {
+                    val resolution = classifyResolution(
+                        reservedToken = reservedCommandToken(input),
+                        aliasExpansion = aliasExpansion,
+                        appPackage = (autoLaunchTarget ?: plainMatchTarget)?.packageName,
+                    )
+                    onCommandResolved(input.trim(), resolution)
+                }
+
                 when {
                     // Enter opens a uniquely-matched app immediately rather than waiting out the
                     // pause.

@@ -321,9 +321,18 @@ Tiered cascade. **The SLM is not the front door.**
   - **T2 now degrades here instead of dead-ending.** T009 shipped `"no natural-language understanding yet (T2)"` as a terminal placeholder, which contradicted the root hard constraint that the launcher stay fully usable while the model is absent. Both tiers now end with the same actionable pointer, while keeping a tier-specific lead — `"call mom tonight"` isn't an app-name typo, so saying "no match" about it would misdescribe what happened. T009's classification is unchanged and still the seam T036 will point at the real T2 handler; only the destination for its T2 arm changed.
   - `command/UnmatchedResponse.kt` (`unmatchedResponse(input, tier)`, pure and tested); `ShellViewModel`'s two `*_NOT_BUILT_YET` placeholder constants for T2/T3 are deleted rather than left unused, per this project's precedent on dead code.
   - **Verified:** covered by T145's run above — 176 unit tests pass, `assembleDebug` succeeds, lint unchanged. **Verified on-device (2026-08-19)** alongside T145.
-- [ ] **T014** — Log (raw_input, resolved_intent) for every T0/T1 hit  
+- [x] **T014** — Log (raw_input, resolved_intent) for every T0/T1 hit  
   `P0` `S` · after: T009
   - **THIS IS TRAINING DATA.** Do it now or section 12 has nothing real to learn from.
+  - **🔎 Found while designing this: §4.3's label space is stale.** It predates `:task`, `:tasks`, `:tasksdone` and `:notif`, so four of the ten reserved commands have no intent label. That reframed the whole task.
+  - **The log records the resolution, not a §4.3 label** (check-in). A label space that has already gone stale once will go stale again, and unlike code a log cannot be refactored — the rows are a record of the past. So it stores what actually happened (which token matched, which package launched) and §8's hand-labelling maps it when the labels stop moving. §4.3 now carries a warning rather than being quietly wrong.
+  - **Misses are logged too** (check-in), marked `T3`. Every fallthrough is exactly the out-of-scope example §8 wants mapped to `unknown`, and abstention data is far more convincing observed than invented. §4.2 only asked for hits; this is deliberately more.
+  - **Deduplicated with a count** (check-in). The second reason is the load-bearing one: an undeduplicated log would be dominated by whatever app you open most, and a fine-tune on it would mostly learn that one example. A count keeps frequency as a number a training pipeline can weight deliberately instead of inheriting.
+  - **Logged at one place, before the branches run.** `ShellScreen`'s Enter handler is the only point that sees every submitted line together with what each tier found. Logging inside the branches would mean a newly added command silently collecting nothing — a failure that breaks nothing and is invisible until the dataset is short.
+  - **Alias *definitions* are excluded.** `alias sp = spotify` is configuration, not something anyone will later phrase in natural language.
+  - **Never syncs, and casing is preserved.** The input is everything typed at a home screen, so no outbox row and no §6.2 entry — a stronger version of the alias exclusion (T097). Casing stays because what was typed *is* the training input, and normalising would discard a variation the model must handle at inference. `clear()` exists because erasing it has to be possible.
+  - **Failures are swallowed at the repository.** A launcher that refused to open an app because its training log couldn't be written would have its priorities backwards.
+  - Schema v2→v3, migrated and validated. 593 unit tests (was 585), **57 instrumented (was 48)** — including that repeating an input *increments* rather than resetting, which is the entire premise of the table and is invisible from Kotlin, and that 1→2→3 migrations compose.
 
 
 ## 04 · Notes storage
@@ -884,4 +893,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**156 tasks — 57 done, 99 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**156 tasks — 58 done, 98 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

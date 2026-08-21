@@ -57,7 +57,37 @@ class MigrationTest {
         migrated.close()
     }
 
+    @Test
+    fun migrate2To3AddsTheCommandLogAndValidatesAgainstTheExportedSchema() {
+        helper.createDatabase(TEST_DB_2, 2).close()
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB_2, 3, true, MIGRATION_2_3)
+
+        // Created empty, and deliberately not backfilled: the log records what happens from now
+        // on, and inventing history for it would be inventing training data.
+        migrated.query("SELECT COUNT(*) FROM command_log").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        migrated.close()
+    }
+
+    @Test
+    fun migratingAllTheWayFrom1To3Works() {
+        // The upgrade an existing install actually performs. Running the migrations individually
+        // proves each step; running them in sequence proves they compose.
+        helper.createDatabase(TEST_DB_3, 1).close()
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB_3, 3, true, MIGRATION_1_2, MIGRATION_2_3)
+
+        migrated.query("SELECT COUNT(*) FROM tasks").use { assertTrue(it.moveToFirst()) }
+        migrated.query("SELECT COUNT(*) FROM command_log").use { assertTrue(it.moveToFirst()) }
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
+        const val TEST_DB_2 = "migration-test-2.db"
+        const val TEST_DB_3 = "migration-test-3.db"
     }
 }

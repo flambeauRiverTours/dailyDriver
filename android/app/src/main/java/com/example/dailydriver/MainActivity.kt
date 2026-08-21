@@ -13,6 +13,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dailydriver.alias.AliasRepository
+import com.example.dailydriver.command.CommandLogRepository
 import com.example.dailydriver.apps.AppIndexRepository
 import com.example.dailydriver.apps.AppLauncher
 import com.example.dailydriver.editor.NoteEditorViewModel
@@ -34,6 +35,7 @@ class MainActivity : AppCompatActivity() {
 
     // Constructed in onCreate, not as a property initializer — `this` isn't a valid Context yet
     // at property-initializer time (attachBaseContext runs after the object is constructed).
+    private lateinit var commandLog: CommandLogRepository
     private lateinit var appIndexRepository: AppIndexRepository
     private lateinit var appLauncher: AppLauncher
     private lateinit var settingsLauncher: SettingsLauncher
@@ -63,6 +65,7 @@ class MainActivity : AppCompatActivity() {
         settingsLauncher = SettingsLauncher(this)
         notificationRepository = NotificationRepository(this)
         notesRepository = NotesRepository(this)
+        commandLog = CommandLogRepository(this)
         // onCreate/onDestroy, not onStart/onStop: unlike a typical app, this Activity IS the home
         // screen — it gets paused/resumed on every app switch but rarely destroyed, so pairing
         // registration with onStart/onStop would mean constant re-registration and re-querying
@@ -169,6 +172,14 @@ class MainActivity : AppCompatActivity() {
                         )
                     },
                     onOpenTaskNote = { task -> notesRepository.byId(task.noteId) },
+                    // T014. Fire-and-forget on the activity scope: the log is a by-product of
+                    // running a command, and making the command wait on it would put a database
+                    // write on the launcher's fast path, which §4.2 exists to keep clear.
+                    onCommandResolved = { submitted, resolution ->
+                        lifecycleScope.launch {
+                            commandLog.record(submitted, resolution, System.currentTimeMillis())
+                        }
+                    },
                     focusRegainedSignal = focusRegainedSignal,
                 )
             }

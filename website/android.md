@@ -4,7 +4,7 @@
 
     Launcher shell, command pipeline, app browser, aliases, notifications and the notes and
     checklist system are built and verified on hardware (Galaxy S20 FE) and emulator.
-    **633 automated tests**: 585 unit, 48 instrumented.
+    **650 automated tests**: 593 unit, 57 instrumented.
 
     Not built yet: the on-device model itself (tier T2), which is
     [a separate workstream](ml-pipeline.md).
@@ -50,6 +50,12 @@ T2 is dashed because it does not exist yet, and the launcher is fully usable wit
 is one tier of a cascade, never a dependency of the home screen. If the weights are missing, still
 downloading, or produce garbage, input falls to T3 and the user gets a real answer instead of a
 spinner or a crash.
+
+Every submitted line is logged locally with what the tiers did to it, which is what turns daily use
+into the fine-tuning set. It records the resolution rather than an intent label, because the label
+space is expected to move before the dataset is frozen. Misses are logged too: input nothing could
+resolve is exactly the material for teaching the model to say it does not know. The log never leaves
+the device.
 
 The gate between T2 and T3 is crude on purpose. Input containing whitespace looks like a phrase and
 is worth sending to a model; a single unmatched token almost never is. The cheap check avoids
@@ -179,7 +185,7 @@ bars hidden.
 
 ## Testing
 
-585 unit tests on the JVM covering parsing, matching, view models and formatting. 48 instrumented
+593 unit tests on the JVM covering parsing, matching, view models and formatting. 57 instrumented
 tests covering Room, migrations and schema export. Room's exported schema is diffed against the
 compiled entities by a test, so a schema change without a migration fails the build instead of
 corrupting a database in the field.

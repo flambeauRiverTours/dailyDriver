@@ -31,7 +31,7 @@ object DatabaseProvider {
             // No fallbackToDestructiveMigration anywhere: this database holds the only local copy
             // of unsynced notes, and a destructive fallback would silently delete them on a bad
             // upgrade rather than failing loudly (T157).
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .addCallback(
                 object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {

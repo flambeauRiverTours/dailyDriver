@@ -128,6 +128,8 @@ Escalation rule: T0 → T1 → T2 only when the prior tier's confidence is below
 Two consequences worth designing for deliberately:
 
 1. **T0/T1 hits are free training data.** Log `(raw_input, resolved_intent)` locally for every deterministic resolution. This bootstraps the fine-tuning set from real usage instead of pure synthesis.
+
+   *Refined at T014.* The log records the **resolution** (which command token, which package) rather than a §4.3 intent label — see the note there. It also records **misses**: every T3 fallthrough is exactly the out-of-scope example §8 needs mapped to `unknown`, and those are far more convincing observed than invented. Rows are deduplicated with a count, so months of daily driving stay bounded and a fine-tune isn't dominated by whichever app gets opened most. It never syncs.
 2. **T3 is the safety net that makes T2 shippable.** The SLM is allowed to fail; the launcher is not.
 
 ### 4.3 Intent schema
@@ -150,6 +152,8 @@ Model output contract:
 ```
 
 `unknown` is a first-class, *desirable* output. Training the model to abstain is cheaper and safer than training it to guess, and it routes cleanly to T3.
+
+> **⚠️ This label space is stale, and knowingly so** (noted at T014, 2026-08-21). It predates `:task`, `:tasks`, `:tasksdone` (§4.8) and `:notif`, so four of the ten reserved commands have no label here. It is *not* fixed in place, because a label space is cheapest to settle once, when the command set stops moving and the dataset is about to be frozen (§8) — guessing at labels now would mean retiring some of them later. **T014's log therefore records what the tiers resolved, not a label**, so nothing collected in the meantime depends on this list being right.
 
 ### 4.4 On-device inference
 
