@@ -1,15 +1,15 @@
 # dailyDriver
 
-**A keyboard-first Android launcher with an on-device language model, a native WPF notes client,
-and a C# Azure backend — built end to end.**
+**A keyboard-first Android launcher with an on-device language model, a native WPF notes client, and a C# Azure backend.**
 
-You type into a prompt instead of hunting through a grid of icons. `spotify` launches Spotify.
-`:note standup` opens a note. Eventually, *"remind me to call the dentist tomorrow"* will be parsed
-by a fine-tuned small language model running entirely on the phone, with no network call.
+You type into a prompt instead of hunting through a grid of icons. Typing `spotify` launches
+Spotify. Typing `:note standup` opens a note. Later, a fine-tuned small language model running on
+the phone will handle phrases like *"remind me to call the dentist tomorrow"*, with no network
+call.
 
-It's a personal project chosen deliberately to exercise two things at once: **a complete .NET
-story** — WPF/MVVM desktop, EF Core, isolated-worker Azure Functions, Cosmos DB — and **a complete
-on-device GenAI story**, from dataset through fine-tuning, quantization, deployment and benchmarks.
+This is a personal project. I picked it to cover two areas at once: a full .NET stack (WPF/MVVM
+desktop, EF Core, isolated-worker Azure Functions, Cosmos DB), and a full on-device GenAI
+workflow, from dataset through fine-tuning, quantization, deployment and benchmarks.
 
 ---
 
@@ -17,52 +17,53 @@ on-device GenAI story**, from dataset through fine-tuning, quantization, deploym
 
 | Area | Status | What exists |
 |---|---|---|
-| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Working** | Full CLI shell, app launching, fuzzy matching, aliases, notifications, and a complete notes/checklist system on Room. 540 automated tests. |
+| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Working** | Full CLI shell, app launching, fuzzy matching, aliases, notifications, and a complete notes and checklist system on Room. 540 automated tests. |
 | **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold only. Design complete. |
 | **[Azure backend](backend.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold only. Design and data model complete. |
 | **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-outline:{ .status-todo } Not started | Design, model shortlist and evaluation plan complete. |
 | **[Engineering practices](engineering.md)** | :material-check-circle:{ .status-done } **In use** | Trunk-based flow, protected `main`, ADRs, cross-language test fixtures, CI. |
 
-The honest summary: **the Android application is real and substantial; everything else is designed
-but unwritten.** This site marks the difference on every page rather than describing plans in the
-present tense.
+The Android application is built and working. The other three areas have finished designs and
+empty project scaffolds. Every page here says which it is at the top.
 
 ---
 
-## The engineering decisions worth asking about
+## Design decisions
 
-If you're evaluating this project, these are the parts where something non-obvious was decided:
+If you are looking at this project, these are the parts where the obvious answer was not the one I
+took.
 
 <div class="grid cards" markdown>
 
--   **The language model is never on the critical path**
+-   **The language model never sits on the critical path**
 
-    Input falls through a four-tier cascade — exact match, fuzzy match, model, deterministic
-    fallback. The launcher stays fully usable when the model is absent, still downloading, or
-    simply wrong. An LLM feature that can take the home screen down with it isn't shippable.
+    Input falls through four tiers: exact match, fuzzy match, model, then a deterministic
+    fallback. The launcher works normally when the model is missing, still downloading, or wrong.
+    I would not ship a home screen that an LLM feature can take down with it.
 
     [Details :material-arrow-right:](android.md#the-command-cascade)
 
--   **Notes are Markdown, not a document model**
+-   **Notes are stored as Markdown**
 
-    Checklists are `- [ ]` lines in the note body — no separate item table, no rich-text JSON.
-    Two clients in two languages have to agree on the format, and a plain-text format is the one
-    where disagreement is visible rather than silent.
+    Checklists are `- [ ]` lines inside the note body. There is no items table and no rich-text
+    JSON. Two clients written in two languages have to agree on the format, and with plain text a
+    disagreement is easy to see.
 
     [Details :material-arrow-right:](android.md#notes-and-checklists)
 
 -   **Two languages, one parsing contract**
 
-    Kotlin and C# must parse tags and checklists identically or notes quietly corrupt across
-    devices. Both sides execute the *same* JSON fixture corpus, so divergence fails a test
-    instead of a user's grocery list.
+    Kotlin and C# have to parse tags and checklists identically, or notes corrupt quietly as they
+    sync. Both languages run the same JSON fixture files, so any difference between them fails a
+    test.
 
     [Details :material-arrow-right:](engineering.md#cross-language-test-fixtures)
 
--   **Sync resolves conflicts by preserving both sides**
+-   **Sync keeps both sides of a conflict**
 
-    Server-assigned revisions order writes, so a device with a wrong clock can't win. Losing edits
-    become conflict copies rather than being discarded — last-write-wins silently destroys work.
+    The server assigns revision numbers, so a device with a wrong clock cannot win. When two
+    offline edits collide, the losing version is kept as a conflict copy. Last-write-wins would
+    throw it away.
 
     [Details :material-arrow-right:](backend.md#sync-model)
 
@@ -74,20 +75,20 @@ If you're evaluating this project, these are the parts where something non-obvio
 
 === "Android"
 
-    Kotlin · Jetpack Compose · Room · MediaPipe LLM Inference
-    Min/target SDK 33 · single-activity, no fragments
+    Kotlin, Jetpack Compose, Room, MediaPipe LLM Inference.
+    Min and target SDK 33, single activity, no fragments.
 
 === "Desktop"
 
-    .NET 10 · WPF · MVVM (CommunityToolkit.Mvvm) · EF Core + SQLite
+    .NET 10, WPF, MVVM (CommunityToolkit.Mvvm), EF Core with SQLite.
 
 === "Backend"
 
-    C# Azure Functions (isolated worker) · Cosmos DB NoSQL · Bicep IaC
+    C# Azure Functions (isolated worker), Cosmos DB NoSQL, Bicep IaC.
 
 === "ML"
 
-    Gemma-2 2B / Gemma-3 1B · PEFT LoRA · MediaPipe converter · on-device benchmarks
+    Gemma-2 2B or Gemma-3 1B, PEFT LoRA, MediaPipe converter, on-device benchmarks.
 
 ---
 
@@ -95,14 +96,13 @@ If you're evaluating this project, these are the parts where something non-obvio
 
 Everything is public: **[github.com/flambeauRiverTours/dailyDriver](https://github.com/flambeauRiverTours/dailyDriver)**
 
-The repository also carries the working engineering documents this site summarizes — the
-[full design document](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/design.md),
-the [task log](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/tasks.md) recording
-what was decided and what broke while building each feature, and five
+The repository also holds the working engineering documents this site summarizes: the
+[design document](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/design.md), the
+[task log](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/tasks.md) recording what
+was decided and what broke while building each feature, and five
 [architecture decision records](https://github.com/flambeauRiverTours/dailyDriver/tree/main/docs/adr).
-They're deliberately not reproduced here — this site is the overview; those are the detail.
+Those are the detail. This site is the overview, so it links to them and does not reproduce them.
 
 !!! info "Last updated: 21 August 2026"
 
-    Reflects the state of `main` as of that date. See each area page for what has changed most
-    recently.
+    Reflects the state of `main` on that date. Each area page covers what changed most recently.
