@@ -85,6 +85,14 @@ class ShellViewModel : ViewModel() {
             // tapping a row, so Enter has nothing to commit to and must not record ":notes foo"
             // as a command that ran.
             is ReservedCommand.Notes -> return
+            // Like the alias-definition path: adding a task awaits a Room write, which this
+            // synchronous method can't do, so ShellScreen intercepts and calls onTaskAdded with
+            // the result. No-op here so onSubmit stays correct if it is ever reached directly.
+            is ReservedCommand.Task -> return
+            // Browse modes, like Notes and Notif — ShellScreen shows the list, selection is by
+            // tapping a row, and Enter must not record ":tasks" as a command that ran.
+            is ReservedCommand.Tasks -> return
+            is ReservedCommand.TasksDone -> return
             // T145. Like Note, this wants onSubmit's normal record-and-clear — helpText() is
             // pure and needs no Context or repository, so there's nothing for ShellScreen to
             // resolve first the way :alias needs the live aliases map.
@@ -192,6 +200,25 @@ class ShellViewModel : ViewModel() {
      */
     fun onAliasDefined(submittedInput: String, result: DefineAliasResult) {
         transcript = transcript.record(submittedInput, describeDefineAliasResult(result))
+        input = ""
+    }
+
+    /**
+     * Records the outcome of `:task` (T155), which [ShellScreen] performs because it awaits a Room
+     * write — same shape as [onAliasDefined], and captured input for the same reason: by the time
+     * the write returns, the live `input` may already be something else.
+     *
+     * Echoes the resolved date rather than what was typed, so `@fri` is confirmed back as a real
+     * day. That is the only feedback that a shortcut was understood at all.
+     */
+    fun onTaskAdded(submittedInput: String, text: String, due: String) {
+        transcript = transcript.record(submittedInput, "added: $text (due $due)")
+        input = ""
+    }
+
+    /** `:task` with nothing after it. Says so rather than creating an empty task. */
+    fun onEmptyTask(submittedInput: String) {
+        transcript = transcript.record(submittedInput, "nothing to add — try :task buy milk @fri")
         input = ""
     }
 

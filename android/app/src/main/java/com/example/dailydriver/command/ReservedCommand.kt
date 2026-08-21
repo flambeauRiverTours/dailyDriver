@@ -28,6 +28,24 @@ sealed interface ReservedCommand {
     data class Notes(val query: String) : ReservedCommand
 
     /**
+     * `:task <text>` — adds a due-dated task (T155). The text may carry a date shortcut
+     * (`buy milk @fri`); with none, the task is due today (design check-in, 2026-08-21).
+     */
+    data class Task(val text: String) : ReservedCommand
+
+    /** `:tasks` — outstanding tasks, soonest first (T156). */
+    data object Tasks : ReservedCommand
+
+    /**
+     * `:tasksdone` — completed tasks (T156, design check-in).
+     *
+     * A separate command rather than a toggle inside `:tasks`: the outstanding list answers "what
+     * do I still have to do", and mixing finished work into it dilutes the one question it exists
+     * to answer.
+     */
+    data object TasksDone : ReservedCommand
+
+    /**
      * No query, like [Settings] — `:alias` (design doc §4.7) just lists what's currently defined,
      * nothing to filter by (T144).
      */

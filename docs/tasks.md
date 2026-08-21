@@ -496,17 +496,23 @@ Room schema, Markdown format, outbox from day one.
   - **Converting a note to a checklist leaves you typing** (UI tweak, 2026-08-21). A blank note converts to an empty list, so it gets its first row created and focused with the keyboard up; a note with prose already has rows, so the cursor goes to the end of the last one rather than appending a spurious blank to real content.
   - **Focus intent moved into the ViewModel** while doing it. `ChecklistView` used to guess a new row's index as `items.size`, which was right only because `addItem` happens to append — anything that reordered on insert would have focused the wrong row silently. The ViewModel is the only thing that knows where an item landed, so it now says so, and the view consumes a one-shot `pendingItemFocus`.
   - Verified: 552 unit tests (was 533), 0 failures; lint unchanged at 0 errors / 10 warnings. **Not yet verified on-device** — focus-loss commit and the tap-to-clear target are exactly the kind of thing that has broken on hardware three times in this editor already (T023).
-- [ ] **T155** — `:task` command  
+- [x] **T155** — `:task` command  
   `P1` `S` · after: T153
   - `:task buy milk @fri` appends one dated line to a note titled `tasks`, opening or creating it by name. That is T025's existing `byTitle` path, so there is no new storage code.
   - Registers in T140's command table, which carries its own help text, so `:help` cannot drift out of step.
-- [ ] **T156** — `:tasks` list view  
+  - **An undated `:task` is due today** (check-in). `:task` means you intend to do the thing, and a task `:tasks` never shows would read as the command silently failing.
+  - **The transcript echoes the resolved date**, not what was typed, so `@fri` is confirmed back as a real day. That is the only feedback that a shortcut was understood.
+- [x] **T156** — `:tasks` list view  
   `P1` `M` · after: T153, T155
   - Queries the T157 index, grouping results overdue / today / upcoming, soonest first. An indexed lookup on a date column, not a scan.
   - **Ticking from this list writes back to the source note body**, because that is the only place the item is authored. The index follows from that write rather than being updated beside it.
   - Reuses the `:notes` and `:apps` list surface rather than inventing a third one.
+  - **Two tap targets per row** (check-in): the checkbox ticks, the text opens the note the task lives in. Mirrors the checklist editor's own row, and keeps the common action at one tap while leaving the context reachable. The row also carries its note's title, since a task list that can't say where a task lives is hard to act on.
+  - **`:tasksdone` is a separate command** for completed tasks (check-in), rather than a toggle inside `:tasks`. The outstanding list answers "what do I still have to do", and mixing finished work into it dilutes the one question it exists to answer.
+  - **Lowercased from the requested `:tasksDone`.** Every other token is lowercase and matching is case-sensitive, so a capital means a shift-tap mid-command on a phone. The camelCase spelling is registered as a hidden alias, the same arrangement `?` has with `:help`, so both work.
+  - **⚠️ `:task` → `:tasks` → `:tasksdone` is a three-way prefix chain**, the trap `android/CLAUDE.md` records from `:note`/`:notes`. No new code was needed: `autoSpaceableTokens` already excludes any token another extends, so `:task` and `:tasks` lose auto-space automatically. A test now pins that the mechanism holds three deep rather than only for a pair.
 
-- [ ] **T157** — Derived `tasks` index table  
+- [x] **T157** — Derived `tasks` index table  
   `P1` `M` · after: T153, T151
   - **Added by the ADR-0007 reversal.** A Room table carrying note id, item position, text, checked state and an **indexed `due` column**, so `:tasks` is a query rather than a scan.
   - **An index, not a store**, enforced structurally the way the outbox already is: only ever written by deriving from a note body, in the same transaction as the note write. Nothing may insert a task directly, mirroring how `NoteDao.upsertLocal` derives tags rather than accepting them.
@@ -867,4 +873,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**156 tasks — 51 done, 105 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**156 tasks — 54 done, 102 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

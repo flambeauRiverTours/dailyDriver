@@ -14,6 +14,8 @@ import com.example.dailydriver.notes.OutboxDao
 import com.example.dailydriver.notes.OutboxEntry
 import com.example.dailydriver.notes.SyncState
 import com.example.dailydriver.notes.SyncStateDao
+import com.example.dailydriver.notes.TaskDao
+import com.example.dailydriver.notes.TaskRow
 
 /** Room has no built-in enum mapping; [NoteType] is stored by name so the column stays readable. */
 class Converters {
@@ -47,9 +49,12 @@ class Converters {
  * **If that error ever reappears, do not flip this back to `false`**: it means the KSP2 flag was
  * lost, and that flag is the thing to restore.
  *
- * Still version 1: this is a *new* database file, not a migration of `aliases.db`. Room
- * migrations operate within one file, so the old aliases are carried across by
- * [LegacyAliasImport] instead.
+ * Version 1 was a *new* database file, not a migration of `aliases.db`. Room migrations operate
+ * within one file, so the old aliases are carried across by [LegacyAliasImport] instead.
+ *
+ * **Version 2 adds the derived `tasks` index (T157, ADR-0007).** It holds no information the note
+ * bodies don't already carry, which is what makes [MIGRATION_1_2] able to create it empty and let
+ * [NoteDao] refill it as notes are written. See the migration for why it is not rebuilt eagerly.
  */
 @Database(
     entities = [
@@ -58,8 +63,9 @@ class Converters {
         NoteTag::class,
         OutboxEntry::class,
         SyncState::class,
+        TaskRow::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -68,6 +74,7 @@ abstract class DailyDriverDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun outboxDao(): OutboxDao
     abstract fun syncStateDao(): SyncStateDao
+    abstract fun taskDao(): TaskDao
 
     companion object {
         const val NAME = "dailydriver.db"

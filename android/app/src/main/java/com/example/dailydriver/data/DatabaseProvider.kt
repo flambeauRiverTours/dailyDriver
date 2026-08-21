@@ -28,6 +28,10 @@ object DatabaseProvider {
 
     private fun build(appContext: Context): DailyDriverDatabase =
         Room.databaseBuilder(appContext, DailyDriverDatabase::class.java, DailyDriverDatabase.NAME)
+            // No fallbackToDestructiveMigration anywhere: this database holds the only local copy
+            // of unsynced notes, and a destructive fallback would silently delete them on a bad
+            // upgrade rather than failing loudly (T157).
+            .addMigrations(MIGRATION_1_2)
             .addCallback(
                 object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {

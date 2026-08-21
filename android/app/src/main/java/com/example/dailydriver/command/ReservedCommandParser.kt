@@ -19,6 +19,21 @@ const val NOTE_TOKEN = ":note"
  */
 const val NOTES_TOKEN = ":notes"
 
+const val TASK_TOKEN = ":task"
+
+const val TASKS_TOKEN = ":tasks"
+
+/**
+ * Lowercase, unlike the `:tasksDone` this was asked for.
+ *
+ * Every other token here is lowercase, and matching is case-sensitive, so a capital would mean a
+ * shift-tap in the middle of a command on a phone keyboard. [TASKS_DONE_CAMEL] is registered as a
+ * hidden alias so the camelCase spelling still works, the same arrangement `?` has with `:help`.
+ */
+const val TASKS_DONE_TOKEN = ":tasksdone"
+
+const val TASKS_DONE_CAMEL = ":tasksDone"
+
 /** Command token for `:alias`, exposed for the same reason as [APPS_TOKEN]. */
 const val ALIAS_TOKEN = ":alias"
 
@@ -74,6 +89,17 @@ private val registry = listOf(
     RegisteredCommand(NOTES_TOKEN, CommandHelp(":notes [query]", "browse and search notes")) { query ->
         ReservedCommand.Notes(query)
     },
+    RegisteredCommand(TASK_TOKEN, CommandHelp(":task <text> [@when]", "add a task, due today by default")) { query ->
+        ReservedCommand.Task(query)
+    },
+    RegisteredCommand(TASKS_TOKEN, CommandHelp(":tasks", "what's outstanding, soonest first")) {
+        ReservedCommand.Tasks
+    },
+    RegisteredCommand(TASKS_DONE_TOKEN, CommandHelp(":tasksdone", "what's been completed")) {
+        ReservedCommand.TasksDone
+    },
+    // Hidden, like `?` — the entry above documents the spelling that matters.
+    RegisteredCommand(TASKS_DONE_CAMEL, help = null) { ReservedCommand.TasksDone },
     RegisteredCommand(ALIAS_TOKEN, CommandHelp(":alias", "list defined aliases")) {
         ReservedCommand.Alias
     },
