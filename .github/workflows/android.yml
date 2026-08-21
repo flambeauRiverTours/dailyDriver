@@ -7,18 +7,34 @@ name: Android
 # gates, slot swaps, IaC what-if — because that is 50-55% of the exam and the point of those tasks.
 # This handles what is wanted today and needs no Azure org, billing link or service connection to
 # exist first: fast feedback on a pull request, and a build that is known to work.
+#
+# **Inclusion, not exclusion.** This started as `paths-ignore` listing website/ and docs/, which
+# is the wrong polarity in a monorepo: `desktop/`, `backend/` and `infra/` were not listed, so
+# .NET and Bicep changes would have run the whole Android suite for nothing — and every top-level
+# directory added in future would silently do the same until somebody remembered to exclude it.
+# An allow-list fails safe: a new directory triggers nothing until it is named here.
+#
+# `fixtures/` is the non-obvious entry and the reason this list is written out rather than just
+# `android/**`. The cross-language corpora are on the Android unit-test classpath
+# (`resources.srcDir("$rootDir/../fixtures")`), so a change to a fixture *is* a change to what the
+# Android tests assert. Leaving it out would let someone edit a contract both clients must satisfy
+# without running the tests that enforce it.
+#
+# The list is written out twice rather than shared with a YAML anchor: GitHub Actions parses
+# workflows with its own parser and does not support anchors or aliases, so `&x` / `*x` fails at
+# runtime even though every YAML linter accepts it.
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'website/**'
-      - 'docs/**'
-      - '**.md'
+    paths:
+      - 'android/**'
+      - 'fixtures/**'
+      - '.github/workflows/android.yml'
   pull_request:
-    paths-ignore:
-      - 'website/**'
-      - 'docs/**'
-      - '**.md'
+    paths:
+      - 'android/**'
+      - 'fixtures/**'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
 
 permissions:

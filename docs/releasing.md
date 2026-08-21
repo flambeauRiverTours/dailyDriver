@@ -4,8 +4,13 @@ Tag a commit, and CI builds a signed APK and attaches it to a GitHub Release you
 the phone.
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag android-v0.1.0 && git push origin android-v0.1.0
 ```
+
+**The `android-` prefix matters.** This is a monorepo with three shippable things in it, and a bare
+`v0.1.0` would mean the desktop client could never be versioned independently: tagging a desktop
+release would build and publish an Android APK. `desktop-v*` and `backend-v*` are the siblings when
+those exist, and their version numbers never have to agree with this one.
 
 The rest of this page is the one-time setup that makes that work.
 
@@ -87,8 +92,8 @@ the same signature, it installs over the previous build and the launcher keeps i
 
 | Trigger | What happens |
 |---|---|
-| Pull request, push to `main` | Unit tests, lint, instrumented tests on an API 33 emulator, and an unsigned release assemble |
-| Push a `v*` tag | Tests again, then a signed APK attached to a GitHub Release |
+| Pull request, push to `main` touching `android/` or `fixtures/` | Unit tests, lint, instrumented tests on an API 33 emulator, and an unsigned release assemble |
+| Push an `android-v*` tag | Tests again, then a signed APK attached to a GitHub Release |
 
 Tests run again at tag time rather than trusting the branch was green, because a tag can be placed
 on any commit, including one that never went through a pull request.

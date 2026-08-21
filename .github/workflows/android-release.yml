@@ -1,17 +1,28 @@
-name: Release
+name: Android Release
 
 # Cuts a GitHub Release with an installable, signed APK attached.
 #
 # Triggered by pushing a tag, so releases are deliberate acts with a permanent record rather than a
 # by-product of every merge. Once the launcher is your actual home screen (T017), "which build is
 # on my phone" needs an answer, and a tag is that answer.
+#
+# **`android-v*`, not `v*`.** This is a monorepo with three shippable things in it: the launcher,
+# the WPF desktop client (§5) and the Functions backend (§6). A bare `v*` would mean the desktop
+# client could never be versioned independently — tagging `v0.2.0` for a desktop release would
+# build and publish an Android APK. Prefixing the component keeps their version numbers unrelated,
+# which they should be: they ship separately and there is no reason a launcher release and a
+# desktop release should ever have to agree on a number.
+#
+#   git tag android-v0.1.0 && git push origin android-v0.1.0
+#
+# `desktop-v*` and `backend-v*` are the obvious siblings when those exist.
 on:
   push:
-    tags: ['v*']
+    tags: ['android-v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (must already exist)'
+        description: 'Tag to release, e.g. android-v0.1.0 (must already exist)'
         required: true
 
 permissions:
