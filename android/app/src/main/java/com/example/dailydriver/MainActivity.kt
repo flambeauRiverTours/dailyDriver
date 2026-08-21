@@ -17,6 +17,11 @@ import com.example.dailydriver.apps.AppIndexRepository
 import com.example.dailydriver.apps.AppLauncher
 import com.example.dailydriver.editor.NoteEditorViewModel
 import com.example.dailydriver.notes.NotesRepository
+import com.example.dailydriver.notes.parseChecklist
+import com.example.dailydriver.notes.resolveDueInText
+import com.example.dailydriver.shell.shortDate
+import java.time.LocalDate
+import java.util.UUID
 import com.example.dailydriver.notes.parseNoteQuery
 import com.example.dailydriver.notifications.NotificationRepository
 import com.example.dailydriver.settings.SettingsLauncher
@@ -133,6 +138,37 @@ class MainActivity : AppCompatActivity() {
                     observeNotes = { query ->
                         notesRepository.observe(parseNoteQuery(query))
                     },
+                    observeTasks = notesRepository::observeTasks,
+                    observeCompletedTasks = notesRepository::observeCompletedTasks,
+                    // Date resolution happens here, at the moment of entry, so what reaches the
+                    // body is always a literal ISO date (T153). An undated `:task` is due today.
+                    onAddTask = { submittedInput, text ->
+                        val trimmed = text.trim()
+                        if (trimmed.isEmpty()) {
+                            viewModel.onEmptyTask(submittedInput)
+                        } else {
+                            val today = LocalDate.now()
+                            val resolved = resolveDueInText(trimmed, today)
+                            val item = parseChecklist("- [ ] $resolved").single()
+                            val due = item.due ?: today
+                            notesRepository.addTask(
+                                text = item.text,
+                                due = due,
+                                now = System.currentTimeMillis(),
+                                newId = { UUID.randomUUID().toString() },
+                            )
+                            viewModel.onTaskAdded(submittedInput, item.text, shortDate(due))
+                        }
+                    },
+                    onToggleTask = { task ->
+                        notesRepository.setTaskChecked(
+                            noteId = task.noteId,
+                            position = task.position,
+                            checked = !task.checked,
+                            now = System.currentTimeMillis(),
+                        )
+                    },
+                    onOpenTaskNote = { task -> notesRepository.byId(task.noteId) },
                     focusRegainedSignal = focusRegainedSignal,
                 )
             }

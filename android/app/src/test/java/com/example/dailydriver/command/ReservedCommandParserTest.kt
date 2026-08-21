@@ -1,6 +1,7 @@
 package com.example.dailydriver.command
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -252,14 +253,42 @@ class ReservedCommandParserTest {
     }
 
     @Test
-    fun `each token resolves to its own command, except the two help spellings`() {
+    fun `each token resolves to its own command, except the deliberate alias pairs`() {
         // The registry is first-match-wins and ordered, so two tokens collapsing to one variant
         // is only correct when it's deliberate. Grouping catches an accidental copy-paste that
         // left the wrong builder behind.
+        //
+        // The allowed pairs are listed explicitly rather than derived, so adding a third alias is
+        // a decision someone has to write down here rather than something that slips through.
         val byVariant = reservedCommandTokens.groupBy { parseReservedCommand(it) }
         val sharedVariants = byVariant.filterValues { it.size > 1 }
 
-        assertEquals(mapOf(ReservedCommand.Help to listOf(HELP_TOKEN, HELP_SHORTHAND)), sharedVariants)
+        assertEquals(
+            mapOf(
+                ReservedCommand.Help to listOf(HELP_TOKEN, HELP_SHORTHAND),
+                // `:tasksdone` is canonical and lowercase like every other token; the camelCase
+                // spelling is accepted because that is what it was asked for, and matching is
+                // case-sensitive (T156).
+                ReservedCommand.TasksDone to listOf(TASKS_DONE_TOKEN, TASKS_DONE_CAMEL),
+            ),
+            sharedVariants,
+        )
+    }
+
+    @Test
+    fun `the task commands form a prefix chain and none of them auto-space`() {
+        // `:task` -> `:tasks` -> `:tasksdone`. android/CLAUDE.md records what happens when an
+        // extendable token auto-spaces: typing `:notes` reached `:note` first, auto-space fired,
+        // and the `s` landed after the space, making `:notes` untypeable. The rule generalises, so
+        // this asserts the mechanism still holds with a three-deep chain rather than a pair.
+        assertFalse(TASK_TOKEN in autoSpaceableTokens)
+        assertFalse(TASKS_TOKEN in autoSpaceableTokens)
+        assertTrue(TASKS_DONE_TOKEN in autoSpaceableTokens)
+
+        assertEquals(ReservedCommand.Task("buy milk"), parseReservedCommand(":task buy milk"))
+        assertEquals(ReservedCommand.Tasks, parseReservedCommand(":tasks"))
+        assertEquals(ReservedCommand.TasksDone, parseReservedCommand(":tasksdone"))
+        assertEquals(ReservedCommand.TasksDone, parseReservedCommand(":tasksDone"))
     }
 
     @Test

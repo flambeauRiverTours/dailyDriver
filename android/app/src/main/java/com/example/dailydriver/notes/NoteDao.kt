@@ -98,6 +98,7 @@ abstract class NoteDao {
     open suspend fun upsertLocal(note: Note, queuedAt: Long) {
         insert(note)
         replaceTags(note.id, parseTags(note.body))
+        replaceTasks(note.id, tasksOf(note))
         enqueue(OutboxEntry(noteId = note.id, baseRev = note.rev, queuedAt = queuedAt))
     }
 
@@ -129,6 +130,10 @@ abstract class NoteDao {
     open suspend fun applyRemote(note: Note, tags: List<String>) {
         insert(note)
         replaceTags(note.id, tags)
+        // Tasks are derived even for server state, unlike tags. Tags can be assigned server-side
+        // one day, so deferring to what the server sent is meaningful; the task index is local and
+        // derived by definition (ADR-0007), and the server has no opinion about it to defer to.
+        replaceTasks(note.id, tasksOf(note))
     }
 
     /**
@@ -172,8 +177,47 @@ abstract class NoteDao {
     @Query("UPDATE notes SET rev = :rev WHERE id = :id")
     protected abstract suspend fun setRev(id: String, rev: Long)
 
+    /**
+     * Recomputes the entire task index from note bodies (T157).
+     *
+     * The repair path ADR-0007 requires, and what fills the table after the 1→2 migration creates
+     * it empty. One transaction, so a crash halfway leaves the previous index rather than a
+     * half-built one. Reads every non-deleted note, which is the scan `:tasks` exists to avoid —
+     * acceptable precisely because this runs on demand rather than on every query.
+     */
+    @Transaction
+    open suspend fun rebuildAllTasks() {
+        clearAllTasks()
+        allForIndexing().forEach { note -> insertTasks(tasksOf(note)) }
+    }
+
+    @Query("SELECT * FROM notes WHERE deleted = 0")
+    protected abstract suspend fun allForIndexing(): List<Note>
+
+    @Query("DELETE FROM tasks")
+    protected abstract suspend fun clearAllTasks()
+
     @Query("DELETE FROM note_tags WHERE noteId = :noteId")
     protected abstract suspend fun clearTags(noteId: String)
+
+    @Query("DELETE FROM tasks WHERE noteId = :noteId")
+    protected abstract suspend fun clearTasks(noteId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    protected abstract suspend fun insertTasks(tasks: List<TaskRow>)
+
+    /**
+     * Rewrites one note's task rows wholesale (T157).
+     *
+     * Wholesale rather than diffed, for the same reason tags are: the body is authoritative, so
+     * the freshly derived list already *is* the answer and a diff is only a slower route to it.
+     * Being `protected` and called only from the transactions above is what makes a stale index
+     * structurally hard rather than merely discouraged.
+     */
+    protected open suspend fun replaceTasks(noteId: String, tasks: List<TaskRow>) {
+        clearTasks(noteId)
+        if (tasks.isNotEmpty()) insertTasks(tasks)
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun insertTags(tags: List<NoteTag>)

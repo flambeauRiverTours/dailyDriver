@@ -50,6 +50,7 @@ import com.example.dailydriver.editor.DiscardConfirmation
 import com.example.dailydriver.editor.NoteEditorView
 import com.example.dailydriver.editor.NoteEditorViewModel
 import com.example.dailydriver.notes.Note
+import com.example.dailydriver.notes.TaskListItem
 import com.example.dailydriver.notes.NotesRepository
 import com.example.dailydriver.notes.soleAutoOpenTarget
 import com.example.dailydriver.notifications.NotificationRecord
@@ -75,6 +76,10 @@ internal object ShellTestTags {
     const val APP_LIST = "shell_app_list"
     const val NOTIF_LIST = "shell_notif_list"
     const val NOTE_LIST = "shell_note_list"
+    const val TASK_LIST = "shell_task_list"
+
+    /** Per-row, since `:tasks` has two tap targets on a row and a test needs to reach each. */
+    fun taskCheckbox(noteId: String, position: Int) = "shell_task_checkbox_${noteId}_$position"
 }
 
 /**
@@ -109,6 +114,16 @@ fun ShellScreen(
     onNoteEditorOpened: () -> Unit,
     /** Live results for a `:notes` query — see [NotesRepository.observe]. */
     observeNotes: (query: String) -> Flow<List<Note>>,
+    /** Outstanding tasks — an indexed query over the derived index (T156/T157). */
+    observeTasks: () -> Flow<List<TaskListItem>>,
+    /** Completed tasks, for `:tasksdone`. */
+    observeCompletedTasks: () -> Flow<List<TaskListItem>>,
+    /** Adds a task; awaits a Room write, hence suspend (T155). */
+    onAddTask: suspend (input: String, text: String) -> Unit,
+    /** Ticks or unticks a task by rewriting the note body it lives in (T156). */
+    onToggleTask: suspend (TaskListItem) -> Unit,
+    /** Resolves the note a task lives in, so tapping the text can open it. */
+    onOpenTaskNote: suspend (TaskListItem) -> Note?,
     /**
      * Bumped by [MainActivity][com.example.dailydriver.MainActivity] whenever the window regains
      * focus — HOME chief among the ways that happens (T015, design doc §4.1: "HOME re-focuses
@@ -136,12 +151,23 @@ fun ShellScreen(
     val appsCommand = reservedCommand as? ReservedCommand.Apps
     val notifCommand = (reservedCommand as? ReservedCommand.Notif)?.takeIf { hasNotificationAccess }
     val notesCommand = reservedCommand as? ReservedCommand.Notes
+    val tasksCommand = reservedCommand as? ReservedCommand.Tasks
+    val tasksDoneCommand = reservedCommand as? ReservedCommand.TasksDone
 
     // Re-subscribed whenever the query text changes, so the list narrows as you type — the same
     // live-filter behaviour :apps has, except the filtering happens in SQL rather than in memory
     // because notes aren't all resident the way the app index is.
     val noteResults by remember(notesCommand?.query) {
         notesCommand?.let { observeNotes(it.query) } ?: flowOf(emptyList())
+    }.collectAsState(initial = emptyList())
+
+    // Indexed queries, not scans (ADR-0007) — the whole reason the derived `tasks` table exists.
+    val taskResults by remember(tasksCommand, tasksDoneCommand) {
+        when {
+            tasksCommand != null -> observeTasks()
+            tasksDoneCommand != null -> observeCompletedTasks()
+            else -> flowOf(emptyList())
+        }
     }.collectAsState(initial = emptyList())
 
     // Narrowed to exactly one note — Enter or a typing pause opens it, the same affordance (and
@@ -260,6 +286,25 @@ fun ShellScreen(
                 onNoteClick = { note ->
                     editor.openExisting(note)
                     onNoteEditorOpened()
+                },
+                textStyle = monospace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+        } else if (tasksCommand != null || tasksDoneCommand != null) {
+            TaskListView(
+                tasks = taskResults,
+                onToggle = { task ->
+                    coroutineScope.launch { onToggleTask(task) }
+                },
+                onOpenNote = { task ->
+                    coroutineScope.launch {
+                        onOpenTaskNote(task)?.let { note ->
+                            editor.openExisting(note)
+                            onNoteEditorOpened()
+                        }
+                    }
                 },
                 textStyle = monospace,
                 modifier = Modifier
@@ -388,6 +433,14 @@ fun ShellScreen(
                     reservedCommand is ReservedCommand.Note -> {
                         editor.open(reservedCommand.query)
                         onNoteEditorOpened()
+                    }
+                    // Captured before launching, for the same reason the alias-definition branch
+                    // captures: adding a task awaits a Room write, and by the time it returns the
+                    // live `input` may already be something else.
+                    reservedCommand is ReservedCommand.Task -> {
+                        val submittedInput = input
+                        val text = reservedCommand.text
+                        coroutineScope.launch { onAddTask(submittedInput, text) }
                     }
                     // Checked before the definition branch only for readability — the two shapes
                     // are disjoint, since an alias name can't contain the spaces or "=" that a

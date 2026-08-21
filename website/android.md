@@ -4,7 +4,7 @@
 
     Launcher shell, command pipeline, app browser, aliases, notifications and the notes and
     checklist system are built and verified on hardware (Galaxy S20 FE) and emulator.
-    **540 automated tests**: 508 unit, 32 instrumented.
+    **608 automated tests**: 563 unit, 45 instrumented.
 
     Not built yet: the on-device model itself (tier T2), which is
     [a separate workstream](ml-pipeline.md).
@@ -62,6 +62,9 @@ waking an LLM to reject the word `asdf`.
 | `:apps [query]` | Browse and launch apps, filtering live as you type |
 | `:notes [query]` | Browse and search notes |
 | `:note [name]` | Open or create a note by name |
+| `:task <text>` | Add a due-dated task |
+| `:tasks` | What is outstanding, soonest first |
+| `:tasksdone` | What has been completed |
 | `:alias` | List defined aliases |
 | `:notif` | Browse notifications |
 | `:settings` | Open system settings |
@@ -130,6 +133,21 @@ flattening nested checklists, so a future implementer can tell a design limit fr
 - Convert between prose and checklist in either direction, and hide completed items.
 - `#hashtag` parsing and local full-text search.
 
+### Tasks
+
+A task is a checklist item with a due date, written as an `@YYYY-MM-DD` token in the body next to
+the hashtags. There is no tasks table you can edit and no separate task type, so `:task buy milk
+@fri` and typing a date onto an existing checklist row produce identical lines.
+
+You type dates the short way. `@tomorrow`, `@next week`, `@t+3`, `@w+2` all resolve to a real date
+the moment the row is committed, so what gets stored is always a literal date and a note means the
+same thing next week as it does today.
+
+Querying goes through a derived index: a `tasks` table with an indexed date column, written only by
+deriving it from a note body inside the same transaction as the note write. It is rebuildable from
+scratch and never syncs. "What is due today" is the question the feature exists to answer, and it
+should not require reading every note to answer it. The same pattern already indexes hashtags.
+
 ### Sync foundations
 
 The schema carries a transactional outbox. A note edit and its outbound sync record are written in
@@ -155,7 +173,7 @@ bars hidden.
 
 ## Testing
 
-508 unit tests on the JVM covering parsing, matching, view models and formatting. 32 instrumented
+563 unit tests on the JVM covering parsing, matching, view models and formatting. 45 instrumented
 tests covering Room, migrations and schema export. Room's exported schema is diffed against the
 compiled entities by a test, so a schema change without a migration fails the build instead of
 corrupting a database in the field.
