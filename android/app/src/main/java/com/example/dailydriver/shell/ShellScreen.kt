@@ -316,6 +316,8 @@ fun ShellScreen(
                     onDeleteItem = editor::deleteItem,
                     onMoveItem = editor::moveItem,
                     onAddItem = editor::addItem,
+                onCommitItem = { editor.commitItem(it) },
+                onClearDue = editor::clearDue,
                     onToggleType = editor::toggleType,
                     onToggleHideChecked = editor::toggleHideChecked,
                 ),
