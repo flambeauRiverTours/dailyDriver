@@ -43,8 +43,35 @@ android {
     // `ksp.useKSP2=true` in gradle.properties — see the note there before touching either.
     ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 
+    // Release signing, supplied by CI through the environment (T159).
+    //
+    // **A stable signing key is the point, not ceremony.** Android refuses to install an APK over
+    // one signed by a different key, and the debug keystore is auto-generated per machine — a
+    // fresh one on every CI runner. Without this, every build would be signed differently and
+    // updating the launcher on the phone would mean uninstalling it first, taking its database
+    // (and every unsynced note) with it. Sync does not exist yet, so that is real data loss.
+    //
+    // Configured only when the environment provides a keystore, so a local `assembleRelease` and
+    // any build without the secrets still work — they just produce an unsigned APK, exactly as
+    // before. Absent secrets must not turn into a build failure for someone who only wants to
+    // compile the project.
+    val keystorePath: String? = System.getenv("ANDROID_KEYSTORE_PATH")
+
+    signingConfigs {
+        if (!keystorePath.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Null when unconfigured, which leaves the APK unsigned rather than failing.
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

@@ -18,3 +18,9 @@ Thumbs.db
 
 # MkDocs build output — the site is published by CI, never committed
 site/
+
+# Signing keys — never commit these. A leaked release key lets someone else publish an APK that
+# Android will accept as an update to yours, and it cannot be rotated without uninstalling.
+*.jks
+*.keystore
+*.jks.base64

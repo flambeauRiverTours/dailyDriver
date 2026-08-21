@@ -696,6 +696,25 @@ Two offline replicas. Second-riskiest part after the SLM.
 
 Deliberately **after** there is code to build. Work through it alongside AZ-400 study, not upfront.
 
+- [x] **T158** — GitHub Actions: unit, lint and instrumented tests  
+  `P0` `M`
+  - **Added 2026-08-21 (user request).** Fast feedback on a pull request, needing no Azure org, billing link or service connection to exist first.
+  - **Coexists with Azure Pipelines rather than replacing it** (check-in). This section is 50–55% of AZ-400 and the reason its tasks exist; Actions takes build-and-test, Azure keeps the exam-shaped work — environments, approval gates, slot swaps, IaC what-if. T118 and T123 narrow rather than disappear.
+  - **Instrumented tests run on `ubuntu-latest` with KVM enabled** by hand: `/dev/kvm` is not world-writable by default, and without the udev rule the emulator silently falls back to software rendering and the job hangs rather than failing. API 33 matches `minSdk`/`targetSdk` and the S20 FE; `aosp_atd` because nothing in the suite needs Play Services and it boots far faster.
+  - **Worth the minutes** (check-in): the instrumented suite is the only thing that has ever caught a bug in the database layer, and it has done so three times — T018's outbox cascade, T151's runtime serialization conflict, and T157's index.
+  - The three jobs are independent, not chained. Serialising them would add minutes to every run to save quota only on runs that were already failing.
+  - **⚠️ Never executed.** Workflow YAML is validated and every Gradle task it invokes is confirmed to exist, but a workflow that has not run is not known to work — the same standard applied to `scripts/export-command-log.sh` at T014. First push will tell.
+- [x] **T159** — Signed release APK on a tag  
+  `P0` `M` · after: T158
+  - **Added 2026-08-21 (user request).** `git tag v0.1.0 && git push origin v0.1.0` cuts a GitHub Release with an installable APK attached. Setup written up in [`releasing.md`](releasing.md).
+  - **🔎 The reason this needs a real keystore, found while scoping it: there was no signing config at all.** Release builds were unsigned and would not install; debug builds use `~/.android/debug.keystore`, which is generated per machine and freshly on every CI runner. Every build would have carried a different signature, so updating the launcher would have required uninstalling it — taking its database and every unsynced note with it. Sync does not exist yet (§7), so that is real data loss on the device being daily-driven.
+  - **Signing is configured only when the environment supplies a keystore**, so a local `assembleRelease` and any fork build still succeed and simply produce an unsigned APK. Absent secrets must not become a build failure for someone who only wants to compile the project. **Both paths were verified locally** — unsigned without the env vars, and `apksigner`-confirmed signed with a throwaway key, which was then deleted.
+  - **The release job verifies the APK is signed before publishing.** Without that, a misconfigured secret yields `app-release-unsigned.apk`, the upload glob matches the wrong file or nothing, and the first symptom is "app not installed" on the phone.
+  - **Tests run again at tag time** rather than trusting the branch was green, since a tag can be placed on any commit, including one that never went through a pull request.
+  - **🔎 `.gitignore` had no keystore rules** — added `*.jks`, `*.keystore`, `*.jks.base64` and verified with `git check-ignore`. The releasing doc had claimed they were already ignored; they were not.
+  - ⚠️ **Needs one manual step:** create the keystore and add four repository secrets. Passwords are deliberately not something an assistant handles.
+  - **⚠️ Never executed**, same as T158.
+
 - [ ] **T111** — Create Azure DevOps org + project, enable free tier billing link  
   `P0` `S`
   - ⚠ The free parallel-job grant for private projects is **not automatic** — link the org to an Azure subscription and configure billing. Then: 1 job, 1,800 min/month, 60 min max per job. Split: GitHub holds the repo, Azure Pipelines does CI/CD.
@@ -897,4 +916,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**156 tasks — 58 done, 98 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**158 tasks — 60 done, 98 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
