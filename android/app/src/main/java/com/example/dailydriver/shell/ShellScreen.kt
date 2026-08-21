@@ -256,6 +256,14 @@ fun ShellScreen(
     LaunchedEffect(currentAutoLaunchTarget, input) {
         val target = currentAutoLaunchTarget ?: return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
+        // Logged here as well as in the Enter handler (T014), because this path acts on typed
+        // input *without* Enter ever happening. Missing it did not lose T1 data outright, which
+        // would have been obvious — it lost it whenever the pause timer beat the user to Enter,
+        // so the training set would have been silently biased toward fast typing.
+        onCommandResolved(
+            input.trim(),
+            CommandResolution(CommandResolution.Tier.T1, target.packageName),
+        )
         onAppClick(target)
     }
 
