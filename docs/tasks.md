@@ -461,7 +461,7 @@ Room schema, Markdown format, outbox from day one.
 
 **The whole feature rests on one decision: a task is a checklist item with a due date.** No tasks table, no `NoteType.TASK`, no change to §6.2's document model. §6.2 already forbids storing checklist items outside the body, and a task living in both a table and a `- [ ]` line would be two copies of one fact. The payoff is that the two creation routes, `:task` and dating an existing item, produce byte-identical lines, so there is no way to end up with two classes of task that behave differently. Sync also gets it for nothing, since a due date is just body text moving through the existing outbox and conflict machinery.
 
-- [ ] **T153** — Due-date parsing + shared fixture corpus  
+- [x] **T153** — Due-date parsing + shared fixture corpus  
   `P1` `M` · after: T023
   - `@YYYY-MM-DD` inside a checklist line, alongside the `#hashtags` §4.6 already puts there. Date-only, so timezones stay out of the wire format and out of sync, where clock skew is already a hazard (§7).
   - **`fixtures/due-date-parsing.json` is written and is the contract** — 12 stored cases, 3 render cases, 21 input cases. Third corpus in the §7.3 pattern, after tags and checklists.
@@ -470,6 +470,10 @@ Room schema, Markdown format, outbox from day one.
   - **Month arithmetic clamps rather than overflowing** — 31 Jan `m+1` is 28 Feb, and 29 Feb `y+1` is 28 Feb. Noted in the corpus as non-reversible, since clamping loses the original day.
   - **Garbage is never silently dropped.** An `@` token that is neither a valid date nor a known shortcut stays as literal text, so `email jack@example.com` and `ask @bob` survive untouched.
   - **Spaced shortcuts only resolve at end of line**, which is why every one of them has a hyphenated form (`@next-week`). Recorded as a known limit.
+  - **🐛 The rule changed from first-date-wins to last-date-wins, and it had to.** A round-trip property test caught it: rendering writes the due token at the *end* of the line, so on a line carrying two dates a first-wins parse picks one date, renders the other one last, and the two swap places on every parse/render cycle. Since the body is the live editing buffer, that is a line that visibly rewrites itself as you type — the same class of bug T023 shipped with trailing spaces. Last-wins makes parse and render an identity. It also reads better: appending a date to a line that already has one is how you change your mind about when something is due, so the one just typed should win. Fixture rule and case updated alongside the implementation.
+  - **`parse ∘ render = identity` is now written into the fixture as a rule**, not just tested, since it is the property the whole body-as-buffer design depends on and the one a future change is most likely to break silently.
+  - **`cleaned()` now keeps an item that has a date but no text.** It previously dropped anything blank, which would have deleted a row the moment you set its date before typing what it was.
+  - Verified: 533 unit tests (was 508), 0 failures; lint unchanged at 0 errors / 10 warnings. **Instrumented tests not run and not needed** — `ChecklistItem` is derived from the body, not a Room entity, so no schema, DAO or migration surface changed.
 - [ ] **T154** — Due dates in the checklist editor  
   `P1` `M` · after: T153, T024
   - Add, change and clear a date on any checklist row. The date shows on the row; the token stays in the body.
@@ -838,4 +842,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**155 tasks — 49 done, 106 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**155 tasks — 50 done, 105 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

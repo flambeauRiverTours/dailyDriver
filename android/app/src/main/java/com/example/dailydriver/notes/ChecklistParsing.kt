@@ -1,5 +1,7 @@
 package com.example.dailydriver.notes
 
+import java.time.LocalDate
+
 /**
  * One line of a checklist, as displayed and edited (T023).
  *
@@ -7,8 +9,17 @@ package com.example.dailydriver.notes
  * to it. §6.2 allows exactly one source of truth, and root `CLAUDE.md` pins it: "Checklists are
  * `- [ ]` / `- [x]` lines parsed into structured items." A parallel item table that could disagree
  * with the body is the thing that model exists to prevent.
+ *
+ * [due] is what makes an item a *task* (T153, §4.8, ADR-0006). It is derived from an `@YYYY-MM-DD`
+ * token in the same line, not stored anywhere else, for exactly the reason above — a due date in a
+ * column beside a body that also states it would be two copies of one fact. An item with a null
+ * [due] is an ordinary checklist item and never appears in `:tasks`.
  */
-data class ChecklistItem(val text: String, val checked: Boolean = false)
+data class ChecklistItem(
+    val text: String,
+    val checked: Boolean = false,
+    val due: LocalDate? = null,
+)
 
 /**
  * Reads a Markdown body as checklist items (T023).
@@ -36,19 +47,31 @@ fun parseChecklist(body: String): List<ChecklistItem> =
         .mapNotNull { line ->
             val marker = TASK_MARKER.matchEntire(line)
             when {
-                marker != null -> ChecklistItem(
+                marker != null -> {
                     // **Not trimmed**, and that is load-bearing. The body is the live editing
                     // buffer, so every keystroke round-trips through render → parse; trimming here
                     // strips the space you just typed before you can type the word after it, and
                     // "peanut butter" comes out "peanutbutter". Leading whitespace is already
                     // consumed by the marker pattern, and trailing whitespace is tidied on close
                     // ([cleaned]) — where it costs nothing, because you've stopped typing.
-                    text = marker.groupValues[2],
-                    checked = !marker.groupValues[1].equals(" ", ignoreCase = true),
-                )
+                    //
+                    // [splitDueDate] is held to the same rule: it lifts out the `@YYYY-MM-DD` token
+                    // and exactly one space beside it, never trimming the rest (T153).
+                    val split = splitDueDate(marker.groupValues[2])
+                    ChecklistItem(
+                        text = split.text,
+                        checked = !marker.groupValues[1].equals(" ", ignoreCase = true),
+                        due = split.due,
+                    )
+                }
 
                 line.isBlank() -> null
-                else -> ChecklistItem(text = line.trim(), checked = false)
+                else -> {
+                    // Prose lines are trimmed (this is conversion, not live editing) but still get
+                    // a date lifted out, so note → checklist promotes a dated line to a task.
+                    val split = splitDueDate(line.trim())
+                    ChecklistItem(text = split.text, checked = false, due = split.due)
+                }
             }
         }
         .toList()
@@ -66,9 +89,16 @@ private val TASK_MARKER = Regex("""^\s*[-*+]\s+\[([ xX])]\s*(.*)$""")
 fun renderChecklist(items: List<ChecklistItem>): String =
     items.joinToString("\n") { item ->
         val box = if (item.checked) "x" else " "
-        // No trailing space on an empty item — it would be invisible trailing whitespace in the
-        // stored Markdown, and `- [ ]` parses back to the same empty item anyway.
-        if (item.text.isEmpty()) "- [$box]" else "- [$box] ${item.text}"
+        // Text and date are joined only when both are present, so an empty dated item renders as
+        // `- [ ] @2026-08-25` rather than carrying a stray leading space, and an empty undated one
+        // stays `- [ ]`. No trailing space on an empty item either — it would be invisible
+        // whitespace in the stored Markdown, and `- [ ]` parses back to the same item anyway.
+        val content = listOfNotNull(
+            item.text.ifEmpty { null },
+            item.due?.let(::dueToken),
+        ).joinToString(" ")
+
+        if (content.isEmpty()) "- [$box]" else "- [$box] $content"
     }
 
 /**
@@ -124,4 +154,4 @@ fun List<ChecklistItem>.moved(from: Int, to: Int): List<ChecklistItem> {
  * Doing it here rather than at parse time is what lets a space be typed at all.
  */
 fun List<ChecklistItem>.cleaned(): List<ChecklistItem> =
-    map { it.copy(text = it.text.trim()) }.filter { it.text.isNotEmpty() }
+    map { it.copy(text = it.text.trim()) }.filter { it.text.isNotEmpty() || it.due != null }
