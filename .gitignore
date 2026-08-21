@@ -15,3 +15,6 @@ Thumbs.db
 
 # Editor
 .vscode/
+
+# MkDocs build output — the site is published by CI, never committed
+site/

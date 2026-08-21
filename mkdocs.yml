@@ -1,0 +1,115 @@
+site_name: dailyDriver
+site_description: >-
+  A keyboard-first Android launcher with an on-device language model, a native WPF notes client,
+  and a C# Azure backend — an end-to-end .NET and on-device GenAI project.
+site_url: https://flambeauRiverTours.github.io/dailyDriver/
+repo_url: https://github.com/flambeauRiverTours/dailyDriver
+repo_name: flambeauRiverTours/dailyDriver
+copyright: Jack Treadwell
+
+# `website/`, NOT `docs/` — and the distinction is the whole point of this file.
+#
+# `docs/` holds the working engineering documents: the design doc, the task log, the ADRs. Those
+# are written for whoever is building this (and for future me), and they are long, detailed, and
+# full of in-progress reasoning.
+#
+# `website/` is a separate, much shorter set of pages written for someone evaluating the project
+# — an interviewer or a hiring engineer. Different reader, different job, so it gets its own
+# source rather than trying to make one set of files serve both audiences badly.
+#
+# The site links out to the docs/ files on GitHub rather than rendering them. Nothing in docs/ is
+# duplicated here; if a fact appears in both, docs/ is the source and this is the summary.
+#
+# (Build output still lands in the conventional `site/`, which is generated and gitignored.)
+docs_dir: website
+
+theme:
+  name: material
+  language: en
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - navigation.tabs
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Follow system
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light
+
+extra_css:
+  - stylesheets/extra.css
+
+# No edit button: these pages are a curated summary rather than something a reader should be
+# invited to patch, and the interesting source is the repo itself, linked in the header.
+edit_uri: ""
+
+# Anchor links across pages are checked, not just file paths. Combined with `--strict` in CI a
+# link to a heading that no longer exists fails the build, which is the failure mode a site like
+# this actually has: headings get renamed and the cross-links quietly rot.
+validation:
+  anchors: warn
+  unrecognized_links: warn
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Overview: index.md
+  - Android: android.md
+  - Desktop (.NET): desktop.md
+  - Azure backend: backend.md
+  - ML pipeline: ml-pipeline.md

@@ -1,0 +1,23 @@
+/* Status markers used in the overview table.
+ *
+ * Colour is never the only signal. Every status also carries a distinct glyph (filled check or
+ * hollow circle) and the word "Working" or "Not started" beside it, so the table still reads
+ * correctly in greyscale and to a colour-blind reader. */
+.status-done > svg {
+  fill: #2e7d32;
+}
+
+.status-todo > svg {
+  fill: var(--md-default-fg-color--lighter);
+}
+
+[data-md-color-scheme="slate"] .status-done > svg {
+  /* The darker green above drops below contrast on the dark ground. */
+  fill: #66bb6a;
+}
+
+/* Mermaid diagrams sit on the page's own background rather than a white plate, so the dashed
+ * "not built yet" nodes stay legible in dark mode. */
+.mermaid {
+  text-align: center;
+}

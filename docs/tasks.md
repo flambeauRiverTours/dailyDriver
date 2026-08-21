@@ -747,6 +747,22 @@ The long pole. Gated on the section 06 go/no-go.
 - [ ] **T088** — README + architecture diagram  
   `P0` `M` · after: T083
   - Recruiters skim. A diagram plus the benchmark table does more work than the code.
+- [x] **T152** — Employer-facing project site (MkDocs Material → GitHub Pages)  
+  `P2` `S`
+  - **New (2026-08-21, user request.)** A public site for the project, aimed at an interviewer or hiring engineer.
+  - **Built from `website/`, not `docs/`.** First attempt rendered `docs/` directly; that was rejected on review because the working engineering documents and a portfolio surface are different documents for different readers. `docs/` stays long, detailed and in-progress; `website/` is short, organised by project area, and written for someone evaluating the work. The site links out to `docs/` on GitHub rather than rendering it, so nothing is duplicated — `docs/` is the source of any fact, `website/` the summary.
+  - **Organised by project area** — Android, Desktop (.NET), Azure backend, ML pipeline. Four pages, one per area. An "Engineering practices" page covering CI, source control and documentation was written and then cut on review: it described process rather than the product, and process is what a CV and an interview already cover. The one genuinely load-bearing item on it, the cross-language fixture contract, moved into the Android page next to the parsing it constrains.
+  - **Unbuilt areas are stubs that say so**, in a status admonition at the top of the page and in a status table on the overview. Three of the four areas are scaffolds. A portfolio site that describes designed-but-unwritten work in the present tense is worse than one that admits the gap: the gap is checkable from the repo in about thirty seconds.
+  - **Status is never conveyed by colour alone** — each row carries a distinct glyph and the words "Working" / "Not started", so the table survives greyscale and colour-blind readers.
+  - **Plain-language pass.** The first draft read as machine-written: em-dashes everywhere, "not X, it's Y" antithesis, and an aphorism closing nearly every section. All three are gone, verified by grep rather than by eye, since proofreading your own prose for your own habits doesn't work. `CLAUDE.md` carries the constraint so the next session doesn't reintroduce it.
+  - **Anchor validation is on** (`validation.anchors`), so a cross-page link to a renamed heading fails the build under `--strict`. Confirmed by deliberately breaking a link and watching CI-equivalent strict mode abort, then restoring it — a check that has never been seen to fail is not yet a check.
+  - ⚠️ **Diagrams are Mermaid, which Material fetches from unpkg at runtime.** They could not be visually confirmed locally: the preview pane doesn't composite, and Mermaid measures text via `getBBox()`, which needs real layout. The diagram source parses cleanly under `mermaid.parse`, and the prose around every diagram stands alone so a blocked CDN costs decoration rather than meaning. **Confirm in a real browser before relying on them.**
+  - **CI watches `website/`, not `docs/`** — so editing the design doc no longer rebuilds the site. Strict-mode build on pull requests; deploy job gated on `main` so a fork can build but never publish.
+  - **`CLAUDE.md` carries a standing rule to keep the site current** — which page to touch, the status table, the "Last updated" stamp, replace stubs wholesale rather than amend them, and keep the prose plain. Written there rather than on the site, because a maintenance TODO visible to an interviewer reads as neglect.
+  - **🔎 Noted, not fixed: `README.md` is stale** — it says notes "don't exist yet", which stopped being true around T018–T024.
+  - **🔎 Noted, not fixed: `docs/cli-launcher-hld.md` is byte-identical to `docs/design.md`** with no inbound links.
+  - **Verified**: `mkdocs build --strict` clean with anchor validation on; all four pages plus the overview render; nav, search, theme toggle and the custom stylesheet load.
+
 - [ ] **T089** — Publish benchmark table  
   `P0` `S` · after: T083
   - Commit as `docs/benchmarks/*.md` — don't let the numbers live only in a terminal scrollback.
@@ -788,4 +804,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**150 tasks — 48 done, 102 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**151 tasks — 49 done, 102 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
