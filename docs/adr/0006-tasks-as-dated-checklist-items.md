@@ -1,6 +1,15 @@
 # 0006. Tasks are dated checklist items, not a separate entity
 
-Status: Accepted
+Status: **Superseded by [0007](0007-derived-task-index.md)** (2026-08-21)
+
+> Superseded in part, and quickly. 0007 keeps this ADR's core decision — a task is a dated
+> checklist item, authored in the note body, one source of truth — and reverses the "no table"
+> half by adding a **derived** index for querying. The reasoning below about why a task must not
+> be independently editable still holds and is why 0007's table is an index rather than a store.
+> What this ADR got wrong is under "Consequences" in 0007: it treated the loss of queryability as
+> a throughput question, when the real problem is that the feature's primary query, "what is due
+> today", had no efficient expression at all.
+
 
 ## Context
 

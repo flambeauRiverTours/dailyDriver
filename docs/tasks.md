@@ -459,7 +459,13 @@ Room schema, Markdown format, outbox from day one.
 
 **Added 2026-08-21 (user scope addition).** Due-dated tasks, creatable from the prompt and pulled out of existing checklists. Settled at a design check-in the same day, and written up in [ADR-0006](adr/0006-tasks-as-dated-checklist-items.md) plus §4.8 *before* any code, which is the first time that ordering has been followed rather than backfilled.
 
-**The whole feature rests on one decision: a task is a checklist item with a due date.** No tasks table, no `NoteType.TASK`, no change to §6.2's document model. §6.2 already forbids storing checklist items outside the body, and a task living in both a table and a `- [ ]` line would be two copies of one fact. The payoff is that the two creation routes, `:task` and dating an existing item, produce byte-identical lines, so there is no way to end up with two classes of task that behave differently. Sync also gets it for nothing, since a due date is just body text moving through the existing outbox and conflict machinery.
+**The whole feature rests on one decision: a task is a checklist item with a due date, authored in the note body and nowhere else.** No `NoteType.TASK`, no change to §6.2's document model. §6.2 already forbids storing checklist items outside the body, and a task that could be edited both as a table row and as a `- [ ]` line would be two copies of one fact. The payoff is that the two creation routes, `:task` and dating an existing item, produce byte-identical lines, so there is no way to end up with two classes of task that behave differently. Sync also gets it for nothing, since a due date is just body text moving through the existing outbox and conflict machinery.
+
+**↻ Reversed within a day: querying now goes through a derived index** ([ADR-0007](adr/0007-derived-task-index.md), superseding [ADR-0006](adr/0006-tasks-as-dated-checklist-items.md); user call, 2026-08-21). ADR-0006 had `:tasks` scanning every note body and accepted "a due date is not queryable" as a fair price at personal scale. Reviewed before building `:tasks`, that judgement doesn't survive contact with the actual requirement: **"what is due today" is the entire reason the feature exists**, and it had been put on the slowest possible path. The objection was never throughput, it was that the primary query had no efficient expression at all — "it's fast enough" is not an answer to "this cannot be indexed."
+
+**What reversed is only the "no table" half.** A task is still a dated checklist item, still authored in the body, still one source of truth; the `tasks` table is an *index*, written only by deriving it from a body, rebuildable from scratch, and never synced. That is the escape hatch ADR-0006 itself named in advance, and it is **the same shape as `note_tags`**, which already parses hashtags out of bodies and indexes them for exact querying — proven in this codebase rather than novel.
+
+**New failure mode to design against:** a stale index means `:tasks` lies. Bounded by deriving inside the note's own transaction, keeping a rebuild available, and letting the body win in any disagreement. Belongs in instrumented tests, like the outbox.
 
 - [x] **T153** — Due-date parsing + shared fixture corpus  
   `P1` `M` · after: T023
@@ -485,10 +491,18 @@ Room schema, Markdown format, outbox from day one.
   - Registers in T140's command table, which carries its own help text, so `:help` cannot drift out of step.
 - [ ] **T156** — `:tasks` list view  
   `P1` `M` · after: T153, T155
-  - Scans every non-deleted note body, collects dated items, groups them overdue / today / upcoming, soonest first.
-  - **Ticking from this list writes back to the source note**, because the body is the only place the item exists. That write is the whole reason this view cannot be backed by its own table.
+  - Queries the T157 index, grouping results overdue / today / upcoming, soonest first. An indexed lookup on a date column, not a scan.
+  - **Ticking from this list writes back to the source note body**, because that is the only place the item is authored. The index follows from that write rather than being updated beside it.
   - Reuses the `:notes` and `:apps` list surface rather than inventing a third one.
-  - **Known cost, accepted**: linear in the number of notes, since every body is parsed per invocation. A few hundred short strings at personal scale. The tempting fix is an index of dated items, which would be a cache of what the body already says, and therefore the exact drift this design exists to avoid. If one is ever needed it must be rebuildable from the bodies and disposable.
+
+- [ ] **T157** — Derived `tasks` index table  
+  `P1` `M` · after: T153, T151
+  - **Added by the ADR-0007 reversal.** A Room table carrying note id, item position, text, checked state and an **indexed `due` column**, so `:tasks` is a query rather than a scan.
+  - **An index, not a store**, enforced structurally the way the outbox already is: only ever written by deriving from a note body, in the same transaction as the note write. Nothing may insert a task directly, mirroring how `NoteDao.upsertLocal` derives tags rather than accepting them.
+  - **Never synced.** No outbox row, no document-model entry, no C# contract — each client derives its own index from bodies it already has. Note this is an explicit exception to the outbox rule in `android/CLAUDE.md`, on the same grounds as `note_tags`: derived data isn't mutated, it's recomputed.
+  - **Rebuildable from scratch**, so a wrong index is fully repairable by dropping and re-deriving. Ship the rebuild alongside the table, not later.
+  - **⚠️ Schema change, so it needs a migration — and `exportSchema` is still off (T151).** Land T151 first so the migration is checked rather than assumed; that guard exists precisely for this.
+  - **Instrumented tests required**, not optional. A stale index is invisible to unit tests and to the compiler, exactly like the `INSERT OR REPLACE` cascade T018 shipped and only instrumented tests caught.
 
 **Not in scope, and each would need its own token both clients agree on:** recurrence, a start date distinct from a due date, priorities, and time of day. Deliberately starting with one token and date-only values.
 
@@ -842,4 +856,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**155 tasks — 50 done, 105 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**156 tasks — 50 done, 106 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

@@ -233,7 +233,9 @@ Tags are inline hashtags (`#work`) parsed out of the body on save and denormaliz
 
 `:task` creates a due-dated item. `:tasks` lists every due-dated item across all notes, soonest first.
 
-**A task is a checklist item with a due date. It is not a separate entity**, and there is no tasks table, no `NoteType.TASK`, and no change to §6.2's document model. See ADR-0006. The rule from §6.2 that checklist items are derived from the body, never stored separately, is what forces this: a task that existed both as a table row and as a `- [ ]` line in a note body would be two copies of one fact, free to disagree. Tasks are found by parsing bodies, the same way checklist items already are.
+**A task is a checklist item with a due date**, authored in the note body and nowhere else. There is no `NoteType.TASK` and no change to §6.2's document model. The rule from §6.2 that checklist items are derived from the body is what forces this: a task that could be edited both as a table row and as a `- [ ]` line would be two copies of one fact, free to disagree.
+
+**Querying them goes through a derived index** (ADR-0007, superseding ADR-0006). A `tasks` table carries note id, item position, text, checked state and an indexed `due` column, so "what is due today" is an ordinary indexed query rather than a scan of every note body. Three rules keep it an index rather than a second source of truth: it is only ever written by deriving it from a body, in the same transaction as the note write; it is rebuildable from scratch at any time; and it never syncs. **This is the same shape as `note_tags`** — hashtags are already parsed out of bodies and indexed for exact querying while the body stays authoritative, and tasks are that pattern with a date instead of a tag.
 
 **Storage.** A due date is an `@YYYY-MM-DD` token inside the checklist line, sitting alongside the `#hashtags` that §4.6 already puts there:
 
@@ -262,9 +264,9 @@ These never reach storage. `@tomorrow` becomes `@2026-08-22` before the body is 
 
 **`:task`** appends to a note titled `tasks`, opening or creating it by name exactly as `:note <name>` does (T025), so the machinery already exists. `:task buy milk @fri` is shorthand for adding one dated line to that note.
 
-**`:tasks`** scans every non-deleted note body, collects items carrying a due date, and lists them grouped as overdue, today, and upcoming. Ticking an item from that list writes back to the note it came from, because the note body is the only place the item exists.
+**`:tasks`** queries the index, grouping results as overdue, today, and upcoming. Ticking an item from that list writes back to the note body it came from, and the index follows from that write rather than being updated alongside it.
 
-**Known cost, accepted for now.** `:tasks` is linear in the number of notes, since it parses every body on every invocation. At personal scale that is a few hundred short strings and is not worth optimizing. The tempting fix is a derived index of dated items, which would be a cache of something the body already says, and therefore exactly the drift risk this design exists to avoid. If it ever needs an index, that index has to be rebuildable from the bodies and treated as disposable.
+**The failure mode to test for is a stale index**, which is new and which the body-scanning design did not have. A body that changes without its tasks being re-derived means `:tasks` lies. Three things bound it: derivation happens inside the note's own transaction, so it cannot be skipped; a full rebuild is always available; and the body wins by definition in any disagreement. Like the outbox, this belongs in instrumented tests against real SQLite, because it is exactly the class of bug unit tests cannot see.
 
 ## 5. Desktop client (WPF)
 

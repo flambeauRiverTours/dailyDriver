@@ -31,8 +31,11 @@ What else was on the table, and why it lost.
 | [0003](0003-mediapipe-over-llama-cpp.md) | MediaPipe LLM Inference API over llama.cpp for on-device inference |
 | [0004](0004-markdown-over-rich-text-json.md) | Markdown over rich-text JSON as the note storage format |
 | [0005](0005-conflict-copies-over-plain-lww.md) | Conflict-copy resolution over plain last-write-wins |
-| [0006](0006-tasks-as-dated-checklist-items.md) | Tasks are dated checklist items, not a separate entity |
+| [0006](0006-tasks-as-dated-checklist-items.md) | ~~Tasks are dated checklist items, not a separate entity~~ — superseded by 0007 |
+| [0007](0007-derived-task-index.md) | A derived, queryable task index over note bodies |
 
 0001 to 0005 were already made — they're written up here after the fact, pulled from `docs/design.md`, so each one has its own citable home instead of being buried in a 500-line document. Anything decided from this point forward should get its ADR written at the time, not backfilled later.
 
 0006 is the first one written that way: the decision and the ADR landed together, before any code.
+
+0007 supersedes 0006 within a day of it being accepted, which is the process working rather than failing. The decision was reviewed before `:tasks` was built, the cost of "tasks are not queryable" was judged too high once it was weighed against the query the feature exists to answer, and the reversal is recorded as a new ADR with 0006 left standing and struck through. Editing 0006 to pretend it had always said "derived index" would have hidden the most useful thing here, which is why the first answer was wrong.

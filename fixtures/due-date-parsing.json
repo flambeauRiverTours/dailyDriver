@@ -20,7 +20,7 @@
     "Shortcuts with a space in them ('next week') are only recognized at the end of a line, where the trailing words are unambiguous. Mid-line, write the hyphenated form ('@next-week') or an ISO date. This is why every spaced shortcut has a hyphenated equivalent.",
     "Shortcuts resolve against the device's local date. Two devices either side of midnight in different timezones can resolve the same typed shortcut to different dates. The resolved ISO date is what syncs, so the note itself never becomes ambiguous after the fact.",
     "'m+N' clamping means the operation is not reversible: 31 Jan plus one month minus one month is 28 Feb minus one month, which is 28 Jan.",
-    "An item may carry a date but the note it lives in has no notion of being a 'task list'. Tasks are found by scanning bodies (§4.8), which is linear in the number of notes."
+    "An item may carry a date but the note it lives in has no notion of being a 'task list'. Clients query tasks through a derived index rebuilt from bodies (§4.8, ADR-0007); the body remains the only place a task is authored, so a client that has not built an index can still read and write tasks correctly by parsing."
   ],
   "storedCases": [
     {
