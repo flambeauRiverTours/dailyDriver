@@ -69,6 +69,13 @@ extra_css:
 # invited to patch, and the interesting source is the repo itself, linked in the header.
 edit_uri: ""
 
+# Anchor links across pages are checked, not just file paths. Combined with `--strict` in CI a
+# link to a heading that no longer exists fails the build, which is the failure mode a site like
+# this actually has: headings get renamed and the cross-links quietly rot.
+validation:
+  anchors: warn
+  unrecognized_links: warn
+
 plugins:
   - search
 
@@ -106,4 +113,3 @@ nav:
   - Desktop (.NET): desktop.md
   - Azure backend: backend.md
   - ML pipeline: ml-pipeline.md
-  - Engineering: engineering.md

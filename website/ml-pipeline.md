@@ -28,22 +28,21 @@ flowchart LR
     B -.->|"informs"| D
 ```
 
-Five stages, each with its own deliverable. Build the dataset, 800 to 1,500 examples from synthetic
-generation plus hand-labelled real usage logs. Fine-tune a LoRA adapter with PEFT against the
-attention projections. Convert it for on-device use with MediaPipe's converter. Deploy to the phone
-on the GPU backend. Benchmark against the baselines below, and feed those results back into the
-dataset.
+Build the dataset from synthetic generation plus hand-labelled real usage logs. Fine-tune a LoRA
+adapter with PEFT against the attention projections. Convert it with MediaPipe's converter. Deploy
+to the phone on the GPU backend. Benchmark against the baselines below, and feed the results back
+into the dataset.
 
-Real usage feeds the dataset, since the launcher logs T0 and T1 hits and those become hand-labelled
-training examples. That is why instrumentation is scheduled to land before the launcher becomes a
-daily driver. Every day of use without it throws away data the model needs.
+The launcher logs T0 and T1 hits, and those become training examples. That is why instrumentation
+lands before the launcher becomes a daily driver: every day of use without it throws away data the
+model needs.
 
 ---
 
 ## Structured output without grammar constraints
 
-MediaPipe has no grammar-constrained decoding. Unlike llama.cpp's GBNF, it cannot be forced to emit
-valid JSON, so schema adherence is probabilistic and has to be defended in layers:
+MediaPipe has no grammar-constrained decoding. Unlike llama.cpp's GBNF it cannot be forced to emit
+valid JSON, so schema adherence is probabilistic and defended in layers:
 
 1. Tight few-shot prompt with the schema inline.
 2. Low temperature, around 0.1, since this is extraction and not writing.
@@ -51,8 +50,8 @@ valid JSON, so schema adherence is probabilistic and has to be defended in layer
 4. Repair pass for trailing commas, unquoted keys and markdown fences.
 5. Validate against the schema. On failure or low confidence, fall through to T3.
 
-Getting step 5 to fire rarely is the whole reason to fine-tune at all. The fallback is what makes
-the feature safe to ship, and the fine-tune is what makes it worth having.
+Getting step 5 to fire rarely is the whole reason to fine-tune. The fallback is what makes the
+feature safe to ship.
 
 ---
 
@@ -71,10 +70,9 @@ loses.
 | Peak memory during inference | `adb shell dumpsys meminfo` |
 | Battery and thermal behaviour | Sustained 50-command loop |
 
-Three baselines get compared: the deterministic parser on its own, the base model with few-shot
+Three baselines get compared: the deterministic parser alone, the base model with few-shot
 prompting, and the fine-tuned model. Reporting the cases where the simpler approach wins is the
-point of running it. An evaluation that can only confirm a decision already made is not worth the
-time it takes.
+point of running it.
 
 ---
 
@@ -82,17 +80,16 @@ time it takes.
 
 **MediaPipe is in maintenance mode.** Google has directed new work to LiteRT-LM. The design uses
 MediaPipe anyway, but all inference sits behind an `InferenceEngine` interface, so a
-`LiteRtLmEngine` can replace it without touching the command pipeline. Doing that migration and
-benchmarking both backends is a useful result on its own, so it is budgeted as a v2 milestone
-instead of being handled as an emergency. Reasoning in
+`LiteRtLmEngine` can replace it without touching the command pipeline. Migrating and benchmarking
+both backends is a useful result on its own, budgeted as a v2 milestone. Reasoning in
 [ADR-0003](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/adr/0003-mediapipe-over-llama-cpp.md).
 
 **LoRA support is experimental and constrains model choice.** MediaPipe requires the GPU backend,
 applies adapters to attention layers only, and documents compatibility for a short list of models.
-Gemma-2 2B is explicitly documented. Gemma-3 1B is smaller and faster, but its LoRA support is not
+Gemma-2 2B is explicitly documented. Gemma-3 1B is smaller and faster but its LoRA support is not
 clearly stated.
 
 **This is gated on a timeboxed spike.** The first question is whether a LoRA adapter loads on the
 GPU backend on the target device at all. If it does not, the fallback is few-shot prompting with a
 stricter repair pass, and the result becomes "evaluated fine-tuning, shipped the alternative, with
-numbers". That gets decided on evidence, not abandoned at the first error.
+numbers". Decided on evidence.

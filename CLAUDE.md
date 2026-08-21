@@ -25,7 +25,7 @@ Two audiences, two sets of files. Don't confuse them:
 - [`docs/design.md`](docs/design.md) — architecture, decisions, and rationale. Read before making any design-affecting change.
 - [`docs/tasks.md`](docs/tasks.md) — task list and current status. Check before starting work; update as tasks move.
 - [`docs/adr/`](docs/adr/) — architecture decision records, permanent once accepted.
-- [`website/`](website/) — **the public, employer-facing site** (MkDocs Material → GitHub Pages). Short summary pages organised by project area, written for an interviewer rather than a builder. It *links out* to the files above rather than rendering them; `docs/` is the source of any fact, `website/` is the summary.
+- [`website/`](website/) — **the public, employer-facing site** (MkDocs Material → GitHub Pages). Four short pages, one per project area: Android, Desktop, Azure backend, ML pipeline. Written for an interviewer, not a builder. It *links out* to the files above rather than rendering them; `docs/` is the source of any fact, `website/` is the summary. Keep the prose plain: no em-dashes, no "not X, it's Y" constructions, no aphoristic closing lines.
 
 ### ⚠️ Keep the site current
 
