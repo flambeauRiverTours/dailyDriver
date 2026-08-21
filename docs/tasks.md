@@ -455,6 +455,58 @@ Room schema, Markdown format, outbox from day one.
   - Chips and inline `#work` must produce the same `tags` array — one operation, not two sources of truth.
 
 
+## 05a · Tasks (`:task` / `:tasks`)
+
+**Added 2026-08-21 (user scope addition).** Due-dated tasks, creatable from the prompt and pulled out of existing checklists. Settled at a design check-in the same day, and written up in [ADR-0006](adr/0006-tasks-as-dated-checklist-items.md) plus §4.8 *before* any code, which is the first time that ordering has been followed rather than backfilled.
+
+**The whole feature rests on one decision: a task is a checklist item with a due date, authored in the note body and nowhere else.** No `NoteType.TASK`, no change to §6.2's document model. §6.2 already forbids storing checklist items outside the body, and a task that could be edited both as a table row and as a `- [ ]` line would be two copies of one fact. The payoff is that the two creation routes, `:task` and dating an existing item, produce byte-identical lines, so there is no way to end up with two classes of task that behave differently. Sync also gets it for nothing, since a due date is just body text moving through the existing outbox and conflict machinery.
+
+**↻ Reversed within a day: querying now goes through a derived index** ([ADR-0007](adr/0007-derived-task-index.md), superseding [ADR-0006](adr/0006-tasks-as-dated-checklist-items.md); user call, 2026-08-21). ADR-0006 had `:tasks` scanning every note body and accepted "a due date is not queryable" as a fair price at personal scale. Reviewed before building `:tasks`, that judgement doesn't survive contact with the actual requirement: **"what is due today" is the entire reason the feature exists**, and it had been put on the slowest possible path. The objection was never throughput, it was that the primary query had no efficient expression at all — "it's fast enough" is not an answer to "this cannot be indexed."
+
+**What reversed is only the "no table" half.** A task is still a dated checklist item, still authored in the body, still one source of truth; the `tasks` table is an *index*, written only by deriving it from a body, rebuildable from scratch, and never synced. That is the escape hatch ADR-0006 itself named in advance, and it is **the same shape as `note_tags`**, which already parses hashtags out of bodies and indexes them for exact querying — proven in this codebase rather than novel.
+
+**New failure mode to design against:** a stale index means `:tasks` lies. Bounded by deriving inside the note's own transaction, keeping a rebuild available, and letting the body win in any disagreement. Belongs in instrumented tests, like the outbox.
+
+- [x] **T153** — Due-date parsing + shared fixture corpus  
+  `P1` `M` · after: T023
+  - `@YYYY-MM-DD` inside a checklist line, alongside the `#hashtags` §4.6 already puts there. Date-only, so timezones stay out of the wire format and out of sync, where clock skew is already a hazard (§7).
+  - **`fixtures/due-date-parsing.json` is written and is the contract** — 12 stored cases, 3 render cases, 21 input cases. Third corpus in the §7.3 pattern, after tags and checklists.
+  - **Its two halves are not equally binding, and the file says so.** `storedCases` define what is persisted and every client must implement them. `inputCases` define shortcut spellings that never reach storage, so a client can skip them and still be correct, just less pleasant to type into.
+  - **Shortcuts are input sugar, never a storage format** (check-in): `@today`, `@tomorrow`, `@next week`, `@next month`, `@next year`, `@t+N` days, `@w+N` weeks, `@m+N` months, `@y+N` years. All rewritten to ISO before the body is written, so a note means the same thing next week as today, and C# only ever parses a literal date.
+  - **Month arithmetic clamps rather than overflowing** — 31 Jan `m+1` is 28 Feb, and 29 Feb `y+1` is 28 Feb. Noted in the corpus as non-reversible, since clamping loses the original day.
+  - **Garbage is never silently dropped.** An `@` token that is neither a valid date nor a known shortcut stays as literal text, so `email jack@example.com` and `ask @bob` survive untouched.
+  - **Spaced shortcuts only resolve at end of line**, which is why every one of them has a hyphenated form (`@next-week`). Recorded as a known limit.
+  - **🐛 The rule changed from first-date-wins to last-date-wins, and it had to.** A round-trip property test caught it: rendering writes the due token at the *end* of the line, so on a line carrying two dates a first-wins parse picks one date, renders the other one last, and the two swap places on every parse/render cycle. Since the body is the live editing buffer, that is a line that visibly rewrites itself as you type — the same class of bug T023 shipped with trailing spaces. Last-wins makes parse and render an identity. It also reads better: appending a date to a line that already has one is how you change your mind about when something is due, so the one just typed should win. Fixture rule and case updated alongside the implementation.
+  - **`parse ∘ render = identity` is now written into the fixture as a rule**, not just tested, since it is the property the whole body-as-buffer design depends on and the one a future change is most likely to break silently.
+  - **`cleaned()` now keeps an item that has a date but no text.** It previously dropped anything blank, which would have deleted a row the moment you set its date before typing what it was.
+  - Verified: 533 unit tests (was 508), 0 failures; lint unchanged at 0 errors / 10 warnings. **Instrumented tests not run and not needed** — `ChecklistItem` is derived from the body, not a Room entity, so no schema, DAO or migration surface changed.
+- [ ] **T154** — Due dates in the checklist editor  
+  `P1` `M` · after: T153, T024
+  - Add, change and clear a date on any checklist row. The date shows on the row; the token stays in the body.
+  - Reuses the T023 pipeline exactly: parse the body, transform the item, render back. Nothing new is cached beside the body.
+  - **Watch the T023 trap.** Item text is edited *through* the body on every keystroke, which is what made trailing spaces impossible to type until it was fixed. A date token being rewritten mid-edit is the same shape of bug, so date editing must not round-trip the text field on every keypress.
+- [ ] **T155** — `:task` command  
+  `P1` `S` · after: T153
+  - `:task buy milk @fri` appends one dated line to a note titled `tasks`, opening or creating it by name. That is T025's existing `byTitle` path, so there is no new storage code.
+  - Registers in T140's command table, which carries its own help text, so `:help` cannot drift out of step.
+- [ ] **T156** — `:tasks` list view  
+  `P1` `M` · after: T153, T155
+  - Queries the T157 index, grouping results overdue / today / upcoming, soonest first. An indexed lookup on a date column, not a scan.
+  - **Ticking from this list writes back to the source note body**, because that is the only place the item is authored. The index follows from that write rather than being updated beside it.
+  - Reuses the `:notes` and `:apps` list surface rather than inventing a third one.
+
+- [ ] **T157** — Derived `tasks` index table  
+  `P1` `M` · after: T153, T151
+  - **Added by the ADR-0007 reversal.** A Room table carrying note id, item position, text, checked state and an **indexed `due` column**, so `:tasks` is a query rather than a scan.
+  - **An index, not a store**, enforced structurally the way the outbox already is: only ever written by deriving from a note body, in the same transaction as the note write. Nothing may insert a task directly, mirroring how `NoteDao.upsertLocal` derives tags rather than accepting them.
+  - **Never synced.** No outbox row, no document-model entry, no C# contract — each client derives its own index from bodies it already has. Note this is an explicit exception to the outbox rule in `android/CLAUDE.md`, on the same grounds as `note_tags`: derived data isn't mutated, it's recomputed.
+  - **Rebuildable from scratch**, so a wrong index is fully repairable by dropping and re-deriving. Ship the rebuild alongside the table, not later.
+  - **⚠️ Schema change, so it needs a migration — and `exportSchema` is still off (T151).** Land T151 first so the migration is checked rather than assumed; that guard exists precisely for this.
+  - **Instrumented tests required**, not optional. A stale index is invisible to unit tests and to the compiler, exactly like the `INSERT OR REPLACE` cascade T018 shipped and only instrumented tests caught.
+
+**Not in scope, and each would need its own token both clients agree on:** recurrence, a start date distinct from a due date, priorities, and time of day. Deliberately starting with one token and date-only values.
+
+
 ## 06 · SLM spike (GO/NO-GO)
 
 **Timeboxed.** Deliberately early: answers the highest-uncertainty question while changing course is still cheap. Days, not weeks.
@@ -804,4 +856,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**151 tasks — 49 done, 102 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**156 tasks — 50 done, 106 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
