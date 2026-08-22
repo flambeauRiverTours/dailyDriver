@@ -59,6 +59,16 @@ sealed interface ReservedCommand {
     data object Notif : ReservedCommand
 
     /**
+     * `:export` — writes the T014 command log to Downloads as JSONL (T166).
+     *
+     * **No query, and that is a decision rather than an omission.** `:export notes` is a plausible
+     * future command, but the log and a note export have nothing in common beyond the verb: one is
+     * training data with a fixed schema, the other is user content. Registering a bare token now
+     * leaves both spellings available and commits to neither.
+     */
+    data object Export : ReservedCommand
+
+    /**
      * No query — `:help` and its bare-`?` shorthand both resolve here (T145). One variant, two
      * registered tokens; see [HELP_SHORTHAND].
      */

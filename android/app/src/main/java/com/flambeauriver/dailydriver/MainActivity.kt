@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.flambeauriver.dailydriver.alias.AliasRepository
 import com.flambeauriver.dailydriver.alias.resolveAliasTarget
+import com.flambeauriver.dailydriver.command.CommandLogExporter
 import com.flambeauriver.dailydriver.command.CommandLogRepository
 import com.flambeauriver.dailydriver.apps.AppIndexRepository
 import com.flambeauriver.dailydriver.apps.AppLauncher
@@ -23,6 +24,7 @@ import com.flambeauriver.dailydriver.notes.parseChecklist
 import com.flambeauriver.dailydriver.notes.resolveDueInText
 import com.flambeauriver.dailydriver.shell.shortDate
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.UUID
 import com.flambeauriver.dailydriver.notes.parseNoteQuery
 import com.flambeauriver.dailydriver.notifications.NotificationRepository
@@ -37,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     // Constructed in onCreate, not as a property initializer — `this` isn't a valid Context yet
     // at property-initializer time (attachBaseContext runs after the object is constructed).
     private lateinit var commandLog: CommandLogRepository
+    private lateinit var commandLogExporter: CommandLogExporter
     private lateinit var appIndexRepository: AppIndexRepository
     private lateinit var appLauncher: AppLauncher
     private lateinit var settingsLauncher: SettingsLauncher
@@ -67,6 +70,7 @@ class MainActivity : AppCompatActivity() {
         notificationRepository = NotificationRepository(this)
         notesRepository = NotesRepository(this)
         commandLog = CommandLogRepository(this)
+        commandLogExporter = CommandLogExporter(this)
         // onCreate/onDestroy, not onStart/onStop: unlike a typical app, this Activity IS the home
         // screen — it gets paused/resumed on every app switch but rarely destroyed, so pairing
         // registration with onStart/onStop would mean constant re-registration and re-querying
@@ -179,6 +183,13 @@ class MainActivity : AppCompatActivity() {
                         )
                     },
                     onOpenTaskNote = { task -> notesRepository.byId(task.noteId) },
+                    // T166. Unlike onCommandResolved below, this is awaited and its result is
+                    // shown: the export *is* the command, so a silent failure would be the very
+                    // thing this task exists to stop happening.
+                    onExportCommandLog = { submittedInput ->
+                        val result = commandLogExporter.export(commandLog.all(), LocalDateTime.now())
+                        viewModel.onCommandLogExported(submittedInput, result)
+                    },
                     // T014. Fire-and-forget on the activity scope: the log is a by-product of
                     // running a command, and making the command wait on it would put a database
                     // write on the launcher's fast path, which §4.2 exists to keep clear.

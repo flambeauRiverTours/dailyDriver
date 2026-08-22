@@ -138,6 +138,8 @@ fun ShellScreen(
     onToggleTask: suspend (TaskListItem) -> Unit,
     /** Resolves the note a task lives in, so tapping the text can open it. */
     onOpenTaskNote: suspend (TaskListItem) -> Note?,
+    /** Writes the command log to Downloads; awaits a database read and a file write (T166). */
+    onExportCommandLog: suspend (input: String) -> Unit,
     /** T014 — records what the deterministic tiers did with a submitted line. */
     onCommandResolved: (input: String, resolution: CommandResolution) -> Unit,
     /**
@@ -526,6 +528,13 @@ fun ShellScreen(
                     reservedCommand is ReservedCommand.Note -> {
                         editor.open(reservedCommand.query)
                         onNoteEditorOpened()
+                    }
+                    // Captured before launching, same as :task and the alias definition below —
+                    // reading the log and writing the file both take long enough for the prompt to
+                    // have moved on by the time the result is known (T166).
+                    reservedCommand is ReservedCommand.Export -> {
+                        val submittedInput = input
+                        coroutineScope.launch { onExportCommandLog(submittedInput) }
                     }
                     // Captured before launching, for the same reason the alias-definition branch
                     // captures: adding a task awaits a Room write, and by the time it returns the

@@ -76,6 +76,7 @@ waking an LLM to reject the word `asdf`.
 | `:alias` | List defined aliases |
 | `:notif` | Browse notifications |
 | `:settings` | Open system settings |
+| `:export` | Write the command log to Downloads as JSONL |
 | `:help` or `?` | Command reference |
 
 Commands are registered in a table carrying their own help text, so help output cannot drift from

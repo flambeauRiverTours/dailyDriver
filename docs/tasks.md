@@ -391,7 +391,7 @@ Tiered cascade. **The SLM is not the front door.**
   - **🔎 Display names are a separate map, not folded into `AppEntry`, and that is load-bearing.** Matching must keep seeing the real label: a fuzzy match against `Messages (Google)` scores *worse* for someone typing `mess` than one against `Messages`, so writing the suffix into the entry would make disambiguation actively harm the thing it exists to clarify. Pinned by a test.
   - **Computed over the whole index, not the filtered list.** Whether `Messages` is ambiguous is a property of what is installed, not of what the query narrowed to. Deriving it from the filtered list would drop the suffix the moment the filter reached one match — which is exactly when you are about to commit to it.
   - 11 tests, including case- and whitespace-insensitive ambiguity detection and the two-segment package fallback.
-- [ ] **T166** — In-app export of the command log  
+- [x] **T166** — In-app export of the command log  
   `P0` `M` · after: T014
   - **🐛 Found 2026-08-22: the training data on the daily-driven phone cannot currently be retrieved.** `scripts/export-command-log.sh` reads the database through `run-as`, which only works on a **debuggable** build. The phone runs a release build from T159, so `run-as` refuses with `package not debuggable`. T014 collects, T159 ships, and the two do not meet.
   - **Nothing is lost yet** — the rows are in app-private storage — but they are unreachable, and an uninstall or reinstall would destroy them. That nearly happened while trying to sideload a debug build for T165.
@@ -399,6 +399,14 @@ Tiered cascade. **The SLM is not the front door.**
   - **Fix: export from inside the app**, not from adb. A command writing JSONL to shared storage works on any build type, needs no cable, and does not depend on the debug flag. `scripts/export-command-log.sh` stays useful for emulator and debug-build work.
   - ⚠️ **Do not "fix" this by making release builds debuggable.** That would expose app-private data on the daily driver to any app with adb access, to make a maintenance task easier.
   - Update the 29 August reminder and `docs/releasing.md` once this lands, since both currently describe a route that does not work on the build being used.
+  - **Built as `:export`**, a normal T0 reserved command through T140's registry — so it documents itself in `:help` and needs no settings screen. Writes to Downloads via MediaStore, which needs no permission for a file the app creates and lands somewhere a file manager, a USB cable and `adb pull` can all reach.
+  - **Split pure from impure**: `command/CommandLogExport.kt` is the serialisation and the messages (14 unit tests), `command/CommandLogExporter.kt` is the MediaStore write. What the bytes *say* is the part that has to be right, and that half needs no device.
+  - **🔎 MediaStore renames what you give it, twice over, and both were found by running it rather than reading about it.** It reconciles the display name's extension against the MIME type, so the "correct" `application/json` produced `dailydriver-command-log-2026-08-22.jsonl.json`; an *unregistered* type (`application/x-ndjson`) is what leaves the name alone. Separately, it de-duplicates a repeated name by appending ` (1)` **after** the extension — `….jsonl (1)` — which a `*.jsonl` glob then skips, so the second export of a day would silently go missing. The file name now carries a seconds-precision stamp and is unique before MediaStore ever sees it.
+  - **The command reports the path queried back from MediaStore, not the one it asked for.** T166 is entirely a story about trusting a route that quietly did something other than what it looked like, and this is that lesson applied to its own fix. It is also what surfaced the `.jsonl.json` rename in the first place, on the very first run.
+  - **An empty log still writes a file and still reports `0 inputs`.** A silent no-op on nothing-to-export would reproduce the exact failure mode this task exists to fix.
+  - **A failed export is reported in the transcript**, deliberately inverting `CommandLogRepository.record`'s swallow-everything rule. Recording the log must never cost an app launch; exporting *is* the command, so a silent failure is the bug.
+  - The JSONL keys are a contract with `scripts/export-command-log.sh` — pinned by a test, and cross-referenced in both files' headers.
+  - Verified on an API 33 emulator: seeded the log, exported twice five seconds apart, both files clean `.jsonl` in `Download/` with the transcript naming each one.
 
 - [x] **T165** — Keyboard should appear whenever the launcher resumes  
   `P1` `M` · after: T015
@@ -1029,4 +1037,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**165 tasks — 73 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**165 tasks — 74 done, 91 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
