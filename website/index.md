@@ -17,12 +17,13 @@ through fine-tuning, quantization, deployment and benchmarks.
 
 | Area | Status | What exists |
 |---|---|---|
-| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Working** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 650 automated tests. |
+| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 650 automated tests. |
 | **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design complete. |
 | **[Azure backend](backend.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design and data model complete. |
 | **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-outline:{ .status-todo } Not started | Design, model shortlist and evaluation plan complete. |
 
-The Android application is built and working. The other three have finished designs and empty
+The Android launcher is finished to its first milestone and in daily use as a real home screen,
+installed from a signed release built by CI. The other three have finished designs and empty
 project scaffolds. Every page says which it is at the top.
 
 ---
@@ -99,6 +100,6 @@ was decided and what broke while building each feature, and six
 [architecture decision records](https://github.com/flambeauRiverTours/dailyDriver/tree/main/docs/adr).
 This site is the overview and links to them.
 
-!!! info "Last updated: 21 August 2026"
+!!! info "Last updated: 22 August 2026"
 
     Reflects the state of `main` on that date.

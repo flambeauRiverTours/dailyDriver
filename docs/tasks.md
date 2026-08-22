@@ -216,9 +216,13 @@ Daily-drivable as your real home screen, zero ML.
     - *"a whitespace-only query never auto-launches"* — used a four-app list, so `singleOrNull()` returns null regardless and the test would have passed even with the blank-query guard deleted. The pre-existing single-app version is the one that actually exercises that guard.
     - *"is symmetric"* and the two `:apps`-specific auto-space tests — strict subsets of the property tests added in this sweep. Their explanatory comments were folded into the property tests that replaced them.
   - Also converted five negated `assertTrue(!x)` / `assertTrue(x.not())` to `assertFalse(x)`, which gives a usable failure message instead of "expected true, was false".
-- [ ] **T017** — Install as daily driver; keep fallback launcher installed  
+- [x] **T017** — Install as daily driver; keep fallback launcher installed  
   `P0` `S` · after: T011
   - Never ship an untested build to your only home screen.
+  - **Done 2026-08-22.** Installed on the S20 FE from the `android-v0.1.0` GitHub Release, signed with the real release key, and set as the home app with One UI Home kept available as the fallback this task asks for.
+  - **This is the Phase 0 exit gate, and closing it empties sections 02 and 03.** The launcher is now the real home screen running T0/T1/T3 with zero ML, which is exactly the exit criterion §9 sets.
+  - **T014 landed first, as it had to.** The training-data log was explicitly sequenced before this task, because every day of daily-driving without it throws away the real usage §8's dataset depends on and which cannot be reconstructed afterwards. That ordering held.
+  - **Getting it installed took four CI-only failures and a five-deep diagnosis** — see T158/T159 for the pipeline ones and T160 for the install itself. None was reachable from a local build.
 
 
 ## 03 · Command pipeline (T0/T1/T3)
@@ -733,7 +737,9 @@ Deliberately **after** there is code to build. Work through it alongside AZ-400 
   - **Worth doing regardless of whether it fixes the install.** This is a portfolio app; shipping under the Android Studio default package is a detail an interviewer notices, and nothing was installed anywhere yet, so there was no migration cost to pay later.
   - **The Room schema directory moved with it** (`app/schemas/<fully-qualified-db-class>/`), which is the non-obvious part: that path is derived from the database class's FQCN, so a package rename relocates all three exported schemas. Missed, it would have broken `SchemaExportTest` and every migration test.
   - Source trees moved with `git mv` so history follows the files. 593 unit and **57 instrumented** tests pass, including schema export and all three migrations; a signed release APK under the new package installs cleanly on API 33.
-  - ⚠️ **Whether this fixes the S20 FE is still unverified** — the phone cannot be reached (no debugging-capable USB cable, and wireless pairing is blocked by a Windows socket error). The next release is the test.
+  - **❌ It did not fix the install, because the package name was never the cause.** Once wireless debugging finally paired, `adb install` put the *same published APK* on the S20 FE first try. The manual sideload path was the problem: a user-initiated install runs through Google Play's package verifier, which is a **separate mechanism from the "Scan apps with Play Protect" toggle** that had already been turned off. Every property of the artifact checked out because the artifact was never wrong.
+  - **Kept anyway, on its own merits.** A portfolio app shipping as `com.example` is a detail an interviewer notices, and there was no migration cost while nothing was installed. But it was proposed as a probable fix and was not one — the thing that actually resolved this was getting a real error channel instead of reasoning from "App wasn't installed", which is Android collapsing a dozen distinct failures into one string.
+  - **Lesson worth keeping:** four device-side causes were eliminated by reasoning and the fifth was found in one command. The elimination was not wasted — it is what proved the APK innocent — but the order should have been reversed.
 
 - [ ] **T111** — Create Azure DevOps org + project, enable free tier billing link  
   `P0` `S`
@@ -936,4 +942,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**159 tasks — 61 done, 98 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**159 tasks — 62 done, 97 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
