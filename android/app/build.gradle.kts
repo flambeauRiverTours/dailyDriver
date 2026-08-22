@@ -1,3 +1,28 @@
+/**
+ * The version being built, from the release tag, or `null` for an ordinary local build.
+ *
+ * `android-release.yml` strips the `android-v` prefix and exports the rest, so a tag of
+ * `android-v0.2.0` builds an APK that reports `0.2.0`. Without this the version was pinned at
+ * `1.0` in source and every release identified itself identically — which defeats the point of
+ * tagging at all, since the workflow exists so that "which build is on my phone" has an answer
+ * and App info is where you go to read it.
+ */
+val releaseVersionName: String? = providers.environmentVariable("ANDROID_VERSION_NAME").orNull
+    ?.trim()?.takeIf { it.isNotEmpty() }
+
+/**
+ * `0.2.0` becomes `200`, `1.12.3` becomes `11203`.
+ *
+ * Android compares versionCode as an integer and refuses a downgrade, so this has to rise with the
+ * version rather than merely differ. Padding each component to two digits keeps that true across a
+ * minor or patch number reaching double figures, which a naive `major.minor.patch` concatenation
+ * would break at `0.10.0`.
+ */
+fun versionCodeOf(name: String): Int {
+    val parts = name.split(".").map { part -> part.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+    return parts.getOrElse(0) { 0 } * 10000 + parts.getOrElse(1) { 0 } * 100 + parts.getOrElse(2) { 0 }
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,8 +42,10 @@ android {
         applicationId = "com.flambeauriver.dailydriver"
         minSdk = 33
         targetSdk = 33
-        versionCode = 1
-        versionName = "1.0"
+        // Local builds are "dev" rather than a number, so an APK sideloaded off a workstation is
+        // never mistaken for a release when you are working out what is on the phone.
+        versionCode = releaseVersionName?.let(::versionCodeOf) ?: 1
+        versionName = releaseVersionName ?: "dev"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
