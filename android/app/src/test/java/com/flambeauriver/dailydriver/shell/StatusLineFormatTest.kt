@@ -246,4 +246,49 @@ class StatusLineFormatTest {
 
     private fun onDayAt(month: Int, day: Int, hour: Int, minute: Int) =
         LocalDateTime.of(2026, month, day, hour, minute).toInstant(ZoneOffset.UTC)
+
+    // --- battery (T161) ----------------------------------------------------------------------------
+
+    @Test
+    fun `every battery level renders to the same width`() {
+        // The whole reason this is padded. Three different natural widths (9%, 87%, 100%) would
+        // shift the row every time the battery crossed 10 or 100 — the jitter T146 already avoids
+        // for the clock.
+        val widths = (0..100).flatMap { level ->
+            listOf(batteryText(level, charging = false).length, batteryText(level, charging = true).length)
+        }.toSet()
+
+        assertEquals(setOf(5), widths)
+    }
+
+    @Test
+    fun `the level is right-aligned so the percent sign never moves`() {
+        assertEquals("   0%", batteryText(0, charging = false))
+        assertEquals("   9%", batteryText(9, charging = false))
+        assertEquals("  87%", batteryText(87, charging = false))
+        assertEquals(" 100%", batteryText(100, charging = false))
+    }
+
+    @Test
+    fun `charging shows a leading marker in its own cell`() {
+        assertEquals("+  9%", batteryText(9, charging = true))
+        assertEquals("+100%", batteryText(100, charging = true))
+    }
+
+    @Test
+    fun `charging and not charging differ only in the marker cell`() {
+        val idle = batteryText(87, charging = false)
+        val charging = batteryText(87, charging = true)
+
+        assertEquals(idle.drop(1), charging.drop(1))
+        assertEquals(' ', idle.first())
+        assertEquals('+', charging.first())
+    }
+
+    @Test
+    fun `an out-of-range level is clamped rather than throwing`() {
+        // BatteryManager should be in range, but a status row is the wrong place to crash.
+        assertEquals("   0%", batteryText(-5, charging = false))
+        assertEquals(" 100%", batteryText(150, charging = false))
+    }
 }

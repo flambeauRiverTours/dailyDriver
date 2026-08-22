@@ -256,8 +256,32 @@ fun ShellScreen(
     // "chrom" can all resolve to the same app, so keying on the target alone would leave the
     // original timer running and fire mid-word. Re-keying on every keystroke cancels and
     // restarts it, which is what "a one second pause" actually means.
+    // An alias that matches the whole input expands on the same pause (T163), and is checked
+    // *before* the app match because an exact alias is T0 and a fuzzy app match is T1 — the
+    // cascade's order has to hold here exactly as it does on Enter, or typing an alias that also
+    // happens to fuzzy-match an app would launch the app instead of expanding.
+    //
+    // **On the pause rather than instantly**, which is what was asked for and would not work:
+    // expanding `a` the moment it is typed puts the caret after `:apps ` and makes `alarm`
+    // unreachable by fuzzy match. That is the trap that made `:notes` untypeable at T140. The
+    // pause is what keeps every longer input reachable, and Enter still expands immediately.
+    val pendingAliasExpansion = aliases[input.trim()]
+        // An alias definition ("alias x = y") contains an "=" and is never itself an alias key, but
+        // guarding here keeps the two paths from ever racing.
+        ?.takeIf { parseAliasDefinition(input) == null }
+
     val currentAutoLaunchTarget = autoLaunchTarget ?: plainMatchTarget
-    LaunchedEffect(currentAutoLaunchTarget, input) {
+
+    LaunchedEffect(pendingAliasExpansion, input) {
+        val expansion = pendingAliasExpansion ?: return@LaunchedEffect
+        delay(AUTO_LAUNCH_DELAY_MS)
+        onCommandResolved(input.trim(), CommandResolution(CommandResolution.Tier.T0, expansion))
+        onAliasExpanded(expansion)
+    }
+
+    LaunchedEffect(currentAutoLaunchTarget, input, pendingAliasExpansion) {
+        // Yields to the alias timer above rather than racing it, for the same T0-before-T1 reason.
+        if (pendingAliasExpansion != null) return@LaunchedEffect
         val target = currentAutoLaunchTarget ?: return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
         // Logged here as well as in the Enter handler (T014), because this path acts on typed

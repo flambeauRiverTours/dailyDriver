@@ -348,25 +348,32 @@ Tiered cascade. **The SLM is not the front door.**
 
 **Found by using it (2026-08-22), the day after T017 made the launcher the real home screen.** Kept out of section 02 so Phase 0's record stays as it closed: none of these were visible from a test bench, and finding them is what daily-driving was for.
 
-- [ ] **T161** — Battery level in the status row  
+- [x] **T161** — Battery level in the status row  
   `P1` `S` · after: T146
   - Sits **right of the date**, so the row reads `[unread] time … date battery`.
   - **Fixed width, padded.** `9%`, `87%` and `100%` are three different widths, and a row that shifts as the battery drains is the same jitter the blinking colon already avoids by swapping the colon for a space rather than dropping it (T146). Pad to a constant cell count.
   - **Charging gets a marker, not a colour.** Colour alone is no signal in a dark monospace UI, and an ASCII marker sidesteps the glyph-availability problem that made `⠿` unusable as a drag handle at T023.
   - Read from the sticky `ACTION_BATTERY_CHANGED` broadcast rather than polling; battery moves slowly. Register only while RESUMED, matching how the clock already ticks.
   - Formatting goes in `StatusLineFormat` (pure, JVM-testable) with only the subscription in Compose — the split T146 established.
+  - **`EXTRA_SCALE` is the denominator, not always 100.** Reading `EXTRA_LEVEL` as a percentage directly is the common way to be quietly wrong on a device that reports out of a different maximum.
+  - **🐛 Found by looking at it, not by a test: `Sat 22 Aug+100%`.** The cell's leading column *is* the charging marker, so when charging there was nothing left to separate battery from date. The width tests all passed — they assert the cell is five columns, which it was. Separated by layout instead, leaving `batteryText` a pure value formatter.
+  - Verified on an API 33 emulator across 5%, 9%, 87% and 100%, charging and not: the `%` sits at the same x in every case.
 - [ ] **T162** — Validate an alias target when it is defined  
   `P1` `M` · after: T013
   - Today any string can be aliased, so a typo becomes an alias that silently resolves to nothing.
   - **Resolve at definition time**: a reserved command token is valid; otherwise fuzzy-match the app index. No match at all is a rejection with the reason, not a stored alias.
   - **Ambiguity asks rather than guesses.** Two apps sharing a label, or a prefix matching several, lists the candidates and declines until one is named. This is the *opposite* of T1's best-match-wins rule, deliberately: T1 is a guess you correct with one keystroke, an alias is a decision you are storing, and a wrong stored guess is wrong every time afterwards.
   - Extends `DefineAliasResult` rather than adding a second reporting path. Cycle checks already exist and stay.
-- [ ] **T163** — Aliases expand as you type, not only on Enter  
+- [x] **T163** — Aliases expand as you type, not only on Enter  
   `P1` `S` · after: T162
   - `a = :apps` should become `:apps ` with the browse list open, without pressing Enter.
   - **On the existing pause timer, not instantly** (check-in). Instant expansion on exact match makes every longer input starting with that alias unreachable — type `a` and it becomes `:apps ` before you can reach `alarm`. That is exactly the trap that made `:notes` untypeable at T140, recorded in `android/CLAUDE.md`. Reusing `AUTO_LAUNCH_DELAY_MS` means the behaviour matches what the prompt already does for T1 auto-launch.
   - **Enter still expands immediately**, which it already does. Enter is an explicit commit and carries no ambiguity to protect against.
   - ⚠️ One alias being a prefix of another (`a` and `ab`) inherits the same problem in miniature: pausing after `a` commits to `a`. Acceptable, and worth stating in the task rather than discovering.
+  - **The alias timer is checked before the app timer**, and that ordering is the whole correctness argument: an exact alias is T0 and a fuzzy app match is T1, so an alias that also happens to fuzzy-match an app must expand rather than launch. The two effects are separate, with the app one yielding when an alias is pending, so they cannot race.
+  - **The space came for free.** Expansion goes through `onInputChange`, which already auto-spaces a completed token — `:apps` is auto-spaceable, so `a` becomes `:apps ` and the browse view opens with no new code.
+  - Logged as a `T0` resolution (T014), matching the auto-launch path, so pause-expanded aliases are not missing from the training data the way T1 hits once were.
+  - Verified on an API 33 emulator: with `a = :apps` defined, typing `a` and waiting opened the app list with Enter never pressed.
 - [x] **T164** — Disambiguate duplicate app names with the publisher  
   `P1` `S` · after: T003
   - Two apps labelled `Messages` are indistinguishable in `:apps`, which also makes T1's preview line ambiguous.
@@ -1003,4 +1010,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**164 tasks — 69 done, 95 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**164 tasks — 71 done, 93 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

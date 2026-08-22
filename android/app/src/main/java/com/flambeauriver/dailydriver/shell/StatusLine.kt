@@ -7,6 +7,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,6 +76,51 @@ fun StatusLine(
 
     var text by remember { mutableStateOf(render(colonVisible = true)) }
     var unread by remember { mutableStateOf(hasUnreadNotifications()) }
+    var battery by remember { mutableStateOf(batteryText(0, charging = false)) }
+
+    // Battery arrives by broadcast rather than being polled on the blink loop: it changes on the
+    // order of minutes, and ACTION_BATTERY_CHANGED is *sticky*, so registering returns the current
+    // value immediately rather than waiting for the next change. Registering with a null receiver
+    // would read it once; a real receiver keeps it current while the launcher is on screen.
+    //
+    // Scoped to RESUMED like the clock, for the same reason: this Activity is the home screen and
+    // is paused constantly but rarely destroyed, so an unscoped registration would keep a receiver
+    // alive for the life of the process.
+    DisposableEffect(lifecycleOwner) {
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent == null) return
+                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                if (level < 0 || scale <= 0) return
+
+                // EXTRA_SCALE is not guaranteed to be 100 — it is the denominator, and reading
+                // EXTRA_LEVEL as a percentage directly is a common way to be quietly wrong on
+                // devices that report out of a different maximum.
+                val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                battery = batteryText(
+                    percent = (level * 100) / scale,
+                    charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                        status == BatteryManager.BATTERY_STATUS_FULL,
+                )
+            }
+        }
+
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> context.registerReceiver(receiver, filter)
+                Lifecycle.Event.ON_PAUSE -> runCatching { context.unregisterReceiver(receiver) }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+    }
 
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -96,6 +148,14 @@ fun StatusLine(
             Text(text = unreadIndicator(unread), style = textStyle)
             Text(text = text.time, style = dim)
         }
-        Text(text = text.date, style = dim)
+        // Date and battery travel together at the right edge, so SpaceBetween still separates
+        // exactly two groups.
+        Row {
+            Text(text = text.date, style = dim)
+            // Separated by layout, not by a space inside the string: the battery cell's own
+            // leading column is the charging marker, so when charging there is nothing left to
+            // separate it from the date and it reads as "Aug+100%". Found by looking at it.
+            Text(text = battery, style = dim, modifier = Modifier.padding(start = 8.dp))
+        }
     }
 }

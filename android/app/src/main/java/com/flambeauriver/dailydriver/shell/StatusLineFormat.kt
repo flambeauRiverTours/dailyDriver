@@ -78,3 +78,25 @@ fun statusLineText(
         date = date,
     )
 }
+
+/**
+ * Battery as a fixed-width cell: `  87%`, ` 100%`, `+  9%` (T161).
+ *
+ * **Always the same number of cells, and that is the whole design.** `9%`, `87%` and `100%` are
+ * three different widths, so a naive rendering shifts the row every time the battery crosses 10 or
+ * 100 — the same jitter T146 avoids by swapping the blinking colon for a space rather than dropping
+ * it. In a monospace font a constant cell count means constant width.
+ *
+ * **Charging is a leading `+`, not a colour.** Colour alone is no signal, and the marker occupies
+ * its own cell whether or not it is showing, for the same width reason. Plain ASCII deliberately:
+ * a battery or lightning glyph is not reliably present in a monospace font, which is what made `⠿`
+ * unusable as a drag handle at T023.
+ *
+ * [percent] is clamped rather than validated. `BatteryManager` is a system source and should be in
+ * range, but a status row is the wrong place to throw, and a clamped number is still readable.
+ */
+fun batteryText(percent: Int, charging: Boolean): String {
+    val clamped = percent.coerceIn(0, 100)
+    val marker = if (charging) '+' else ' '
+    return "$marker${clamped.toString().padStart(3)}%"
+}
