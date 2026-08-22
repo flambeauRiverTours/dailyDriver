@@ -137,9 +137,14 @@ Two consequences worth designing for deliberately:
 Closed-world intent classification with slot filling — not open-ended generation. Fixed label space:
 
 ```
-open_app, list_apps, open_settings, create_note, create_checklist,
-open_note, search_notes, check_item, define_alias, help, unknown
+open_app, list_apps, open_settings,
+create_note, open_note, create_checklist, search_notes, check_item,
+add_task, list_tasks, list_completed_tasks,
+define_alias, list_aliases, list_notifications,
+help, unknown
 ```
+
+*Settled at T028–T035 (2026-08-22), replacing the eleven-label set this section carried since v1.* That set predated `:task`, `:tasks`, `:tasksdone` and `:notif`, leaving four of the ten reserved commands with no label. Every reserved command now maps to exactly one intent, plus `open_app` for T1's fuzzy matches, `check_item` and `define_alias` for the two actions with no command of their own, and `unknown`.
 
 Model output contract:
 
@@ -153,7 +158,9 @@ Model output contract:
 
 `unknown` is a first-class, *desirable* output. Training the model to abstain is cheaper and safer than training it to guess, and it routes cleanly to T3.
 
-> **⚠️ This label space is stale, and knowingly so** (noted at T014, 2026-08-21). It predates `:task`, `:tasks`, `:tasksdone` (§4.8) and `:notif`, so four of the ten reserved commands have no label here. It is *not* fixed in place, because a label space is cheapest to settle once, when the command set stops moving and the dataset is about to be frozen (§8) — guessing at labels now would mean retiring some of them later. **T014's log therefore records what the tiers resolved, not a label**, so nothing collected in the meantime depends on this list being right.
+> **The label space is settled, not frozen.** It was deliberately left stale until the command set stopped moving, which Phase 0 closing achieved. Adding a label later is expected and cheap **right up until the held-out test split is frozen** (§8) — daily-driving the launcher is precisely how a missing command gets discovered, and a new command should bring its label with it.
+>
+> What makes that safe is T014's logging decision: the command log records **the resolution the tiers produced, not an intent label**. So usage of a command invented next month is already being captured today and can be labelled retroactively, without the log having had to predict the label in advance. Once the test split is frozen, adding a label means retraining, so that is the point after which this list is genuinely fixed.
 
 ### 4.4 On-device inference
 
@@ -189,7 +196,11 @@ Model weights are too large to bundle in an APK — they must be downloaded at r
 - First run: prompt the user, download over unmetered network via `WorkManager`, verify SHA-256, store in app-private storage.
 - The LoRA adapter is small (single-digit MB) and may be bundled or shipped alongside.
 - The launcher is **fully functional at T0/T1/T3 before the model exists**. SLM features degrade gracefully and announce themselves when ready.
-- Hosting: **Azure Blob Storage** (free tier), which replaces the static hosting that Static Web Apps incidentally provided in v1. Gemma weights are license-gated on Hugging Face, so either require the user to accept the license and side-load, or host the converted artifact yourself — confirm the license permits redistribution first, and check that free-tier egress survives a multi-GB download. *(Open items — see §11.)*
+- Hosting: **Azure Blob Storage** (free tier), which replaces the static hosting that Static Web Apps incidentally provided in v1.
+- **Redistribution is permitted, with conditions** (T094, resolved 2026-08-22). The Gemma Terms §3.1 allow distributing Gemma *and Model Derivatives* — which the MediaPipe-converted `.task` artifact is — provided that every distribution: passes on a copy of the Agreement; carries the §3.2 use restrictions as an enforceable term for recipients; puts a prominent notice on modified files stating they were modified; and ships a `NOTICE` text file pointing at the Gemma Terms. So hosting the converted weights ourselves is viable, and the side-load-only fallback is not forced.
+  - **This lands on T087's first-run download, not just on storage.** The download flow has to present the terms and obtain acceptance, and the conversion step has to emit the modification notice and `NOTICE` file alongside the artifact. Designing that flow as a silent background fetch would be non-compliant, so it is specified here before it is built.
+  - The obligations attach to *recipients*. A build only ever installed by its author has none, but this is a portfolio project whose APK may be installed by someone else, so the compliant path is the one to build.
+- Free-tier egress against a multi-GB download is still open (T095).
 
 ### 4.6 Note / checklist editor
 

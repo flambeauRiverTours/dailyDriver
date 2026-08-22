@@ -556,9 +556,14 @@ Room schema, Markdown format, outbox from day one.
 
 **Timeboxed.** Deliberately early: answers the highest-uncertainty question while changing course is still cheap. Days, not weeks.
 
-- [ ] **T028** — Define InferenceEngine interface  
+**Prep done ahead of the spike (2026-08-22).** Most of this section never needed a model, and since the spike is timeboxed, everything built beforehand shrinks the part that is actually constrained. T028 and T033–T035 are pure logic with no MediaPipe dependency and no weights, and they are needed **whichever way the gate goes** — even the few-shot fallback needs JSON extracted, repaired and validated. What remains inside the timebox is exactly the part that requires hardware: T029–T031, T037, T038, T039.
+
+- [x] **T028** — Define InferenceEngine interface  
   `P0` `S`
   - Decouples MediaPipe now, enables LiteRT-LM later.
+  - **`infer` returns the raw string, deliberately.** An engine returning a parsed object would have to decide what to do with malformed output, and that is a policy question the interface has no business answering — it belongs to T033–T035.
+  - **Null is an ordinary outcome, not an error.** Not loaded, or inference failed, both route to T3. §4.2 is explicit that the SLM may fail and the launcher may not.
+  - **`NoInferenceEngine` is shipped, not a test double.** It is what runs until T036 wires a real engine in, and on any device where the download has not happened or T037 came back negative. A real implementation of "no model" means that state is exercised in production rather than being a null check nobody tests.
 - [ ] **T029** — Add MediaPipe dependency, init GPU backend  
   `P0` `M` · after: T028
   - LoRA requires `backend='gpu'`.
@@ -570,13 +575,24 @@ Room schema, Markdown format, outbox from day one.
 - [ ] **T032** — Prompt template with inline schema + few-shot  
   `P0` `M` · after: T031
   - Low temperature (~0.1). Extraction, not creative writing.
-- [ ] **T033** — JSON extraction (first balanced brace span)  
+- [x] **T033** — JSON extraction (first balanced brace span)  
   `P0` `S` · after: T032
-- [ ] **T034** — JSON repair pass (fences, trailing commas, unquoted keys)  
+  - **Balanced counting, not regex, and `slots` is why.** It is always a nested object (§4.3), so a non-greedy `\{.*?\}` truncates every real payload and a greedy one swallows two objects. Depth counting is the only thing that gets both right.
+  - **Braces inside strings are tracked, with escapes.** A note titled `{weird}` is legitimate content, and a naive count closes the object early — turning valid JSON into invalid JSON that the repair layer then cannot fix.
+  - Truncated output returns null rather than a partial object. `maxTokens` makes that a real outcome, and T3 is the right answer to a reply that was cut off.
+- [x] **T034** — JSON repair pass (fences, trailing commas, unquoted keys)  
   `P0` `M` · after: T033
   - No grammar-constrained decoding in MediaPipe — defend in layers.
-- [ ] **T035** — Schema validation + confidence threshold, drop to T3  
+  - **Syntactic repairs only.** Nothing invents a field or corrects a value. A pass that supplied a plausible `confidence` when the model omitted one would be fabricating the exact number the abstention threshold depends on, turning "the model did not answer" into "the model answered confidently".
+  - Pinned by a test that repair is a **no-op on already-valid JSON**, or the pass becomes a source of corruption in the common case.
+- [x] **T035** — Schema validation + confidence threshold, drop to T3  
   `P0` `M` · after: T034
+  - **Blocked on §4.3's label space, which is now settled** (check-in). It had no label for four of the ten reserved commands. Every command now maps to exactly one intent, plus `open_app`, `check_item`, `define_alias` and `unknown`.
+  - **Settled, not frozen** (user's call): adding a label stays cheap right up until §8 freezes the held-out split, and daily-driving is precisely how a missing command gets found. **T014's design is what makes that safe** — the log records the *resolution*, not a label, so usage of a command invented next month is already being captured and can be labelled retroactively.
+  - **An invented or explicit `unknown` intent abstains.** A model that hallucinates a label is not trusted; abstention is a first-class desirable output (§4.3), not a failure.
+  - **A missing confidence fails rather than defaulting**, for the same reason the repair pass will not invent one.
+  - `DEFAULT_CONFIDENCE_THRESHOLD` is provisional and named rather than inlined: §8 measures abstention quality and T083's benchmark is what sets it honestly.
+  - 27 tests covering all three layers, including realistically messy output with fences, prose, a bare key, a trailing comma and smart quotes at once.
 - [ ] **T036** — Wire T2 into the command pipeline  
   `P0` `M` · after: T035
   - SLM never on the fast path.
@@ -926,7 +942,7 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 - [ ] **T093** — Verify Azure AI Language F0 monthly allowance  
   `P2` `S`
   - Before depending on it. Auto-categorisation is a stretch goal, not critical path.
-- [ ] **T094** — Confirm Gemma licence permits hosting converted artifact  
+- [x] **T094** — Confirm Gemma licence permits hosting converted artifact  
   `P1` `S`
   - Otherwise require user-side download from Hugging Face.
 - [ ] **T095** — Confirm Blob free-tier egress survives multi-GB downloads  
@@ -942,4 +958,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**159 tasks — 62 done, 97 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**159 tasks — 67 done, 92 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
