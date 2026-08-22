@@ -391,13 +391,26 @@ Tiered cascade. **The SLM is not the front door.**
   - **🔎 Display names are a separate map, not folded into `AppEntry`, and that is load-bearing.** Matching must keep seeing the real label: a fuzzy match against `Messages (Google)` scores *worse* for someone typing `mess` than one against `Messages`, so writing the suffix into the entry would make disambiguation actively harm the thing it exists to clarify. Pinned by a test.
   - **Computed over the whole index, not the filtered list.** Whether `Messages` is ambiguous is a property of what is installed, not of what the query narrowed to. Deriving it from the filtered list would drop the suffix the moment the filter reached one match — which is exactly when you are about to commit to it.
   - 11 tests, including case- and whitespace-insensitive ambiguity detection and the two-segment package fallback.
-- [ ] **T165** — Keyboard should appear whenever the launcher resumes  
+- [ ] **T166** — In-app export of the command log  
+  `P0` `M` · after: T014
+  - **🐛 Found 2026-08-22: the training data on the daily-driven phone cannot currently be retrieved.** `scripts/export-command-log.sh` reads the database through `run-as`, which only works on a **debuggable** build. The phone runs a release build from T159, so `run-as` refuses with `package not debuggable`. T014 collects, T159 ships, and the two do not meet.
+  - **Nothing is lost yet** — the rows are in app-private storage — but they are unreachable, and an uninstall or reinstall would destroy them. That nearly happened while trying to sideload a debug build for T165.
+  - **This would have surfaced on 29 August**, when the scheduled test-pull ran and failed, with a week of unrecoverable usage behind it. The reminder existed precisely to catch a wrong assumption early; it caught this one a week early instead, by accident.
+  - **Fix: export from inside the app**, not from adb. A command writing JSONL to shared storage works on any build type, needs no cable, and does not depend on the debug flag. `scripts/export-command-log.sh` stays useful for emulator and debug-build work.
+  - ⚠️ **Do not "fix" this by making release builds debuggable.** That would expose app-private data on the daily driver to any app with adb access, to make a maintenance task easier.
+  - Update the 29 August reminder and `docs/releasing.md` once this lands, since both currently describe a route that does not work on the build being used.
+
+- [x] **T165** — Keyboard should appear whenever the launcher resumes  
   `P1` `M` · after: T015
   - Unlocking the phone lands on the prompt with no keyboard, so every command starts with a tap. On a keyboard-first launcher that is the whole interaction being broken.
   - **Every resume, not just unlock** (check-in): returning from an app or dismissing the shade should also be ready to type. The input line drives the live filter in `:apps` and `:notes` too, so the keyboard is wanted in browse mode as well.
   - Focus request plus an explicit IME show on RESUMED, alongside `windowSoftInputMode`. The manifest flag alone governs first window focus and does not cover a resume.
   - **⚠️ Interacts with T149's immersive mode**, which re-applies on every focus change; the IME moves the insets that immersive mode is manipulating. Expect to verify on device rather than trusting it compiles.
   - **Device verification is required, not optional.** Android restricts showing the IME without user interaction on some versions, and this is unobservable from a unit test.
+  - **🔎 The cause was not missing focus — focus was already being requested.** T015's `focusRegainedSignal` fires on window focus gain and calls `requestFocus()`, but **`requestFocus()` is a no-op when the field never lost focus**, which is exactly what unlocking looks like: the window comes back with the input still focused, nothing changes, and nothing ever asks for the keyboard. Showing the IME is now explicit and unconditional, so it cannot depend on focus having moved.
+  - `stateVisible` added to `windowSoftInputMode` as well, covering the window's first appearance; the two mechanisms handle different moments.
+  - Verified on an API 33 emulator through a real sleep → wake → dismiss-keyguard cycle: the prompt comes back focused with the keyboard up. **No conflict with T149** — the system bars stayed hidden and the status row was intact, which was the interaction worth worrying about.
+  - ⚠️ Still worth a confirmation on the S20 FE, since IME policy varies by OEM and the emulator is AOSP. Blocked behind T166: installing a debug build there would require uninstalling the release build and destroying the command log.
 
 ## 04 · Notes storage
 
@@ -1016,4 +1029,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**164 tasks — 72 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**165 tasks — 73 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

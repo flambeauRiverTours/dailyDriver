@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
@@ -191,6 +192,7 @@ fun ShellScreen(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
     val monospace = LocalTextStyle.current.copy(
         fontFamily = FontFamily.Monospace,
         color = MaterialTheme.colorScheme.onBackground,
@@ -206,8 +208,18 @@ fun ShellScreen(
     // the launcher window (HOME chief among the ways that happens) can leave the prompt
     // unfocused and the keyboard down the same way closing the editor did. Guarded the same way:
     // skipped while the editor is open, which leaves its own field to manage its own focus.
+    // **Focus alone is not enough, which is what T165 fixes.** `requestFocus()` is a no-op when the
+    // field never lost focus — and that is exactly what unlocking the phone looks like: the window
+    // regains focus with the input still focused, nothing changes, and no one ever asks for the
+    // keyboard. So the prompt sat there focused with the IME down, and every command started with
+    // a tap on a launcher whose entire premise is that you type.
+    //
+    // Showing the IME explicitly is unconditional for the same reason: it must not depend on
+    // whether focus actually moved.
     LaunchedEffect(editor.isOpen, focusRegainedSignal) {
-        if (!editor.isOpen) focusRequester.requestFocus()
+        if (editor.isOpen) return@LaunchedEffect
+        focusRequester.requestFocus()
+        keyboard?.show()
     }
 
     // Keep the newest entry visible as the transcript grows.
