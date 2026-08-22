@@ -4,19 +4,17 @@ Personal-use side project: an Android CLI-style home-screen launcher backed by a
 
 ## CURRENT PHASE
 
-**Phase 0 — Launcher shell.** Monorepo scaffolding (section 01) complete. CLI shell, app launching, and Room/aliases (T001–T005, T007, T011–T013) are built and on-device verified on the S20 FE.
+**Phase 0 is complete (2026-08-22).** The launcher is installed on the S20 FE from a signed GitHub Release and set as the real home screen, with One UI Home kept as a fallback (T017). That was §9's exit criterion: daily-drivable on T0/T1/T3 with zero ML. Sections 01–03 are empty.
 
-**The full T0–T3 pipeline is live.** T140's dispatcher registers all six reserved commands — `:apps`, `:settings`, `:note` (placeholder until T020's editor exists), `:alias`, `:notif`, `:help`/`?` (T141–T145, T147). T1 (T008/T009) does fuzzy app-matching with no ambiguity gate — best match always wins. T3 (T010) now gives unmatched input a real answer pointing at `:help` instead of a placeholder. **Every reserved command in the design doc exists; only T2 (the SLM, T036) is missing** — exactly the Phase 0 exit shape.
+The full T0–T3 pipeline is live bar T2 itself: all ten reserved commands are registered through T140's dispatcher (`:apps`, `:notes`, `:note`, `:task`, `:tasks`, `:tasksdone`, `:alias`, `:notif`, `:settings`, `:help`/`?`), T1 does fuzzy app-matching with best-match-wins, and T3 answers unmatched input by pointing at `:help`. **T2 (the SLM, T036) is the only missing tier.**
 
-T146/T148/T149 added the status row (clock, date, unread-notification dot) and immersive fullscreen (both system bars hidden). T150 swept the unit suite from 187 to 410 tests and fixed two latent bugs it found.
+**T014's training-data log is running**, which is why it was sequenced before T017: every day of daily-driving without it discards real usage that §8's dataset needs and that cannot be reconstructed later. It records the *resolution* rather than a §4.3 intent label (that label space is stale — see the warning in §4.3), logs T3 misses as the `unknown` examples, deduplicates with a count, and never syncs. Export with `scripts/export-command-log.sh`.
 
-**Not yet verified on-device:** T146, T147, T148, T149 — permission grant/revoke and real notification/window behavior can't be unit-tested, so these are the ones to actually run before trusting them.
+**Phase 1 is well underway.** Notes, checklists and tasks all work: Room-backed storage with a transactional outbox, an inline editor with autosave, hashtag parsing and tag chips, checklists with drag-reorder and note↔checklist conversion, due dates with typed shortcuts, `:task`/`:tasks`/`:tasksdone` over a derived task index (ADR-0007), and one-deep undo for every destructive action.
 
-**Phase 1 has started ahead of Phase 0's exit gate.** **T020/T021 landed the note editor** — `:note` opens a bottom-anchored overlay that grows as you write, autosaves on a 500ms debounce, and returns you to the prompt with the keyboard up. Verified on-device. T018 landed the notes/outbox/tags Room schema (`dailydriver.db`, replacing T007's aliases-only database — one DB, because a transaction can't span two SQLite files and the outbox guarantee depends on it), verified by 20 instrumented tests on an emulator. Those tests earned their keep immediately: they caught `INSERT OR REPLACE` on a note silently cascade-deleting its pending outbox row. T151 tracks Room schema export, which is off due to a kotlinx-serialization conflict.
+**Not started:** the desktop client, the backend, and the SLM spike.
 
-**Still open:** T014 (training-data log — land **before** T017, since daily-driving without it throws away real usage T075 needs), T016 (scrollback cap), T017 (install as daily driver — the Phase 0 exit gate, not yet done). **T015 is now unblocked** — T020 shipped, and already handles BACK for the editor overlay, so what's left there is HOME re-focusing the input.
-
-Exit criterion: daily-drivable as the real home screen with T0/T1/T3 only, zero ML. Update this line as phases complete — see `docs/design.md` §9 for the full phase table.
+**CI runs on GitHub Actions** (T158/T159): unit tests, lint and instrumented tests on an API 33 emulator per PR, and a signed APK attached to a GitHub Release on an `android-v*` tag. This coexists with section 10's Azure Pipelines work rather than replacing it — that section is AZ-400 exam surface and keeps the environments, approval gates and IaC. **Install releases with `adb install -r`, not by tapping the APK**; see `docs/releasing.md` for why, and note the launcher has no app-drawer icon by design.
 
 ## Docs
 

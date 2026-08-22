@@ -80,11 +80,43 @@ Delete `release.jks.base64` afterwards. Keep `release.jks` itself, backed up.
 
 ## Installing on the phone
 
-Open the release on the device and download the APK. **The repository is private, so the phone
-needs a signed-in GitHub session** — the GitHub app, or a browser logged into the account.
+**Use adb, not the file manager.** Tapping a downloaded APK goes through Google Play's package
+verifier, which is a separate mechanism from the "Scan apps with Play Protect" toggle and which
+refused this app repeatedly with nothing but "App wasn't installed". The same file installed first
+try over adb. Chasing that further was not worth it once a reliable route existed.
 
-Android will ask to allow installs from that source the first time. Because every release carries
-the same signature, it installs over the previous build and the launcher keeps its database.
+Wireless debugging means no cable is needed. Pairing persists, so this is a one-off:
+
+> Settings → Developer options → **Wireless debugging** → on → **Pair device with pairing code**
+
+```bash
+adb pair <ip>:<pairing-port> <code>     # once, ever
+adb connect <ip>:<connect-port>         # per session; the connect port differs from the pairing one
+```
+
+Then for each release:
+
+```bash
+gh release download android-v0.1.0 --pattern "*.apk" --dir ~/Downloads --clobber
+adb install -r ~/Downloads/app-release.apk
+```
+
+`-r` reinstalls over the top and **keeps the database**, which works only because every release is
+signed with the same key. That is the whole reason for the keystore.
+
+The connect port changes when wireless debugging is toggled or the phone reboots; the pairing
+survives. If `connect` fails, re-read the port from the Wireless debugging screen.
+
+### ⚠️ It will not appear in the app drawer
+
+`MainActivity` declares `CATEGORY_HOME`, not `CATEGORY_LAUNCHER`. This *is* a home screen, so it
+deliberately has no drawer icon and looking for one will convince you the install failed. It did
+not. Set it as the home app instead:
+
+> Settings → Apps → ⋮ → **Default apps** → **Home app** → DailyDriver
+
+Keep One UI Home available in that same screen as a fallback (T017). It is the difference between
+an experiment and being locked out of your phone.
 
 ---
 

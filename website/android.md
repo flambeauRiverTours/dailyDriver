@@ -1,9 +1,10 @@
 # Android launcher
 
-!!! success "Working, and running as a real home screen"
+!!! success "Shipped, and running as a real home screen"
 
-    Launcher shell, command pipeline, app browser, aliases, notifications and the notes and
-    checklist system are built and verified on hardware (Galaxy S20 FE) and emulator.
+    Installed on a Galaxy S20 FE from a signed release and set as the actual home screen, with a
+    fallback launcher kept available. Launcher shell, command pipeline, app browser, aliases,
+    notifications, notes, checklists and tasks are all built and verified on hardware.
     **650 automated tests**: 593 unit, 57 instrumented.
 
     Not built yet: the on-device model itself (tier T2), which is
@@ -52,7 +53,8 @@ downloading, or produce garbage, input falls to T3 and the user gets a real answ
 spinner or a crash.
 
 Every submitted line is logged locally with what the tiers did to it, which is what turns daily use
-into the fine-tuning set. It records the resolution rather than an intent label, because the label
+into the fine-tuning set. That logging shipped before the launcher became a daily driver, on
+purpose: usage that happens before the log exists cannot be recovered. It records the resolution rather than an intent label, because the label
 space is expected to move before the dataset is frozen. Misses are logged too: input nothing could
 resolve is exactly the material for teaching the model to say it does not know. The log never leaves
 the device.
