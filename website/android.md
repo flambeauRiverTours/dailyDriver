@@ -178,10 +178,11 @@ cascade-deleting its pending outbox row, which would have dropped edits with no 
 **Notifications.** A `NotificationListenerService` feeding a browsable list, with an unread
 indicator in the status row.
 
-**Aliases.** User-defined shortcuts resolved at T0, stored in Room.
+**Aliases.** User-defined shortcuts resolved at T0, stored in Room. A target is checked against
+the installed apps before it is stored, and an ambiguous one is refused rather than guessed.
 
-**Status row.** Clock, date and unread-notification dot, in immersive fullscreen with both system
-bars hidden.
+**Status row.** Clock, date, battery level and unread-notification dot, in immersive fullscreen
+with both system bars hidden.
 
 ---
 
