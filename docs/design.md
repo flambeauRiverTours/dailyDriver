@@ -174,8 +174,10 @@ Key config: `modelPath`, `maxTokens` (512 default is ample — commands are shor
 
 **Model selection:** validate LoRA on the target device *before* committing. Two candidates:
 
-- **Gemma-2 2B** — explicitly documented for LoRA, larger footprint.
-- **Gemma-3 1B (4-bit)** — smaller and faster, but LoRA support is not clearly documented for it.
+- **Gemma-2 2B** — LoRA supported. **2.71 GB** (q8 `.task`).
+- **Gemma-3 1B (4-bit)** — **555–722 MB**, roughly a quarter the size, but **LoRA is not supported**.
+
+*Updated 2026-08-22 (T095 research).* The documentation is no longer ambiguous: the LLM Inference API supports LoRA on attention layers for **Gemma-2 2B, Gemma 2B and Phi-2**, and Gemma-3 1B is not among them. So this is not a choice between two fine-tunable models — it is a choice between fine-tuning at 2.71 GB and giving up fine-tuning for a quarter of the footprint.
 
 Spike this in Phase 2 and let the measurement decide. If LoRA proves unworkable, the fallback is few-shot prompting + a stricter repair pass, and the portfolio narrative shifts from "fine-tuned" to "evaluated fine-tuning and shipped the alternative, with numbers" — still a legitimate result, but decide it on evidence rather than at the first error.
 
@@ -200,7 +202,9 @@ Model weights are too large to bundle in an APK — they must be downloaded at r
 - **Redistribution is permitted, with conditions** (T094, resolved 2026-08-22). The Gemma Terms §3.1 allow distributing Gemma *and Model Derivatives* — which the MediaPipe-converted `.task` artifact is — provided that every distribution: passes on a copy of the Agreement; carries the §3.2 use restrictions as an enforceable term for recipients; puts a prominent notice on modified files stating they were modified; and ships a `NOTICE` text file pointing at the Gemma Terms. So hosting the converted weights ourselves is viable, and the side-load-only fallback is not forced.
   - **This lands on T087's first-run download, not just on storage.** The download flow has to present the terms and obtain acceptance, and the conversion step has to emit the modification notice and `NOTICE` file alongside the artifact. Designing that flow as a silent background fetch would be non-compliant, so it is specified here before it is built.
   - The obligations attach to *recipients*. A build only ever installed by its author has none, but this is a portfolio project whose APK may be installed by someone else, so the compliant path is the one to build.
-- Free-tier egress against a multi-GB download is still open (T095).
+- **Egress is not a constraint** (T095, resolved 2026-08-22). Azure's first 100 GB/month of egress is free to all customers permanently. Measured artifacts: Gemma-2 2B q8 `.task` is **2.71 GB**, Gemma-3 1B q4 is **555–722 MB**, so one re-download is at worst 2.7% of the monthly allowance.
+  - **Storage is the tighter limit.** Blob's free 5 GB lasts 12 months; after that ~2.7 GB of hot LRS is roughly $0.05/month, which is trivial but is still a literal breach of the fixed $0/month budget in §6.1. Decide at T051 whether to accept that, use a cooler tier, or not host at all.
+  - **Not hosting is a real option.** `litert-community` already publishes converted `.task` artifacts on Hugging Face. That costs nothing to store or serve and lets Hugging Face's gating handle licence acceptance, which also removes every redistribution obligation above, since nothing would be redistributed. The trade is that gated repos need an auth token, so first-run must hand off to the user rather than fetch silently.
 
 ### 4.6 Note / checklist editor
 

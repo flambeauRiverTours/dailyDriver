@@ -604,6 +604,8 @@ Room schema, Markdown format, outbox from day one.
 - [ ] **T039** — DECISION: Gemma-2 2B vs Gemma-3 1B — record rationale  
   `P0` `S` · after: T037
   - Gemma-3 1B LoRA support is not clearly documented; Gemma-2 2B is. Let measurement decide, then write it down.
+  - **🔎 Narrowed 2026-08-22 while answering T095.** The MediaPipe docs are no longer ambiguous: *"The LLM Inference API only supports LoRA on attention layers"* for **Gemma-2 2B, Gemma 2B and Phi-2**. Gemma-3 1B is not on that list. So this is no longer "let measurement decide" between two LoRA-capable models — **if LoRA is required, Gemma-2 2B is the only Gemma option**, and Gemma-3 1B is a choice to *give up* fine-tuning in exchange for being roughly a quarter of the size (555–722 MB q4 against 2.71 GB q8).
+  - That reframes T037's gate: it is no longer only "does LoRA work on this device", it is "does LoRA work on Gemma-2 2B on this device", with the fallback being either few-shot on the same model or a switch to the much smaller Gemma-3 1B.
 
 
 ## 07 · Backend (Functions + Cosmos)
@@ -945,7 +947,7 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 - [x] **T094** — Confirm Gemma licence permits hosting converted artifact  
   `P1` `S`
   - Otherwise require user-side download from Hugging Face.
-- [ ] **T095** — Confirm Blob free-tier egress survives multi-GB downloads  
+- [x] **T095** — Confirm Blob free-tier egress survives multi-GB downloads  
   `P1` `S` · after: T051
   - A single re-download could dominate the monthly allowance.
 - [ ] **T096** — Confirm Entra free tier covers 1 app, 2 platform configs  
@@ -958,4 +960,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**159 tasks — 67 done, 92 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**159 tasks — 68 done, 91 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
