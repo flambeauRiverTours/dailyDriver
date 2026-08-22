@@ -343,6 +343,46 @@ Tiered cascade. **The SLM is not the front door.**
   - Schema v2→v3, migrated and validated. 593 unit tests (was 585), **57 instrumented (was 48)** — including that repeating an input *increments* rather than resetting, which is the entire premise of the table and is invisible from Kotlin, and that 1→2→3 migrations compose.
 
 
+
+## 02a · Daily-driving fixes
+
+**Found by using it (2026-08-22), the day after T017 made the launcher the real home screen.** Kept out of section 02 so Phase 0's record stays as it closed: none of these were visible from a test bench, and finding them is what daily-driving was for.
+
+- [ ] **T161** — Battery level in the status row  
+  `P1` `S` · after: T146
+  - Sits **right of the date**, so the row reads `[unread] time … date battery`.
+  - **Fixed width, padded.** `9%`, `87%` and `100%` are three different widths, and a row that shifts as the battery drains is the same jitter the blinking colon already avoids by swapping the colon for a space rather than dropping it (T146). Pad to a constant cell count.
+  - **Charging gets a marker, not a colour.** Colour alone is no signal in a dark monospace UI, and an ASCII marker sidesteps the glyph-availability problem that made `⠿` unusable as a drag handle at T023.
+  - Read from the sticky `ACTION_BATTERY_CHANGED` broadcast rather than polling; battery moves slowly. Register only while RESUMED, matching how the clock already ticks.
+  - Formatting goes in `StatusLineFormat` (pure, JVM-testable) with only the subscription in Compose — the split T146 established.
+- [ ] **T162** — Validate an alias target when it is defined  
+  `P1` `M` · after: T013
+  - Today any string can be aliased, so a typo becomes an alias that silently resolves to nothing.
+  - **Resolve at definition time**: a reserved command token is valid; otherwise fuzzy-match the app index. No match at all is a rejection with the reason, not a stored alias.
+  - **Ambiguity asks rather than guesses.** Two apps sharing a label, or a prefix matching several, lists the candidates and declines until one is named. This is the *opposite* of T1's best-match-wins rule, deliberately: T1 is a guess you correct with one keystroke, an alias is a decision you are storing, and a wrong stored guess is wrong every time afterwards.
+  - Extends `DefineAliasResult` rather than adding a second reporting path. Cycle checks already exist and stay.
+- [ ] **T163** — Aliases expand as you type, not only on Enter  
+  `P1` `S` · after: T162
+  - `a = :apps` should become `:apps ` with the browse list open, without pressing Enter.
+  - **On the existing pause timer, not instantly** (check-in). Instant expansion on exact match makes every longer input starting with that alias unreachable — type `a` and it becomes `:apps ` before you can reach `alarm`. That is exactly the trap that made `:notes` untypeable at T140, recorded in `android/CLAUDE.md`. Reusing `AUTO_LAUNCH_DELAY_MS` means the behaviour matches what the prompt already does for T1 auto-launch.
+  - **Enter still expands immediately**, which it already does. Enter is an explicit commit and carries no ambiguity to protect against.
+  - ⚠️ One alias being a prefix of another (`a` and `ab`) inherits the same problem in miniature: pausing after `a` commits to `a`. Acceptable, and worth stating in the task rather than discovering.
+- [ ] **T164** — Disambiguate duplicate app names with the publisher  
+  `P1` `S` · after: T003
+  - Two apps labelled `Messages` are indistinguishable in `:apps`, which also makes T1's preview line ambiguous.
+  - **Only duplicates get a suffix.** Adding a publisher to every row would be noise on the 95% of names that are already unique.
+  - **Publisher derived from the package name** (check-in): the vendor segment, so `com.google.android.apps.messaging` → `Messages (Google)` and `com.samsung.android.messaging` → `Messages (Samsung)`. No new `PackageManager` calls, and it matches how a person would name them.
+  - Falls back to the full package when the heuristic yields nothing useful — a two-segment package like `com.whatsapp` has no vendor segment to read.
+  - **Not the installer package**, which sounds authoritative and is not: nearly everything reports the Play Store, so both `Messages` apps would still look identical.
+  - Pure function over the app index, so it is unit-testable and applies to both the list and the match preview — they must agree, or the preview names something the list does not.
+- [ ] **T165** — Keyboard should appear whenever the launcher resumes  
+  `P1` `M` · after: T015
+  - Unlocking the phone lands on the prompt with no keyboard, so every command starts with a tap. On a keyboard-first launcher that is the whole interaction being broken.
+  - **Every resume, not just unlock** (check-in): returning from an app or dismissing the shade should also be ready to type. The input line drives the live filter in `:apps` and `:notes` too, so the keyboard is wanted in browse mode as well.
+  - Focus request plus an explicit IME show on RESUMED, alongside `windowSoftInputMode`. The manifest flag alone governs first window focus and does not cover a resume.
+  - **⚠️ Interacts with T149's immersive mode**, which re-applies on every focus change; the IME moves the insets that immersive mode is manipulating. Expect to verify on device rather than trusting it compiles.
+  - **Device verification is required, not optional.** Android restricts showing the IME without user interaction on some versions, and this is unobservable from a unit test.
+
 ## 04 · Notes storage
 
 Room schema, Markdown format, outbox from day one.
@@ -960,4 +1000,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**159 tasks — 68 done, 91 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**164 tasks — 68 done, 96 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
