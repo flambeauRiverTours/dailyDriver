@@ -40,6 +40,9 @@ const val ALIAS_TOKEN = ":alias"
 /** Command token for `:notif`, exposed for the same reason as [APPS_TOKEN]. */
 const val NOTIF_TOKEN = ":notif"
 
+/** Command token for `:export`, exposed for the same reason as [APPS_TOKEN]. */
+const val EXPORT_TOKEN = ":export"
+
 /** Command token for `:help`, exposed for the same reason as [APPS_TOKEN]. */
 const val HELP_TOKEN = ":help"
 
@@ -105,6 +108,9 @@ private val registry = listOf(
     },
     RegisteredCommand(NOTIF_TOKEN, CommandHelp(":notif", "browse notifications")) {
         ReservedCommand.Notif
+    },
+    RegisteredCommand(EXPORT_TOKEN, CommandHelp(":export", "write the command log to Downloads")) {
+        ReservedCommand.Export
     },
     RegisteredCommand(HELP_TOKEN, CommandHelp(":help, ?", "show this help")) {
         ReservedCommand.Help

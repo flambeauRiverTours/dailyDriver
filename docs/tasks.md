@@ -343,6 +343,83 @@ Tiered cascade. **The SLM is not the front door.**
   - Schema v2→v3, migrated and validated. 593 unit tests (was 585), **57 instrumented (was 48)** — including that repeating an input *increments* rather than resetting, which is the entire premise of the table and is invisible from Kotlin, and that 1→2→3 migrations compose.
 
 
+
+## 02a · Daily-driving fixes
+
+**Found by using it (2026-08-22), the day after T017 made the launcher the real home screen.** Kept out of section 02 so Phase 0's record stays as it closed: none of these were visible from a test bench, and finding them is what daily-driving was for.
+
+- [x] **T161** — Battery level in the status row  
+  `P1` `S` · after: T146
+  - Sits **right of the date**, so the row reads `[unread] time … date battery`.
+  - **Fixed width, padded.** `9%`, `87%` and `100%` are three different widths, and a row that shifts as the battery drains is the same jitter the blinking colon already avoids by swapping the colon for a space rather than dropping it (T146). Pad to a constant cell count.
+  - **Charging gets a marker, not a colour.** Colour alone is no signal in a dark monospace UI, and an ASCII marker sidesteps the glyph-availability problem that made `⠿` unusable as a drag handle at T023.
+  - Read from the sticky `ACTION_BATTERY_CHANGED` broadcast rather than polling; battery moves slowly. Register only while RESUMED, matching how the clock already ticks.
+  - Formatting goes in `StatusLineFormat` (pure, JVM-testable) with only the subscription in Compose — the split T146 established.
+  - **`EXTRA_SCALE` is the denominator, not always 100.** Reading `EXTRA_LEVEL` as a percentage directly is the common way to be quietly wrong on a device that reports out of a different maximum.
+  - **🐛 Found by looking at it, not by a test: `Sat 22 Aug+100%`.** The cell's leading column *is* the charging marker, so when charging there was nothing left to separate battery from date. The width tests all passed — they assert the cell is five columns, which it was. Separated by layout instead, leaving `batteryText` a pure value formatter.
+  - Verified on an API 33 emulator across 5%, 9%, 87% and 100%, charging and not: the `%` sits at the same x in every case.
+- [x] **T162** — Validate an alias target when it is defined  
+  `P1` `M` · after: T013
+  - Today any string can be aliased, so a typo becomes an alias that silently resolves to nothing.
+  - **Resolve at definition time**: a reserved command token is valid; otherwise fuzzy-match the app index. No match at all is a rejection with the reason, not a stored alias.
+  - **Ambiguity asks rather than guesses.** Two apps sharing a label, or a prefix matching several, lists the candidates and declines until one is named. This is the *opposite* of T1's best-match-wins rule, deliberately: T1 is a guess you correct with one keystroke, an alias is a decision you are storing, and a wrong stored guess is wrong every time afterwards.
+  - Extends `DefineAliasResult` rather than adding a second reporting path. Cycle checks already exist and stay.
+  - **🔎 An app target is stored as the app's full label, not what was typed**, which was not in the original scope and turned out to matter most. Aliases re-resolve through T1 on *every* use, so storing `alias c = calc` leaves the alias meaning whatever `calc` matches later — installing a better-scoring app would silently repoint an alias the user never touched. Resolving once, at definition, pins it to what they actually chose. Verified on device: `alias ch = chrom` stores `ch = Chrome`.
+  - **Structural rejections are checked before target validation.** `alias a = a` is self-referential whether or not anything called `a` is installed, and reporting it as an unknown target would send you hunting for a missing app instead of a typo.
+  - **"Only a prefix was typed" is a cause of ambiguity, not ambiguity itself.** A prefix narrowing to exactly one app is accepted; the alias just stores the full name.
+  - **Ambiguous candidates are named using T164's disambiguation**, so two apps called `Messages` list as `Messages (Google), Messages (Samsung)` rather than the useless `Messages, Messages`. The two tasks compose without either knowing about the other.
+  - `target` defaults to `AliasTarget.Command`, so every existing caller and test keeps working and an unvalidated definition behaves exactly as before.
+  - 17 tests, plus device verification of all three outcomes: nothing matched, unique prefix accepted, and `'c' matches Clock, Camera, Chrome, Calendar, Contacts — be more specific`.
+- [x] **T163** — Aliases expand as you type, not only on Enter  
+  `P1` `S` · after: T162
+  - `a = :apps` should become `:apps ` with the browse list open, without pressing Enter.
+  - **On the existing pause timer, not instantly** (check-in). Instant expansion on exact match makes every longer input starting with that alias unreachable — type `a` and it becomes `:apps ` before you can reach `alarm`. That is exactly the trap that made `:notes` untypeable at T140, recorded in `android/CLAUDE.md`. Reusing `AUTO_LAUNCH_DELAY_MS` means the behaviour matches what the prompt already does for T1 auto-launch.
+  - **Enter still expands immediately**, which it already does. Enter is an explicit commit and carries no ambiguity to protect against.
+  - ⚠️ One alias being a prefix of another (`a` and `ab`) inherits the same problem in miniature: pausing after `a` commits to `a`. Acceptable, and worth stating in the task rather than discovering.
+  - **The alias timer is checked before the app timer**, and that ordering is the whole correctness argument: an exact alias is T0 and a fuzzy app match is T1, so an alias that also happens to fuzzy-match an app must expand rather than launch. The two effects are separate, with the app one yielding when an alias is pending, so they cannot race.
+  - **The space came for free.** Expansion goes through `onInputChange`, which already auto-spaces a completed token — `:apps` is auto-spaceable, so `a` becomes `:apps ` and the browse view opens with no new code.
+  - Logged as a `T0` resolution (T014), matching the auto-launch path, so pause-expanded aliases are not missing from the training data the way T1 hits once were.
+  - Verified on an API 33 emulator: with `a = :apps` defined, typing `a` and waiting opened the app list with Enter never pressed.
+- [x] **T164** — Disambiguate duplicate app names with the publisher  
+  `P1` `S` · after: T003
+  - Two apps labelled `Messages` are indistinguishable in `:apps`, which also makes T1's preview line ambiguous.
+  - **Only duplicates get a suffix.** Adding a publisher to every row would be noise on the 95% of names that are already unique.
+  - **Publisher derived from the package name** (check-in): the vendor segment, so `com.google.android.apps.messaging` → `Messages (Google)` and `com.samsung.android.messaging` → `Messages (Samsung)`. No new `PackageManager` calls, and it matches how a person would name them.
+  - Falls back to the full package when the heuristic yields nothing useful — a two-segment package like `com.whatsapp` has no vendor segment to read.
+  - **Not the installer package**, which sounds authoritative and is not: nearly everything reports the Play Store, so both `Messages` apps would still look identical.
+  - Pure function over the app index, so it is unit-testable and applies to both the list and the match preview — they must agree, or the preview names something the list does not.
+  - **🔎 Display names are a separate map, not folded into `AppEntry`, and that is load-bearing.** Matching must keep seeing the real label: a fuzzy match against `Messages (Google)` scores *worse* for someone typing `mess` than one against `Messages`, so writing the suffix into the entry would make disambiguation actively harm the thing it exists to clarify. Pinned by a test.
+  - **Computed over the whole index, not the filtered list.** Whether `Messages` is ambiguous is a property of what is installed, not of what the query narrowed to. Deriving it from the filtered list would drop the suffix the moment the filter reached one match — which is exactly when you are about to commit to it.
+  - 11 tests, including case- and whitespace-insensitive ambiguity detection and the two-segment package fallback.
+- [x] **T166** — In-app export of the command log  
+  `P0` `M` · after: T014
+  - **🐛 Found 2026-08-22: the training data on the daily-driven phone cannot currently be retrieved.** `scripts/export-command-log.sh` reads the database through `run-as`, which only works on a **debuggable** build. The phone runs a release build from T159, so `run-as` refuses with `package not debuggable`. T014 collects, T159 ships, and the two do not meet.
+  - **Nothing is lost yet** — the rows are in app-private storage — but they are unreachable, and an uninstall or reinstall would destroy them. That nearly happened while trying to sideload a debug build for T165.
+  - **This would have surfaced on 29 August**, when the scheduled test-pull ran and failed, with a week of unrecoverable usage behind it. The reminder existed precisely to catch a wrong assumption early; it caught this one a week early instead, by accident.
+  - **Fix: export from inside the app**, not from adb. A command writing JSONL to shared storage works on any build type, needs no cable, and does not depend on the debug flag. `scripts/export-command-log.sh` stays useful for emulator and debug-build work.
+  - ⚠️ **Do not "fix" this by making release builds debuggable.** That would expose app-private data on the daily driver to any app with adb access, to make a maintenance task easier.
+  - Update the 29 August reminder and `docs/releasing.md` once this lands, since both currently describe a route that does not work on the build being used.
+  - **Built as `:export`**, a normal T0 reserved command through T140's registry — so it documents itself in `:help` and needs no settings screen. Writes to Downloads via MediaStore, which needs no permission for a file the app creates and lands somewhere a file manager, a USB cable and `adb pull` can all reach.
+  - **Split pure from impure**: `command/CommandLogExport.kt` is the serialisation and the messages (14 unit tests), `command/CommandLogExporter.kt` is the MediaStore write. What the bytes *say* is the part that has to be right, and that half needs no device.
+  - **🔎 MediaStore renames what you give it, twice over, and both were found by running it rather than reading about it.** It reconciles the display name's extension against the MIME type, so the "correct" `application/json` produced `dailydriver-command-log-2026-08-22.jsonl.json`; an *unregistered* type (`application/x-ndjson`) is what leaves the name alone. Separately, it de-duplicates a repeated name by appending ` (1)` **after** the extension — `….jsonl (1)` — which a `*.jsonl` glob then skips, so the second export of a day would silently go missing. The file name now carries a seconds-precision stamp and is unique before MediaStore ever sees it.
+  - **The command reports the path queried back from MediaStore, not the one it asked for.** T166 is entirely a story about trusting a route that quietly did something other than what it looked like, and this is that lesson applied to its own fix. It is also what surfaced the `.jsonl.json` rename in the first place, on the very first run.
+  - **An empty log still writes a file and still reports `0 inputs`.** A silent no-op on nothing-to-export would reproduce the exact failure mode this task exists to fix.
+  - **A failed export is reported in the transcript**, deliberately inverting `CommandLogRepository.record`'s swallow-everything rule. Recording the log must never cost an app launch; exporting *is* the command, so a silent failure is the bug.
+  - The JSONL keys are a contract with `scripts/export-command-log.sh` — pinned by a test, and cross-referenced in both files' headers.
+  - Verified on an API 33 emulator: seeded the log, exported twice five seconds apart, both files clean `.jsonl` in `Download/` with the transcript naming each one.
+
+- [x] **T165** — Keyboard should appear whenever the launcher resumes  
+  `P1` `M` · after: T015
+  - Unlocking the phone lands on the prompt with no keyboard, so every command starts with a tap. On a keyboard-first launcher that is the whole interaction being broken.
+  - **Every resume, not just unlock** (check-in): returning from an app or dismissing the shade should also be ready to type. The input line drives the live filter in `:apps` and `:notes` too, so the keyboard is wanted in browse mode as well.
+  - Focus request plus an explicit IME show on RESUMED, alongside `windowSoftInputMode`. The manifest flag alone governs first window focus and does not cover a resume.
+  - **⚠️ Interacts with T149's immersive mode**, which re-applies on every focus change; the IME moves the insets that immersive mode is manipulating. Expect to verify on device rather than trusting it compiles.
+  - **Device verification is required, not optional.** Android restricts showing the IME without user interaction on some versions, and this is unobservable from a unit test.
+  - **🔎 The cause was not missing focus — focus was already being requested.** T015's `focusRegainedSignal` fires on window focus gain and calls `requestFocus()`, but **`requestFocus()` is a no-op when the field never lost focus**, which is exactly what unlocking looks like: the window comes back with the input still focused, nothing changes, and nothing ever asks for the keyboard. Showing the IME is now explicit and unconditional, so it cannot depend on focus having moved.
+  - `stateVisible` added to `windowSoftInputMode` as well, covering the window's first appearance; the two mechanisms handle different moments.
+  - Verified on an API 33 emulator through a real sleep → wake → dismiss-keyguard cycle: the prompt comes back focused with the keyboard up. **No conflict with T149** — the system bars stayed hidden and the status row was intact, which was the interaction worth worrying about.
+  - ⚠️ Still worth a confirmation on the S20 FE, since IME policy varies by OEM and the emulator is AOSP. Blocked behind T166: installing a debug build there would require uninstalling the release build and destroying the command log.
+
 ## 04 · Notes storage
 
 Room schema, Markdown format, outbox from day one.
@@ -960,4 +1037,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**159 tasks — 68 done, 91 open** (recounted 2026-08-20). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**165 tasks — 74 done, 91 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

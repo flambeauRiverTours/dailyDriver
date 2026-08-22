@@ -42,6 +42,15 @@ private const val FAST_SCROLL_THRESHOLD = 20
 @Composable
 fun AppListView(
     apps: List<AppEntry>,
+    /**
+     * Display name per package (T164), computed over the **whole** index by the caller.
+     *
+     * Passed in rather than derived here, because whether "Messages" is ambiguous is a property of
+     * what is installed, not of what the current query narrowed to. Deriving it from [apps] would
+     * make a row's name change as you typed, dropping the suffix the moment the filter left one
+     * match — which is when you are about to commit to it.
+     */
+    names: Map<String, String>,
     onAppClick: (AppEntry) -> Unit,
     textStyle: TextStyle,
     modifier: Modifier = Modifier,
@@ -91,7 +100,11 @@ fun AppListView(
         ) {
             items(displayApps, key = { it.packageName }) { app ->
                 Text(
-                    text = app.label,
+                    // Suffixed with a publisher only where the label is ambiguous (T164). Computed
+                    // over the *whole* index rather than the filtered list: whether "Messages" is
+                    // ambiguous is a property of what is installed, not of what the current query
+                    // happens to have narrowed to.
+                    text = names[app.packageName] ?: app.label,
                     style = textStyle,
                     modifier = Modifier
                         .fillMaxWidth()

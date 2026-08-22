@@ -29,6 +29,16 @@ sealed interface DefineAliasResult {
     data class Overwritten(val name: String, val command: String, val previousCommand: String) : DefineAliasResult
     data class RejectedSelfReference(val name: String) : DefineAliasResult
     data class RejectedPointsAtAlias(val name: String, val targetAliasName: String) : DefineAliasResult
+
+    /** Nothing on the device matches the target (T162). */
+    data class RejectedUnknownTarget(val name: String, val command: String) : DefineAliasResult
+
+    /** Several apps match, so the choice is the user's to make (T162). */
+    data class RejectedAmbiguousTarget(
+        val name: String,
+        val command: String,
+        val candidates: List<String>,
+    ) : DefineAliasResult
 }
 
 /**
@@ -48,15 +58,32 @@ fun evaluateAliasDefinition(
     name: String,
     command: String,
     existingAliases: Map<String, String>,
+    target: AliasTarget = AliasTarget.Command,
 ): DefineAliasResult {
     val trimmedCommand = command.trim()
+
+    // Structural checks first, then whether the target exists. Order matters: `alias a = a` is
+    // self-referential regardless of whether anything called "a" is installed, and reporting it as
+    // an unknown target would send you looking for a missing app instead of a typo.
     return when {
         trimmedCommand == name -> DefineAliasResult.RejectedSelfReference(name)
         existingAliases.containsKey(trimmedCommand) ->
             DefineAliasResult.RejectedPointsAtAlias(name, targetAliasName = trimmedCommand)
-        existingAliases.containsKey(name) ->
-            DefineAliasResult.Overwritten(name, trimmedCommand, previousCommand = existingAliases.getValue(name))
-        else -> DefineAliasResult.Created(name, trimmedCommand)
+
+        target is AliasTarget.Unknown -> DefineAliasResult.RejectedUnknownTarget(name, trimmedCommand)
+        target is AliasTarget.Ambiguous ->
+            DefineAliasResult.RejectedAmbiguousTarget(name, trimmedCommand, target.candidates)
+
+        else -> {
+            // An app target is stored as the app's full label rather than what was typed, so the
+            // alias cannot silently repoint when the index changes. See [resolveAliasTarget].
+            val stored = (target as? AliasTarget.App)?.resolvedCommand ?: trimmedCommand
+            if (existingAliases.containsKey(name)) {
+                DefineAliasResult.Overwritten(name, stored, previousCommand = existingAliases.getValue(name))
+            } else {
+                DefineAliasResult.Created(name, stored)
+            }
+        }
     }
 }
 
@@ -67,4 +94,10 @@ fun describeDefineAliasResult(result: DefineAliasResult): String = when (result)
     is DefineAliasResult.RejectedSelfReference -> "can't alias '${result.name}' to itself"
     is DefineAliasResult.RejectedPointsAtAlias ->
         "can't alias '${result.name}' to '${result.targetAliasName}' — aliases can't point at other aliases"
+    is DefineAliasResult.RejectedUnknownTarget ->
+        "nothing matches '${result.command}' — alias not created"
+    // Names the candidates rather than just reporting ambiguity, so the fix is to retype one of
+    // them rather than to guess what the launcher saw.
+    is DefineAliasResult.RejectedAmbiguousTarget ->
+        "'${result.command}' matches ${result.candidates.joinToString(", ")} — be more specific"
 }

@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
@@ -41,6 +42,7 @@ import com.flambeauriver.dailydriver.alias.formatAliasListing
 import com.flambeauriver.dailydriver.alias.parseAliasDefinition
 import com.flambeauriver.dailydriver.apps.AppEntry
 import com.flambeauriver.dailydriver.apps.filteredBy
+import com.flambeauriver.dailydriver.apps.displayNames
 import com.flambeauriver.dailydriver.apps.matchPreview
 import com.flambeauriver.dailydriver.apps.soleAutoLaunchTarget
 import com.flambeauriver.dailydriver.apps.topMatch
@@ -136,6 +138,8 @@ fun ShellScreen(
     onToggleTask: suspend (TaskListItem) -> Unit,
     /** Resolves the note a task lives in, so tapping the text can open it. */
     onOpenTaskNote: suspend (TaskListItem) -> Note?,
+    /** Writes the command log to Downloads; awaits a database read and a file write (T166). */
+    onExportCommandLog: suspend (input: String) -> Unit,
     /** T014 — records what the deterministic tiers did with a submitted line. */
     onCommandResolved: (input: String, resolution: CommandResolution) -> Unit,
     /**
@@ -190,6 +194,7 @@ fun ShellScreen(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
     val monospace = LocalTextStyle.current.copy(
         fontFamily = FontFamily.Monospace,
         color = MaterialTheme.colorScheme.onBackground,
@@ -205,8 +210,18 @@ fun ShellScreen(
     // the launcher window (HOME chief among the ways that happens) can leave the prompt
     // unfocused and the keyboard down the same way closing the editor did. Guarded the same way:
     // skipped while the editor is open, which leaves its own field to manage its own focus.
+    // **Focus alone is not enough, which is what T165 fixes.** `requestFocus()` is a no-op when the
+    // field never lost focus — and that is exactly what unlocking the phone looks like: the window
+    // regains focus with the input still focused, nothing changes, and no one ever asks for the
+    // keyboard. So the prompt sat there focused with the IME down, and every command started with
+    // a tap on a launcher whose entire premise is that you type.
+    //
+    // Showing the IME explicitly is unconditional for the same reason: it must not depend on
+    // whether focus actually moved.
     LaunchedEffect(editor.isOpen, focusRegainedSignal) {
-        if (!editor.isOpen) focusRequester.requestFocus()
+        if (editor.isOpen) return@LaunchedEffect
+        focusRequester.requestFocus()
+        keyboard?.show()
     }
 
     // Keep the newest entry visible as the transcript grows.
@@ -215,6 +230,9 @@ fun ShellScreen(
             listState.scrollToItem(transcript.entries.lastIndex)
         }
     }
+
+    // Keyed on the index, not the query: ambiguity is about what is installed (T164).
+    val appDisplayNames = remember(apps) { displayNames(apps) }
 
     val filteredApps = remember(apps, appsCommand) {
         appsCommand?.let { apps.filteredBy(it.query) }.orEmpty()
@@ -252,8 +270,32 @@ fun ShellScreen(
     // "chrom" can all resolve to the same app, so keying on the target alone would leave the
     // original timer running and fire mid-word. Re-keying on every keystroke cancels and
     // restarts it, which is what "a one second pause" actually means.
+    // An alias that matches the whole input expands on the same pause (T163), and is checked
+    // *before* the app match because an exact alias is T0 and a fuzzy app match is T1 — the
+    // cascade's order has to hold here exactly as it does on Enter, or typing an alias that also
+    // happens to fuzzy-match an app would launch the app instead of expanding.
+    //
+    // **On the pause rather than instantly**, which is what was asked for and would not work:
+    // expanding `a` the moment it is typed puts the caret after `:apps ` and makes `alarm`
+    // unreachable by fuzzy match. That is the trap that made `:notes` untypeable at T140. The
+    // pause is what keeps every longer input reachable, and Enter still expands immediately.
+    val pendingAliasExpansion = aliases[input.trim()]
+        // An alias definition ("alias x = y") contains an "=" and is never itself an alias key, but
+        // guarding here keeps the two paths from ever racing.
+        ?.takeIf { parseAliasDefinition(input) == null }
+
     val currentAutoLaunchTarget = autoLaunchTarget ?: plainMatchTarget
-    LaunchedEffect(currentAutoLaunchTarget, input) {
+
+    LaunchedEffect(pendingAliasExpansion, input) {
+        val expansion = pendingAliasExpansion ?: return@LaunchedEffect
+        delay(AUTO_LAUNCH_DELAY_MS)
+        onCommandResolved(input.trim(), CommandResolution(CommandResolution.Tier.T0, expansion))
+        onAliasExpanded(expansion)
+    }
+
+    LaunchedEffect(currentAutoLaunchTarget, input, pendingAliasExpansion) {
+        // Yields to the alias timer above rather than racing it, for the same T0-before-T1 reason.
+        if (pendingAliasExpansion != null) return@LaunchedEffect
         val target = currentAutoLaunchTarget ?: return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
         // Logged here as well as in the Enter handler (T014), because this path acts on typed
@@ -296,6 +338,7 @@ fun ShellScreen(
         if (appsCommand != null) {
             AppListView(
                 apps = filteredApps,
+                names = appDisplayNames,
                 onAppClick = onAppClick,
                 textStyle = monospace,
                 modifier = Modifier
@@ -485,6 +528,13 @@ fun ShellScreen(
                     reservedCommand is ReservedCommand.Note -> {
                         editor.open(reservedCommand.query)
                         onNoteEditorOpened()
+                    }
+                    // Captured before launching, same as :task and the alias definition below —
+                    // reading the log and writing the file both take long enough for the prompt to
+                    // have moved on by the time the result is known (T166).
+                    reservedCommand is ReservedCommand.Export -> {
+                        val submittedInput = input
+                        coroutineScope.launch { onExportCommandLog(submittedInput) }
                     }
                     // Captured before launching, for the same reason the alias-definition branch
                     // captures: adding a task awaits a Room write, and by the time it returns the

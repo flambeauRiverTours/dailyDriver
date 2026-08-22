@@ -120,6 +120,21 @@ an experiment and being locked out of your phone.
 
 ---
 
+## Getting the command log off the phone
+
+Type **`:export`** at the prompt. It writes JSONL to `Download/dailydriver-command-log-<stamp>.jsonl`
+and reports the exact path back in the transcript. Pull it with a file manager, a USB cable, or:
+
+```bash
+adb pull /sdcard/Download/dailydriver-command-log-2026-08-22-131257.jsonl
+```
+
+**`scripts/export-command-log.sh` will not work here** (T166). It reads app-private storage through
+`run-as`, which requires a debuggable build, and this is a signed release — it refuses with
+`package not debuggable`. The script stays useful against emulators and debug builds. **Do not make
+release builds debuggable to work around this**: that would expose every app-private file on the
+phone to anything with adb access, permanently, to save typing one command.
+
 ## What runs when
 
 | Trigger | What happens |

@@ -7,7 +7,9 @@ import androidx.lifecycle.ViewModel
 import com.flambeauriver.dailydriver.alias.DefineAliasResult
 import com.flambeauriver.dailydriver.alias.describeDefineAliasResult
 import com.flambeauriver.dailydriver.alias.parseAliasDefinition
+import com.flambeauriver.dailydriver.command.CommandLogExportResult
 import com.flambeauriver.dailydriver.command.ReservedCommand
+import com.flambeauriver.dailydriver.command.exportedText
 import com.flambeauriver.dailydriver.command.escalationTier
 import com.flambeauriver.dailydriver.command.helpText
 import com.flambeauriver.dailydriver.command.parseReservedCommand
@@ -93,6 +95,10 @@ class ShellViewModel : ViewModel() {
             // tapping a row, and Enter must not record ":tasks" as a command that ran.
             is ReservedCommand.Tasks -> return
             is ReservedCommand.TasksDone -> return
+            // Like the alias-definition and :task paths: the export awaits a database read and a
+            // file write, which this synchronous method can't do, so ShellScreen intercepts and
+            // calls onCommandLogExported with the result (T166).
+            is ReservedCommand.Export -> return
             // T145. Like Note, this wants onSubmit's normal record-and-clear — helpText() is
             // pure and needs no Context or repository, so there's nothing for ShellScreen to
             // resolve first the way :alias needs the live aliases map.
@@ -213,6 +219,27 @@ class ShellViewModel : ViewModel() {
      */
     fun onTaskAdded(submittedInput: String, text: String, due: String) {
         transcript = transcript.record(submittedInput, "added: $text (due $due)")
+        input = ""
+    }
+
+    /**
+     * Records the outcome of `:export` (T166), which [ShellScreen] performs because it awaits a
+     * database read and a file write — same shape as [onAliasDefined], and captured input for the
+     * same reason.
+     *
+     * A failure is reported in the transcript rather than swallowed. [CommandLogRepository.record]
+     * swallows its failures deliberately, because writing the log must never cost you an app
+     * launch, but that reasoning inverts here: an export is the whole command, and one that
+     * silently did nothing is the exact failure T166 exists to fix.
+     */
+    fun onCommandLogExported(submittedInput: String, result: CommandLogExportResult) {
+        transcript = transcript.record(
+            submittedInput,
+            when (result) {
+                is CommandLogExportResult.Written -> exportedText(result.stats, result.location)
+                is CommandLogExportResult.Failed -> "export failed: ${result.reason}"
+            },
+        )
         input = ""
     }
 

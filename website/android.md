@@ -76,6 +76,7 @@ waking an LLM to reject the word `asdf`.
 | `:alias` | List defined aliases |
 | `:notif` | Browse notifications |
 | `:settings` | Open system settings |
+| `:export` | Write the command log to Downloads as JSONL |
 | `:help` or `?` | Command reference |
 
 Commands are registered in a table carrying their own help text, so help output cannot drift from
@@ -178,10 +179,11 @@ cascade-deleting its pending outbox row, which would have dropped edits with no 
 **Notifications.** A `NotificationListenerService` feeding a browsable list, with an unread
 indicator in the status row.
 
-**Aliases.** User-defined shortcuts resolved at T0, stored in Room.
+**Aliases.** User-defined shortcuts resolved at T0, stored in Room. A target is checked against
+the installed apps before it is stored, and an ambiguous one is refused rather than guessed.
 
-**Status row.** Clock, date and unread-notification dot, in immersive fullscreen with both system
-bars hidden.
+**Status row.** Clock, date, battery level and unread-notification dot, in immersive fullscreen
+with both system bars hidden.
 
 ---
 

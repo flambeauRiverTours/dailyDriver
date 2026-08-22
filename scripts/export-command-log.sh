@@ -15,6 +15,17 @@
 # did not copy. That failure was reproduced before this script was written; it is the entire
 # reason the script copies all three files together.
 #
+# ── ⚠️ This does NOT work on a release build ────────────────────────────────────────────────────
+#
+# `run-as` requires a debuggable build. The daily driver runs a signed release (T159), so this
+# script refuses there with "package not debuggable" — which is why T166 added `:export` inside the
+# app. Type `:export` at the prompt and the log is written to Downloads on any build type, with no
+# cable. This script stays useful for emulator and debug-build work.
+#
+# **The JSONL below is a contract with `command/CommandLogExport.kt`**, which writes the same
+# records from inside the app. Two producers, one consumer (T075's hand-labelling step), so the
+# keys must match exactly — change one and change the other. A test over there pins the key set.
+#
 # Requires: a debuggable (debug) build, since it reads app-private storage via `run-as`.
 set -euo pipefail
 
