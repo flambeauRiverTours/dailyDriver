@@ -18,7 +18,7 @@
 # Requires: a debuggable (debug) build, since it reads app-private storage via `run-as`.
 set -euo pipefail
 
-PKG="com.example.dailydriver"
+PKG="com.flambeauriver.dailydriver"
 OUT="${1:-command-log.jsonl}"
 ADB="${ADB:-adb}"
 TMP="$(mktemp -d)"

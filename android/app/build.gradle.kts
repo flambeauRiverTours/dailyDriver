@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.dailydriver"
+    namespace = "com.flambeauriver.dailydriver"
     // compileSdk is a build-time setting (which API surface javac/kotlinc can see) and is
     // independent of minSdk/targetSdk (which control actual runtime behavior on-device) — it's
     // kept at the latest AndroidX-required level, currently 36, rather than pinned to the target
@@ -14,7 +14,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.dailydriver"
+        applicationId = "com.flambeauriver.dailydriver"
         minSdk = 33
         targetSdk = 33
         versionCode = 1
