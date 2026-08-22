@@ -135,6 +135,23 @@ adb pull /sdcard/Download/dailydriver-command-log-2026-08-22-131257.jsonl
 release builds debuggable to work around this**: that would expose every app-private file on the
 phone to anything with adb access, permanently, to save typing one command.
 
+## Version numbers come from the tag
+
+`build.gradle.kts` reads `ANDROID_VERSION_NAME`, which the release workflow sets by stripping the
+`android-v` prefix off the tag. So `android-v0.2.0` builds an APK reporting `0.2.0`, and App info on
+the phone tells you which release you are running.
+
+**A local build reports `dev`, not a number**, so an APK sideloaded off a workstation is never
+mistaken for a release while you are working out what is on the phone.
+
+`versionCode` is derived from the same string, two digits per component: `0.2.0` is `200`, `0.10.0`
+is `1000`. Android compares it as an integer and refuses a downgrade, so it has to *rise* with the
+version rather than merely differ — which is why each component is padded, and why a naive
+concatenation would break the first time a minor number reached double figures.
+
+Until `android-v0.2.0` this was pinned at `versionName = "1.0"` in source, so every release
+identified itself identically and the tag was the only way to tell them apart.
+
 ## What runs when
 
 | Trigger | What happens |

@@ -63,6 +63,19 @@ jobs:
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
+      # The tag is the version. Stripping the component prefix here rather than in Gradle keeps
+      # build.gradle.kts from having to know how this repo names its tags.
+      - name: Derive the version from the tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#android-v}"
+          if [ "$VERSION" = "$TAG" ]; then
+            echo "::error::$TAG does not start with 'android-v', so no version can be derived."
+            exit 1
+          fi
+          echo "ANDROID_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
+          echo "Building version $VERSION"
+
       - name: Build signed APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
