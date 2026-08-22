@@ -367,7 +367,7 @@ Tiered cascade. **The SLM is not the front door.**
   - **On the existing pause timer, not instantly** (check-in). Instant expansion on exact match makes every longer input starting with that alias unreachable — type `a` and it becomes `:apps ` before you can reach `alarm`. That is exactly the trap that made `:notes` untypeable at T140, recorded in `android/CLAUDE.md`. Reusing `AUTO_LAUNCH_DELAY_MS` means the behaviour matches what the prompt already does for T1 auto-launch.
   - **Enter still expands immediately**, which it already does. Enter is an explicit commit and carries no ambiguity to protect against.
   - ⚠️ One alias being a prefix of another (`a` and `ab`) inherits the same problem in miniature: pausing after `a` commits to `a`. Acceptable, and worth stating in the task rather than discovering.
-- [ ] **T164** — Disambiguate duplicate app names with the publisher  
+- [x] **T164** — Disambiguate duplicate app names with the publisher  
   `P1` `S` · after: T003
   - Two apps labelled `Messages` are indistinguishable in `:apps`, which also makes T1's preview line ambiguous.
   - **Only duplicates get a suffix.** Adding a publisher to every row would be noise on the 95% of names that are already unique.
@@ -375,6 +375,9 @@ Tiered cascade. **The SLM is not the front door.**
   - Falls back to the full package when the heuristic yields nothing useful — a two-segment package like `com.whatsapp` has no vendor segment to read.
   - **Not the installer package**, which sounds authoritative and is not: nearly everything reports the Play Store, so both `Messages` apps would still look identical.
   - Pure function over the app index, so it is unit-testable and applies to both the list and the match preview — they must agree, or the preview names something the list does not.
+  - **🔎 Display names are a separate map, not folded into `AppEntry`, and that is load-bearing.** Matching must keep seeing the real label: a fuzzy match against `Messages (Google)` scores *worse* for someone typing `mess` than one against `Messages`, so writing the suffix into the entry would make disambiguation actively harm the thing it exists to clarify. Pinned by a test.
+  - **Computed over the whole index, not the filtered list.** Whether `Messages` is ambiguous is a property of what is installed, not of what the query narrowed to. Deriving it from the filtered list would drop the suffix the moment the filter reached one match — which is exactly when you are about to commit to it.
+  - 11 tests, including case- and whitespace-insensitive ambiguity detection and the two-segment package fallback.
 - [ ] **T165** — Keyboard should appear whenever the launcher resumes  
   `P1` `M` · after: T015
   - Unlocking the phone lands on the prompt with no keyboard, so every command starts with a tap. On a keyboard-first launcher that is the whole interaction being broken.
@@ -1000,4 +1003,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**164 tasks — 68 done, 96 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**164 tasks — 69 done, 95 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

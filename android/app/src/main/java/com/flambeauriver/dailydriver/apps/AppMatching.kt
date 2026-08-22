@@ -62,7 +62,13 @@ fun List<AppEntry>.matchPreview(query: String): String? {
     val ranked = rankedMatches(query)
     val best = ranked.firstOrNull() ?: return null
     val others = ranked.size - 1
-    return if (others == 0) best.entry.label else "${best.entry.label}  +$others more"
+
+    // Named the same way the list names it (T164). If the preview said "Messages" while the list
+    // showed "Messages (Google)" and "Messages (Samsung)", the preview would be announcing a
+    // choice it is not making — which is the exact ambiguity the suffix exists to remove.
+    val name = displayNames(this)[best.entry.packageName] ?: best.entry.label
+
+    return if (others == 0) name else "$name  +$others more"
 }
 
 private fun AppEntry.matchAgainst(query: String): AppMatch? {

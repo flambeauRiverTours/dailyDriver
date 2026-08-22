@@ -41,6 +41,7 @@ import com.flambeauriver.dailydriver.alias.formatAliasListing
 import com.flambeauriver.dailydriver.alias.parseAliasDefinition
 import com.flambeauriver.dailydriver.apps.AppEntry
 import com.flambeauriver.dailydriver.apps.filteredBy
+import com.flambeauriver.dailydriver.apps.displayNames
 import com.flambeauriver.dailydriver.apps.matchPreview
 import com.flambeauriver.dailydriver.apps.soleAutoLaunchTarget
 import com.flambeauriver.dailydriver.apps.topMatch
@@ -216,6 +217,9 @@ fun ShellScreen(
         }
     }
 
+    // Keyed on the index, not the query: ambiguity is about what is installed (T164).
+    val appDisplayNames = remember(apps) { displayNames(apps) }
+
     val filteredApps = remember(apps, appsCommand) {
         appsCommand?.let { apps.filteredBy(it.query) }.orEmpty()
     }
@@ -296,6 +300,7 @@ fun ShellScreen(
         if (appsCommand != null) {
             AppListView(
                 apps = filteredApps,
+                names = appDisplayNames,
                 onAppClick = onAppClick,
                 textStyle = monospace,
                 modifier = Modifier
