@@ -28,11 +28,33 @@ class AliasRepository(context: Context) {
      * [evaluateAliasDefinition] for why that check alone rules out cycles of any length) and,
      * unless rejected, persists it and refreshes the index.
      */
-    suspend fun define(name: String, command: String): DefineAliasResult {
-        val result = evaluateAliasDefinition(name, command, index.asMap())
-        val accepted = result is DefineAliasResult.Created || result is DefineAliasResult.Overwritten
-        if (accepted) {
-            dao.upsert(Alias(name, command))
+    /**
+     * Stores an alias, if [target] says it points at something real (T162).
+     *
+     * [target] is resolved by the caller rather than here, because validation needs the app index
+     * and this repository owns aliases. Defaulting it to [AliasTarget.Command] keeps every existing
+     * caller and test working: an unvalidated definition behaves exactly as it did before.
+     *
+     * **What is stored comes from the result, not from [command].** An app target is rewritten to
+     * the app's full label so the alias cannot silently repoint later, and writing the raw input
+     * here would throw that away while still reporting the resolved name back to the user — the
+     * two would disagree from the moment it was created.
+     */
+    suspend fun define(
+        name: String,
+        command: String,
+        target: AliasTarget = AliasTarget.Command,
+    ): DefineAliasResult {
+        val result = evaluateAliasDefinition(name, command, index.asMap(), target)
+
+        val stored = when (result) {
+            is DefineAliasResult.Created -> result.command
+            is DefineAliasResult.Overwritten -> result.command
+            else -> null
+        }
+
+        if (stored != null) {
+            dao.upsert(Alias(name, stored))
             refresh()
         }
         return result

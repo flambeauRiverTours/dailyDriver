@@ -13,6 +13,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.flambeauriver.dailydriver.alias.AliasRepository
+import com.flambeauriver.dailydriver.alias.resolveAliasTarget
 import com.flambeauriver.dailydriver.command.CommandLogRepository
 import com.flambeauriver.dailydriver.apps.AppIndexRepository
 import com.flambeauriver.dailydriver.apps.AppLauncher
@@ -112,7 +113,13 @@ class MainActivity : AppCompatActivity() {
                     onAliasListRequested = viewModel::onAliasListRequested,
                     onAliasExpanded = viewModel::onAliasExpanded,
                     onDefineAlias = { input, name, command ->
-                        val result = aliasRepository.define(name, command)
+                        // Resolved here rather than inside the repository, which owns aliases and
+                        // has no reason to know about the app index (T162).
+                        val result = aliasRepository.define(
+                            name = name,
+                            command = command,
+                            target = resolveAliasTarget(command, appIndexRepository.apps),
+                        )
                         viewModel.onAliasDefined(input, result)
                     },
                     // Same non-reactive-getter caveat as `apps`/`aliases` above — both properties

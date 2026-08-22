@@ -358,12 +358,18 @@ Tiered cascade. **The SLM is not the front door.**
   - **`EXTRA_SCALE` is the denominator, not always 100.** Reading `EXTRA_LEVEL` as a percentage directly is the common way to be quietly wrong on a device that reports out of a different maximum.
   - **🐛 Found by looking at it, not by a test: `Sat 22 Aug+100%`.** The cell's leading column *is* the charging marker, so when charging there was nothing left to separate battery from date. The width tests all passed — they assert the cell is five columns, which it was. Separated by layout instead, leaving `batteryText` a pure value formatter.
   - Verified on an API 33 emulator across 5%, 9%, 87% and 100%, charging and not: the `%` sits at the same x in every case.
-- [ ] **T162** — Validate an alias target when it is defined  
+- [x] **T162** — Validate an alias target when it is defined  
   `P1` `M` · after: T013
   - Today any string can be aliased, so a typo becomes an alias that silently resolves to nothing.
   - **Resolve at definition time**: a reserved command token is valid; otherwise fuzzy-match the app index. No match at all is a rejection with the reason, not a stored alias.
   - **Ambiguity asks rather than guesses.** Two apps sharing a label, or a prefix matching several, lists the candidates and declines until one is named. This is the *opposite* of T1's best-match-wins rule, deliberately: T1 is a guess you correct with one keystroke, an alias is a decision you are storing, and a wrong stored guess is wrong every time afterwards.
   - Extends `DefineAliasResult` rather than adding a second reporting path. Cycle checks already exist and stay.
+  - **🔎 An app target is stored as the app's full label, not what was typed**, which was not in the original scope and turned out to matter most. Aliases re-resolve through T1 on *every* use, so storing `alias c = calc` leaves the alias meaning whatever `calc` matches later — installing a better-scoring app would silently repoint an alias the user never touched. Resolving once, at definition, pins it to what they actually chose. Verified on device: `alias ch = chrom` stores `ch = Chrome`.
+  - **Structural rejections are checked before target validation.** `alias a = a` is self-referential whether or not anything called `a` is installed, and reporting it as an unknown target would send you hunting for a missing app instead of a typo.
+  - **"Only a prefix was typed" is a cause of ambiguity, not ambiguity itself.** A prefix narrowing to exactly one app is accepted; the alias just stores the full name.
+  - **Ambiguous candidates are named using T164's disambiguation**, so two apps called `Messages` list as `Messages (Google), Messages (Samsung)` rather than the useless `Messages, Messages`. The two tasks compose without either knowing about the other.
+  - `target` defaults to `AliasTarget.Command`, so every existing caller and test keeps working and an unvalidated definition behaves exactly as before.
+  - 17 tests, plus device verification of all three outcomes: nothing matched, unique prefix accepted, and `'c' matches Clock, Camera, Chrome, Calendar, Contacts — be more specific`.
 - [x] **T163** — Aliases expand as you type, not only on Enter  
   `P1` `S` · after: T162
   - `a = :apps` should become `:apps ` with the browse list open, without pressing Enter.
@@ -1010,4 +1016,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**164 tasks — 71 done, 93 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**164 tasks — 72 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
