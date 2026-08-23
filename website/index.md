@@ -17,7 +17,7 @@ through fine-tuning, quantization, deployment and benchmarks.
 
 | Area | Status | What exists |
 |---|---|---|
-| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 725 automated tests. |
+| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 831 automated tests. |
 | **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design complete. |
 | **[Azure backend](backend.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design and data model complete. |
 | **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-outline:{ .status-todo } Not started | Design, model shortlist and evaluation plan complete. |
@@ -100,6 +100,6 @@ was decided and what broke while building each feature, and six
 [architecture decision records](https://github.com/flambeauRiverTours/dailyDriver/tree/main/docs/adr).
 This site is the overview and links to them.
 
-!!! info "Last updated: 22 August 2026"
+!!! info "Last updated: 23 August 2026"
 
     Reflects the state of `main` on that date.
