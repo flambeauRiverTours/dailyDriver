@@ -40,7 +40,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.flambeauriver.dailydriver.alias.expandAlias
 import com.flambeauriver.dailydriver.alias.formatAliasListing
-import com.flambeauriver.dailydriver.alias.parseAliasDefinition
 import com.flambeauriver.dailydriver.apps.AppEntry
 import com.flambeauriver.dailydriver.apps.filteredBy
 import com.flambeauriver.dailydriver.apps.displayNames
@@ -169,11 +168,17 @@ fun ShellScreen(
     // reach for, it falls straight through the `else -> onSubmit()` branch below like any other
     // unmatched-tier input, and ShellViewModel decides what that means. :help (T145) will add its
     // own behavior as it lands.
-    val appsCommand = reservedCommand as? ReservedCommand.Apps
-    val notifCommand = (reservedCommand as? ReservedCommand.Notif)?.takeIf { hasNotificationAccess }
-    val notesCommand = reservedCommand as? ReservedCommand.Notes
-    val tasksCommand = reservedCommand as? ReservedCommand.Tasks
-    val tasksDoneCommand = reservedCommand as? ReservedCommand.TasksDone
+    // One pure derivation of everything this line of input implies (T179). Keyed on the app
+    // index as well as the input, since installing or removing an app changes the answer.
+    val appDisplayNames = remember(apps) { displayNames(apps) }
+    val ui = remember(input, apps, aliases, appDisplayNames) {
+        shellUiState(input, apps, aliases, appDisplayNames)
+    }
+    val appsCommand = ui.appsCommand
+    val notifCommand = ui.notifCommand(hasNotificationAccess)
+    val notesCommand = ui.notesCommand
+    val tasksCommand = ui.tasksCommand
+    val tasksDoneCommand = ui.tasksDoneCommand
 
     // Re-subscribed whenever the query text changes, so the list narrows as you type — the same
     // live-filter behaviour :apps has, except the filtering happens in SQL rather than in memory
@@ -234,60 +239,13 @@ fun ShellScreen(
         }
     }
 
-    // Keyed on the index, not the query: ambiguity is about what is installed (T164).
-    val appDisplayNames = remember(apps) { displayNames(apps) }
+    val filteredApps = ui.filteredApps
+    val autoLaunchTarget = ui.autoLaunchTarget
+    val plainMatchTarget = ui.plainMatchTarget
+    val previewText = ui.previewText
+    val pendingAliasExpansion = ui.pendingAliasExpansion
 
-    val filteredApps = remember(apps, appDisplayNames, appsCommand) {
-        appsCommand?.let { apps.filteredBy(it.query, appDisplayNames) }.orEmpty()
-    }
-    // Hoisted out of the apps-mode branch below because Enter needs it too, not just the timer.
-    // Sole-match only — :apps browse mode's own auto-launch is unchanged by the T1 revision below.
-    val autoLaunchTarget = remember(filteredApps, appsCommand) {
-        appsCommand?.let { filteredApps.soleAutoLaunchTarget(it.query) }
-    }
-
-    // T1 only applies to bare prompt input — not while a reserved command is active, not to an
-    // alias definition, and not to an alias name (which expands rather than fuzzy-matching).
-    val isPlainQuery = reservedCommand == null && parseAliasDefinition(input) == null &&
-        !aliases.containsKey(input.trim())
-
-    // The best T1 match, if any — what a plain-prompt Enter or pause commits to. No ambiguity
-    // gate: the best match always wins, even among near-ties (":apps" keeps its own stricter
-    // sole-match-only rule above, untouched by this).
-    val plainMatchTarget = remember(apps, input, isPlainQuery) {
-        if (isPlainQuery) apps.topMatch(input) else null
-    }
-
-    // Shown dim above the prompt so you can see what Enter will do before committing to it.
-    // An alias previews its expansion for the same reason a fuzzy match previews its target.
-    val previewText = remember(apps, aliases, input, isPlainQuery, reservedCommand) {
-        when {
-            reservedCommand != null || parseAliasDefinition(input) != null -> null
-            aliases.containsKey(input.trim()) -> aliases[input.trim()]
-            else -> apps.matchPreview(input)
-        }
-    }
-
-    // Auto-launch after a pause in typing — either :apps' sole match, or T1's best guess at the
-    // bare prompt. Keyed on `input` itself, not just the resolved target: "chr", "chro" and
-    // "chrom" can all resolve to the same app, so keying on the target alone would leave the
-    // original timer running and fire mid-word. Re-keying on every keystroke cancels and
-    // restarts it, which is what "a one second pause" actually means.
-    // An alias that matches the whole input expands on the same pause (T163), and is checked
-    // *before* the app match because an exact alias is T0 and a fuzzy app match is T1 — the
-    // cascade's order has to hold here exactly as it does on Enter, or typing an alias that also
-    // happens to fuzzy-match an app would launch the app instead of expanding.
-    //
-    // **On the pause rather than instantly**, which is what was asked for and would not work:
-    // expanding `a` the moment it is typed puts the caret after `:apps ` and makes `alarm`
-    // unreachable by fuzzy match. That is the trap that made `:notes` untypeable at T140. The
-    // pause is what keeps every longer input reachable, and Enter still expands immediately.
-    val pendingAliasExpansion = expandAlias(input, aliases)
-        // An alias definition ("alias x = y") contains an "=" and is never itself an alias key, but
-        // guarding here keeps the two paths from ever racing.
-        ?.takeIf { parseAliasDefinition(input) == null }
-
-    val currentAutoLaunchTarget = autoLaunchTarget ?: plainMatchTarget
+    val currentAutoLaunchTarget = ui.currentAutoLaunchTarget
 
     LaunchedEffect(pendingAliasExpansion, input) {
         val expansion = pendingAliasExpansion ?: return@LaunchedEffect
@@ -474,7 +432,7 @@ fun ShellScreen(
                 // Priority order is arbitrary in practice — apps-mode input (":apps ...") and
                 // alias definitions ("alias ... = ...") have disjoint shapes, so at most one of
                 // these branches can ever apply to a given input.
-                val aliasAttempt = parseAliasDefinition(input)
+                val aliasAttempt = ui.aliasDefinition
                 val aliasExpansion = aliases[input.trim()]
 
                 // T014 — logged here, once, before the branches run.
