@@ -76,6 +76,7 @@ waking an LLM to reject the word `asdf`.
 | `:alias` | List defined aliases |
 | `:notif` | Browse notifications |
 | `:settings` | Open system settings |
+| `:google <query>` | Search Google in the default browser |
 | `:export` | Write the command log to Downloads as JSONL |
 | `:help` or `?` | Command reference |
 
@@ -180,7 +181,8 @@ cascade-deleting its pending outbox row, which would have dropped edits with no 
 indicator in the status row.
 
 **Aliases.** User-defined shortcuts resolved at T0, stored in Room. A target is checked against
-the installed apps before it is stored, and an ambiguous one is refused rather than guessed.
+the installed apps before it is stored, and an ambiguous one is refused rather than guessed. An
+alias takes arguments, so `a firefox` runs `:apps firefox`.
 
 **Status row.** Clock, date, battery level and unread-notification dot, in immersive fullscreen
 with both system bars hidden.

@@ -10,6 +10,7 @@ import com.flambeauriver.dailydriver.alias.parseAliasDefinition
 import com.flambeauriver.dailydriver.command.CommandLogExportResult
 import com.flambeauriver.dailydriver.command.ReservedCommand
 import com.flambeauriver.dailydriver.command.exportedText
+import com.flambeauriver.dailydriver.search.searchedText
 import com.flambeauriver.dailydriver.command.escalationTier
 import com.flambeauriver.dailydriver.command.helpText
 import com.flambeauriver.dailydriver.command.parseReservedCommand
@@ -95,6 +96,9 @@ class ShellViewModel : ViewModel() {
             // tapping a row, and Enter must not record ":tasks" as a command that ran.
             is ReservedCommand.Tasks -> return
             is ReservedCommand.TasksDone -> return
+            // ShellScreen intercepts this — firing a browser intent needs a Context this
+            // ViewModel doesn't have, same as Settings (T172).
+            is ReservedCommand.Google -> return
             // Like the alias-definition and :task paths: the export awaits a database read and a
             // file write, which this synchronous method can't do, so ShellScreen intercepts and
             // calls onCommandLogExported with the result (T166).
@@ -240,6 +244,28 @@ class ShellViewModel : ViewModel() {
                 is CommandLogExportResult.Failed -> "export failed: ${result.reason}"
             },
         )
+        input = ""
+    }
+
+    /**
+     * Leaves the input at rest after `:google` hands a search to the browser (T172) — same
+     * reasoning as [onSettingsLaunched], plus a transcript line, because unlike `:settings` there
+     * was an argument worth confirming back.
+     */
+    fun onSearchLaunched(submittedInput: String, query: String) {
+        transcript = transcript.record(submittedInput, searchedText(query))
+        input = ""
+    }
+
+    /** `:google` with nothing after it. Says so rather than opening a blank search. */
+    fun onEmptySearch(submittedInput: String) {
+        transcript = transcript.record(submittedInput, "nothing to search — try :google flat white recipe")
+        input = ""
+    }
+
+    /** No browser installed. Rare, and a launcher must still say what happened rather than nothing. */
+    fun onSearchFailed(submittedInput: String) {
+        transcript = transcript.record(submittedInput, "no browser available to open the search")
         input = ""
     }
 

@@ -38,6 +38,17 @@ private const val FAST_SCROLL_THRESHOLD = 20
  * leaving dead space there and making you reach further up for a two-app result. The fast-scroll
  * rail mirrors the same top-to-bottom order as the list so a tapped letter's position on the rail
  * still roughly corresponds to where that letter's apps sit in the list.
+ *
+ * **⚠️ That intent was documented from T012 and did not work until T170.** The view reversed the
+ * list by hand and leaned on `Arrangement.Bottom` to push it down — but an arrangement only
+ * distributes *slack*, so it does nothing once the content is taller than the viewport, which for a
+ * real app list is always. The list therefore opened at item 0 of a reversed list: `z, y, x, w`,
+ * with the whole alphabet to scroll before reaching A. A short filtered result still sat correctly
+ * at the bottom, which is exactly why this survived so long.
+ *
+ * `reverseLayout` is the fix rather than an initial `scrollToItem`: it makes item 0 the *bottom*
+ * item, and a reversed list already starts at item 0. The right resting position falls out instead
+ * of being corrected into place a frame later.
  */
 @Composable
 fun AppListView(
@@ -57,13 +68,13 @@ fun AppListView(
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
-    // apps arrives A→Z (AppIndex's canonical order); reversed here purely for this view's
-    // bottom-up presentation — the underlying index, filtering, and everything else stays A→Z.
-    val displayApps = apps.reversed()
 
     Row(modifier = modifier) {
-        if (displayApps.size > FAST_SCROLL_THRESHOLD) {
-            val letters = displayApps.fastScrollLetters()
+        if (apps.size > FAST_SCROLL_THRESHOLD) {
+            // The rail reads Z→A top to bottom so it mirrors what the reversed layout draws, but
+            // every index it produces is into the A→Z list the LazyColumn is actually given.
+            // Reversing one and not the other sends each letter to the opposite end.
+            val letters = apps.fastScrollLetters().reversed()
             Column(
                 modifier = Modifier.fillMaxHeight().padding(end = 8.dp),
                 verticalArrangement = Arrangement.Bottom,
@@ -74,7 +85,7 @@ fun AppListView(
                         style = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                         modifier = Modifier
                             .clickable {
-                                val index = displayApps.indexOfFirstLabelStartingWith(letter) ?: return@clickable
+                                val index = apps.indexOfFirstLabelStartingWith(letter) ?: return@clickable
                                 coroutineScope.launch { listState.scrollToItem(index) }
                             }
                             .padding(vertical = 2.dp, horizontal = 4.dp),
@@ -96,9 +107,12 @@ fun AppListView(
                 .fillMaxWidth()
                 .fillMaxHeight()
                 .testTag(ShellTestTags.APP_LIST),
-            verticalArrangement = Arrangement.Bottom,
+            // Item 0 is drawn at the bottom and is where the list rests, so A is nearest the
+            // prompt and a filtered result still clusters down there. See the note above for why
+            // Arrangement.Bottom alone could never do this.
+            reverseLayout = true,
         ) {
-            items(displayApps, key = { it.packageName }) { app ->
+            items(apps, key = { it.packageName }) { app ->
                 Text(
                     // Suffixed with a publisher only where the label is ambiguous (T164). Computed
                     // over the *whole* index rather than the filtered list: whether "Messages" is

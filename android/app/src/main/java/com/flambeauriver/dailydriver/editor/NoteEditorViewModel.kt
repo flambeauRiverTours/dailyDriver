@@ -13,8 +13,10 @@ import com.flambeauriver.dailydriver.notes.NotesRepository
 import com.flambeauriver.dailydriver.notes.moved
 import com.flambeauriver.dailydriver.notes.normalized
 import com.flambeauriver.dailydriver.notes.parseTags
+import com.flambeauriver.dailydriver.notes.withTag
 import com.flambeauriver.dailydriver.notes.withoutTag
 import com.flambeauriver.dailydriver.notes.parseChecklist
+import com.flambeauriver.dailydriver.notes.splitTagLines
 import com.flambeauriver.dailydriver.notes.renderChecklist
 import com.flambeauriver.dailydriver.notes.toChecklistBody
 import com.flambeauriver.dailydriver.notes.toNoteBody
@@ -165,7 +167,7 @@ class NoteEditorViewModel(
      * out of step with the text. Re-parsing per read is a handful of string operations on a
      * grocery list — small enough that buying consistency with it is obviously the right trade.
      */
-    val items: List<ChecklistItem> get() = draft?.let { parseChecklist(it.body) }.orEmpty()
+    val items: List<ChecklistItem> get() = draft?.let { parseChecklist(splitTagLines(it.body).content) }.orEmpty()
 
     /**
      * Items as *displayed*: [items], minus the checked ones while [hideChecked] is on (T024).
@@ -290,9 +292,22 @@ class NoteEditorViewModel(
         return mapIndexed { index, item -> if (index == actual) transform(item) else item }
     }
 
-    /** Every item mutation goes through the body, which is what keeps the body authoritative. */
+    /**
+     * Every item mutation goes through the body, which is what keeps the body authoritative.
+     *
+     * **Tag lines are lifted off first and put back after** (T169). `parseChecklist` reads any
+     * non-blank line as an item, so the `#shopping` that `withTag` appends became a checkbox you
+     * could tick. Splitting here rather than teaching the parser to skip them is deliberate twice
+     * over: the parser is a cross-language contract pinned by `fixtures/checklist-parsing.json`,
+     * and — more immediately — this line is `render(transform(parse(body)))`, so a line the parser
+     * dropped is a line the render would never write back. The first tag added would vanish on the
+     * next keystroke.
+     */
     private fun editItems(transform: (List<ChecklistItem>) -> List<ChecklistItem>) =
-        edit { it.copy(body = renderChecklist(transform(parseChecklist(it.body)))) }
+        edit {
+            val parts = splitTagLines(it.body)
+            it.copy(body = parts.rejoin(renderChecklist(transform(parseChecklist(parts.content)))))
+        }
 
     // --- tags (T139) --------------------------------------------------------------------------------
 
@@ -312,15 +327,61 @@ class NoteEditorViewModel(
     }
 
     /**
-     * `+ tag` — appends a bare `#` to the body and hands the cursor back to it (T139).
+     * The tag being typed on a checklist, or null when no tag entry is open (T169).
      *
-     * Deliberately not a second text field. The body is already the one place tags are written,
-     * and a separate input would need its own validation, its own idea of what a tag may contain,
-     * and would be a second writer of the same fact. Typing the name after the `#` is the same
-     * gesture that has always created a tag here.
+     * Only ever non-null in checklist mode — see [startAddingTag].
+     */
+    var tagEntry: String? by mutableStateOf(null)
+        private set
+
+    /**
+     * `+ tag` — on a prose note, appends a bare `#` to the body and hands the cursor back to it
+     * (T139). **On a checklist, opens a one-line tag input instead** (T169).
+     *
+     * T139 chose the append-a-`#` gesture precisely so tags had no second text field, and that
+     * reasoning still holds for prose: the body is right there, and typing `#work` into it is the
+     * same gesture that has always made a tag.
+     *
+     * **A checklist has no body field for the cursor to go back to.** Its body renders as rows, so
+     * the bare `#` landed as a checkbox you could tick, and typing the name into it produced
+     * `- [ ] #shopping` — an item that looks like a tag and can never become one. That was the
+     * reported bug, and no amount of tag-line splitting reaches it: the text never has the shape of
+     * a tag line in the first place.
+     *
+     * **This is still not a second writer of the tag set.** The input is transient and its only
+     * action is [commitTag], which calls the same `withTag` the chips already use. Everything is
+     * stored in the body and derived from it, exactly as before.
      */
     fun startAddingTag() {
-        edit { it.copy(body = if (it.body.isEmpty()) "#" else it.body.trimEnd() + "\n#") }
+        val current = draft ?: return
+        if (current.type == NoteType.CHECKLIST) {
+            tagEntry = ""
+        } else {
+            edit { it.copy(body = if (it.body.isEmpty()) "#" else it.body.trimEnd() + "\n#") }
+        }
+    }
+
+    fun onTagEntryChange(value: String) {
+        if (tagEntry != null) tagEntry = value
+    }
+
+    /**
+     * Commits whatever is in the tag entry and closes it.
+     *
+     * A blank entry just closes, so tapping `+ tag` and changing your mind costs nothing. `withTag`
+     * does the rest: it already refuses a name with no letters in it, and is idempotent, so
+     * committing a tag the note already carries is a no-op rather than a duplicate chip.
+     */
+    fun commitTag() {
+        val typed = tagEntry ?: return
+        tagEntry = null
+        if (typed.isBlank()) return
+        edit { it.copy(body = withTag(it.body, typed)) }
+    }
+
+    /** Abandons the tag entry without writing anything. */
+    fun cancelTag() {
+        tagEntry = null
     }
 
     // --- conversion (T024) ------------------------------------------------------------------------
@@ -344,9 +405,14 @@ class NoteEditorViewModel(
         }
         val becomingChecklist = current.type == NoteType.NOTE
         edit {
+            // Tags survive the conversion untouched (T169) — they are a property of the note, not
+            // of whether it currently renders as prose or as checkboxes.
+            val parts = splitTagLines(it.body)
             it.copy(
                 type = if (becomingChecklist) NoteType.CHECKLIST else NoteType.NOTE,
-                body = if (becomingChecklist) toChecklistBody(it.body) else toNoteBody(it.body),
+                body = parts.rejoin(
+                    if (becomingChecklist) toChecklistBody(parts.content) else toNoteBody(parts.content),
+                ),
             )
         }
         if (!becomingChecklist) {
@@ -417,8 +483,11 @@ class NoteEditorViewModel(
     private fun tidyChecklistForStorage() {
         val current = draft ?: return
         if (current.type != NoteType.CHECKLIST) return
-        val kept = parseChecklist(current.body).map { it.copy(text = resolveDueInText(it.text, LocalDate.now())) }.cleaned()
-        draft = current.copy(body = renderChecklist(kept))
+        val parts = splitTagLines(current.body)
+        val kept = parseChecklist(parts.content)
+            .map { it.copy(text = resolveDueInText(it.text, LocalDate.now())) }
+            .cleaned()
+        draft = current.copy(body = parts.rejoin(renderChecklist(kept)))
     }
 
     /**

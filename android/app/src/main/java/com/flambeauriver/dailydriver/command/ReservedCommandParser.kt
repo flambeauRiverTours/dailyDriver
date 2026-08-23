@@ -40,6 +40,9 @@ const val ALIAS_TOKEN = ":alias"
 /** Command token for `:notif`, exposed for the same reason as [APPS_TOKEN]. */
 const val NOTIF_TOKEN = ":notif"
 
+/** Command token for `:google`, exposed for the same reason as [APPS_TOKEN]. */
+const val GOOGLE_TOKEN = ":google"
+
 /** Command token for `:export`, exposed for the same reason as [APPS_TOKEN]. */
 const val EXPORT_TOKEN = ":export"
 
@@ -108,6 +111,9 @@ private val registry = listOf(
     },
     RegisteredCommand(NOTIF_TOKEN, CommandHelp(":notif", "browse notifications")) {
         ReservedCommand.Notif
+    },
+    RegisteredCommand(GOOGLE_TOKEN, CommandHelp(":google <query>", "search Google in the browser")) { query ->
+        ReservedCommand.Google(query)
     },
     RegisteredCommand(EXPORT_TOKEN, CommandHelp(":export", "write the command log to Downloads")) {
         ReservedCommand.Export

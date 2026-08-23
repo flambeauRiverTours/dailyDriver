@@ -141,21 +141,24 @@ fun StatusLine(
             .padding(bottom = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Grouped so SpaceBetween still pushes exactly two things apart — dot and time travel
-        // together at the left edge, date stays pinned right.
+        // Time and date travel together at the left edge (T171). They are one piece of information
+        // and get read as one — "when is it" — so splitting them across the full width of the
+        // screen made you look twice for something you glance at. Battery is the thing that
+        // genuinely stands alone, so it gets the far side to itself.
         Row {
             // Undimmed, unlike the time and date: the dot is the one thing here worth noticing.
             Text(text = unreadIndicator(unread), style = textStyle)
             Text(text = text.time, style = dim)
-        }
-        // Date and battery travel together at the right edge, so SpaceBetween still separates
-        // exactly two groups.
-        Row {
+            // A separator rather than space alone. Once the date sat next to the time the two ran
+            // together as one string, and the blinking colon makes it worse: the time alternates
+            // between "4:28" and "4 28", so at every other tick the only thing dividing the fields
+            // was a gap the same width as the one inside the time itself.
+            Text(text = "·", style = dim, modifier = Modifier.padding(horizontal = 8.dp))
             Text(text = text.date, style = dim)
-            // Separated by layout, not by a space inside the string: the battery cell's own
-            // leading column is the charging marker, so when charging there is nothing left to
-            // separate it from the date and it reads as "Aug+100%". Found by looking at it.
-            Text(text = battery, style = dim, modifier = Modifier.padding(start = 8.dp))
         }
+        // Separated by layout, not by a space inside the string: the battery cell's own leading
+        // column is the charging marker, so when charging there is nothing left to separate it
+        // from whatever precedes it and it reads as "Aug+100%". Found by looking at it.
+        Text(text = battery, style = dim, modifier = Modifier.padding(start = 8.dp))
     }
 }

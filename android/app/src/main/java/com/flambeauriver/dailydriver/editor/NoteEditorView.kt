@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
@@ -69,6 +71,7 @@ internal object EditorTestTags {
     const val UNDO_ACTION = "editor_undo"
     const val TAG_CHIPS = "editor_tag_chips"
     const val ADD_TAG = "editor_add_tag"
+    const val TAG_ENTRY = "editor_tag_entry"
     fun tagChip(tag: String) = "editor_tag_chip_$tag"
 }
 
@@ -99,6 +102,10 @@ fun NoteEditorView(
     tags: List<String>,
     onRemoveTag: (String) -> Unit,
     onAddTag: () -> Unit,
+    /** Non-null while a checklist's tag input is open (T169); always null for a prose note. */
+    tagEntry: String?,
+    onTagEntryChange: (String) -> Unit,
+    onCommitTag: () -> Unit,
     onTitleChange: (String) -> Unit,
     onBodyChange: (String) -> Unit,
     onKeep: () -> Unit,
@@ -245,6 +252,9 @@ fun NoteEditorView(
             tags = tags,
             onRemoveTag = onRemoveTag,
             onAddTag = onAddTag,
+            tagEntry = tagEntry,
+            onTagEntryChange = onTagEntryChange,
+            onCommitTag = onCommitTag,
             textStyle = textStyle,
         )
 
@@ -383,9 +393,17 @@ fun UndoRow(
  * The tag chips row (T139).
  *
  * **A view over the body's hashtags, not a second place tags live.** Tapping a chip removes that
- * tag from the body; `+ tag` appends a `#` and hands the cursor back to the body so you type the
- * name in the one field that already exists. `NoteDao` still derives tags from the body and still
- * ignores anything passed in, so nothing downstream can tell a chip from typing.
+ * tag from the body. `NoteDao` still derives tags from the body and still ignores anything passed
+ * in, so nothing downstream can tell a chip from typing.
+ *
+ * `+ tag` has two shapes, for one reason (T169). On a prose note it appends a `#` and hands the
+ * cursor back to the body, so you type the name in the field that already exists. **A checklist has
+ * no such field** — its body renders as rows — so that `#` used to land as a checkbox you could
+ * tick, and typing into it made `- [ ] #shopping`, an item shaped like a tag that could never
+ * become one. In checklist mode [tagEntry] is non-null and this row shows a one-line input instead.
+ *
+ * That input is still not a second writer of the tag set: it is transient, and committing it calls
+ * the same `withTag` the chips use.
  *
  * Hidden entirely when a note has no tags and you haven't asked to add one — an empty row of
  * nothing is worse than no row on a surface this small.
@@ -395,6 +413,9 @@ private fun TagChipsRow(
     tags: List<String>,
     onRemoveTag: (String) -> Unit,
     onAddTag: () -> Unit,
+    tagEntry: String?,
+    onTagEntryChange: (String) -> Unit,
+    onCommitTag: () -> Unit,
     textStyle: TextStyle,
 ) {
     val dim = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -415,6 +436,45 @@ private fun TagChipsRow(
                 onClick = { onRemoveTag(tag) },
             )
         }
-        EditorAction(label = "+ tag", tag = EditorTestTags.ADD_TAG, style = dim, onClick = onAddTag)
+
+        if (tagEntry == null) {
+            EditorAction(label = "+ tag", tag = EditorTestTags.ADD_TAG, style = dim, onClick = onAddTag)
+        } else {
+            val entryFocus = remember { FocusRequester() }
+            // Opened by a tap, so the keyboard is expected — asking for focus is what makes the
+            // gesture one action rather than "tap the button, then tap the field".
+            LaunchedEffect(Unit) { entryFocus.requestFocus() }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // The "#" is rendered, not typed. It is the one character every tag must have, so
+                // making you enter it is asking for input that can only be one thing — and typing
+                // it into the field would leave "##work" one slip away.
+                Text(text = "#", style = dim)
+                BasicTextField(
+                    value = tagEntry,
+                    onValueChange = onTagEntryChange,
+                    textStyle = textStyle,
+                    singleLine = true,
+                    cursorBrush = SolidColor(textStyle.color),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                        // A tag is a token, not prose. Autocorrect on a short unfamiliar word is
+                        // mostly a way to store a tag you did not mean, and tags are matched
+                        // exactly (note_tags), so a silent substitution never finds its way back.
+                        autoCorrectEnabled = false,
+                    ),
+                    // Done commits. Enter is the only spare key on a soft keyboard, and the tag
+                    // being one line means there is nothing else it could reasonably do here.
+                    keyboardActions = KeyboardActions(onDone = { onCommitTag() }),
+                    modifier = Modifier
+                        .focusRequester(entryFocus)
+                        // Committing on focus loss rather than dropping the text: tapping away
+                        // from a field you have typed into reads as "done", not "discard", and
+                        // discard is already available by leaving it blank.
+                        .onFocusChanged { if (!it.isFocused && tagEntry.isNotBlank()) onCommitTag() }
+                        .testTag(EditorTestTags.TAG_ENTRY),
+                )
+            }
+        }
     }
 }
