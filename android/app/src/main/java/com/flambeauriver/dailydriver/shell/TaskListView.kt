@@ -1,16 +1,12 @@
 package com.flambeauriver.dailydriver.shell
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,27 +42,21 @@ fun TaskListView(
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
 ) {
-    // Reversed like every other list here: the row nearest the prompt is the one your thumb is
-    // already on. The query hands them over soonest-first, so reversing puts the most urgent
-    // task closest to hand.
-    val rows = tasks.reversed()
-
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .fillMaxHeight()
-            .testTag(ShellTestTags.TASK_LIST),
-        verticalArrangement = Arrangement.Bottom,
-    ) {
-        items(rows, key = { "${it.noteId}:${it.position}" }) { task ->
-            TaskRowView(
-                task = task,
-                today = today,
-                onToggle = { onToggle(task) },
-                onOpenNote = { onOpenNote(task) },
-                textStyle = textStyle,
-            )
-        }
+    // Soonest first from the query, so item 0 is the most urgent and BottomAnchoredList puts it
+    // nearest the prompt. Passed in natural order — see that file on why not to reverse here.
+    BottomAnchoredList(
+        rows = tasks,
+        key = { "${it.noteId}:${it.position}" },
+        testTag = ShellTestTags.TASK_LIST,
+        modifier = modifier,
+    ) { task ->
+        TaskRowView(
+            task = task,
+            today = today,
+            onToggle = { onToggle(task) },
+            onOpenNote = { onOpenNote(task) },
+            textStyle = textStyle,
+        )
     }
 }
 

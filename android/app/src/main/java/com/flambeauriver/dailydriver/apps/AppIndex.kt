@@ -14,7 +14,7 @@ class AppIndex {
     /**
      * A single package can expose more than one CATEGORY_LAUNCHER activity — PackageManager
      * returns one entry per activity, not per package (confirmed on-device: Google's app does
-     * this). AppLauncher can only ever launch a package's one default activity regardless of
+     * this). IntentLauncher can only ever launch a package's one default activity regardless of
      * which duplicate is tapped, so distinctBy here isn't just satisfying LazyColumn's unique-key
      * requirement — showing both rows would be misleading, since they'd do the same thing.
      * Applied after sorting so the kept duplicate is deterministic (alphabetically-first label),

@@ -167,7 +167,7 @@ class NoteEditorViewModel(
      * out of step with the text. Re-parsing per read is a handful of string operations on a
      * grocery list — small enough that buying consistency with it is obviously the right trade.
      */
-    val items: List<ChecklistItem> get() = draft?.let { parseChecklist(splitTagLines(it.body).content) }.orEmpty()
+    val items: List<ChecklistItem> get() = draft?.let { checklistOf(it.body) }.orEmpty()
 
     /**
      * Items as *displayed*: [items], minus the checked ones while [hideChecked] is on (T024).
@@ -303,11 +303,31 @@ class NoteEditorViewModel(
      * dropped is a line the render would never write back. The first tag added would vanish on the
      * next keystroke.
      */
+    /**
+     * Rewrites a body's checklist content while leaving its tag lines alone (T169/T177).
+     *
+     * **Every read or write of a checklist body goes through here or [checklistOf].** `withTag`
+     * appends a tag on its own line and `parseChecklist` reads any non-blank line as an item, so a
+     * body handed straight to the parser turns `#shopping` into a checkbox you can tick. The split
+     * used to be applied by hand at four call sites, which is one "remember to do this" away from
+     * the bug coming back — and "remember to apply it everywhere" is exactly how T169 happened.
+     *
+     * **Deliberately not solved inside `parseChecklist`.** It is a cross-language contract pinned
+     * by `fixtures/checklist-parsing.json`, and — more immediately — this is
+     * `render(transform(parse(body)))`, so a line the parser dropped is a line the render would
+     * never write back. Teaching it to skip tag lines would delete the first tag you added.
+     */
+    private inline fun editBody(body: String, transform: (content: String) -> String): String {
+        val parts = splitTagLines(body)
+        return parts.rejoin(transform(parts.content))
+    }
+
+    /** The checklist items in a body, with tag lines excluded. See [editBody]. */
+    private fun checklistOf(body: String): List<ChecklistItem> =
+        parseChecklist(splitTagLines(body).content)
+
     private fun editItems(transform: (List<ChecklistItem>) -> List<ChecklistItem>) =
-        edit {
-            val parts = splitTagLines(it.body)
-            it.copy(body = parts.rejoin(renderChecklist(transform(parseChecklist(parts.content)))))
-        }
+        edit { it.copy(body = editBody(it.body) { content -> renderChecklist(transform(parseChecklist(content))) }) }
 
     // --- tags (T139) --------------------------------------------------------------------------------
 
@@ -407,12 +427,11 @@ class NoteEditorViewModel(
         edit {
             // Tags survive the conversion untouched (T169) — they are a property of the note, not
             // of whether it currently renders as prose or as checkboxes.
-            val parts = splitTagLines(it.body)
             it.copy(
                 type = if (becomingChecklist) NoteType.CHECKLIST else NoteType.NOTE,
-                body = parts.rejoin(
-                    if (becomingChecklist) toChecklistBody(parts.content) else toNoteBody(parts.content),
-                ),
+                body = editBody(it.body) { content ->
+                    if (becomingChecklist) toChecklistBody(content) else toNoteBody(content)
+                },
             )
         }
         if (!becomingChecklist) {
@@ -483,11 +502,14 @@ class NoteEditorViewModel(
     private fun tidyChecklistForStorage() {
         val current = draft ?: return
         if (current.type != NoteType.CHECKLIST) return
-        val parts = splitTagLines(current.body)
-        val kept = parseChecklist(parts.content)
-            .map { it.copy(text = resolveDueInText(it.text, LocalDate.now())) }
-            .cleaned()
-        draft = current.copy(body = parts.rejoin(renderChecklist(kept)))
+        draft = current.copy(
+            body = editBody(current.body) { content ->
+                val kept = parseChecklist(content)
+                    .map { it.copy(text = resolveDueInText(it.text, LocalDate.now())) }
+                    .cleaned()
+                renderChecklist(kept)
+            },
+        )
     }
 
     /**

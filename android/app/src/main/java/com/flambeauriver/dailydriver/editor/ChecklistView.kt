@@ -206,30 +206,7 @@ private fun ChecklistRow(
     textStyle: TextStyle,
     dimStyle: TextStyle,
 ) {
-    val focusRequester = remember { FocusRequester() }
-
-    // Tracks whether this row *had* focus, so commit fires on a real focus loss rather than on the
-    // initial `false` every row reports when it first composes. Without it, every row would commit
-    // once on appearing and dirty the body for nothing.
-    var hadFocus by remember { mutableStateOf(false) }
-
-    // A newly added row takes the cursor, so `+ item` and Enter both leave you typing rather than
-    // aiming. Guarded on `autoFocus` so it fires for the new row only — every other row would
-    // otherwise grab focus back on its first composition.
-    //
-    // `withFrameNanos` first, and it's load-bearing: on a row composed this same frame the
-    // `focusRequester` modifier node hasn't attached yet, and requesting focus against it logs
-    // "FocusRequester is not initialized" and does nothing. It fails *quietly* — the row appears,
-    // the keyboard doesn't, and the next thing you type goes nowhere. Waiting a frame lets the
-    // node attach first. (Found on-device; the request is issued either way, so nothing but
-    // looking at the screen shows the difference.)
-    LaunchedEffect(autoFocus) {
-        if (autoFocus) {
-            withFrameNanos { }
-            focusRequester.requestFocus()
-            onFocusClaimed()
-        }
-    }
+    val focusRequester = rememberAutoFocus(autoFocus, onFocusClaimed)
 
     Row(
         modifier = Modifier
@@ -249,29 +226,7 @@ private fun ChecklistRow(
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The gesture lives on the handle, not the row — see DRAG_HANDLE for why. A plain drag
-        // rather than a long-press one, now that nothing else is competing for the pointer: the
-        // handle exists only to be dragged, so making you hold it first would be a wait for
-        // nothing.
-        Box(
-            modifier = Modifier
-                .sizeIn(minWidth = 40.dp, minHeight = 48.dp)
-                .testTag(ChecklistTestTags.handle(index))
-                .pointerInput(index) {
-                    detectDragGestures(
-                        onDragStart = { onDragStart() },
-                        onDragEnd = { onDragEnd() },
-                        onDragCancel = { onDragEnd() },
-                        onDrag = { change, amount ->
-                            change.consume()
-                            onDrag(amount.y)
-                        },
-                    )
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text = DRAG_HANDLE, style = dimStyle)
-        }
+        DragHandle(index, onDragStart, onDrag, onDragEnd, dimStyle)
 
         EditorAction(
             label = if (item.checked) CHECKED else UNCHECKED,
@@ -280,66 +235,174 @@ private fun ChecklistRow(
             onClick = { onCheckedChange(!item.checked) },
         )
 
-        BasicTextField(
-            value = item.text,
-            onValueChange = onTextChange,
-            // Struck through and dimmed when checked — the row stays readable (you want to see
-            // what you already got) while being obviously done.
-            textStyle = if (item.checked) {
-                dimStyle.copy(textDecoration = TextDecoration.LineThrough)
-            } else {
-                textStyle
-            },
-            singleLine = true,
-            cursorBrush = SolidColor(textStyle.color),
-            // Enter adds the next item, which is what makes a list typeable in one go without
-            // reaching for `+ item` between every line.
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next, autoCorrectEnabled = true),
-            keyboardActions = KeyboardActions(onNext = { onEnter() }),
-            modifier = Modifier
-                .weight(1f)
-                .focusRequester(focusRequester)
-                // Date shortcuts resolve here, on the way *out* of the row. Doing it on every
-                // keystroke would rewrite text under a live cursor, which is the T023 bug, and this
-                // field's cursor snaps to the end on any external change.
-                .onFocusChanged { if (!it.isFocused && hadFocus) onCommit() }
-                .onFocusChanged { hadFocus = it.isFocused }
-                .testTag(ChecklistTestTags.item(index)),
+        ItemTextField(
+            item = item,
+            index = index,
+            focusRequester = focusRequester,
+            onTextChange = onTextChange,
+            onEnter = onEnter,
+            onCommit = onCommit,
+            textStyle = textStyle,
+            dimStyle = dimStyle,
+            modifier = Modifier.weight(1f),
         )
 
-        // The due date sits between the text and the delete, and is tappable to clear. It is the
-        // only way to remove a date: the token is lifted out of the text on parse, so it cannot be
-        // backspaced away in the field. Changing one needs no affordance — type another `@...` and
-        // last-wins takes it.
-        item.due?.let { due ->
-            val label = dueLabel(due, today)
-            Box(
-                modifier = Modifier
-                    .sizeIn(minHeight = 48.dp)
-                    .clickable(onClick = onClearDue)
-                    .padding(horizontal = 4.dp)
-                    .testTag(ChecklistTestTags.due(index)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = label.text,
-                    // Overdue is coloured, but the date is still shown either way — colour is never
-                    // the only signal, and "how late" is the thing you actually need to judge.
-                    style = if (label.overdue) {
-                        dimStyle.copy(color = MaterialTheme.colorScheme.error)
-                    } else {
-                        dimStyle
-                    },
-                    maxLines = 1,
-                )
-            }
-        }
+        item.due?.let { DueChip(it, index, today, onClearDue, dimStyle) }
 
         EditorAction(
             label = "×",
             tag = ChecklistTestTags.delete(index),
             style = dimStyle,
             onClick = onDelete,
+        )
+    }
+}
+
+/**
+ * A [FocusRequester] that claims the cursor once, when [autoFocus] turns true.
+ *
+ * A newly added row takes the cursor, so `+ item` and Enter both leave you typing rather than
+ * aiming. Guarded on [autoFocus] so it fires for the new row only — every other row would
+ * otherwise grab focus back on its first composition.
+ *
+ * **`withFrameNanos` first, and it is load-bearing.** On a row composed this same frame the
+ * `focusRequester` modifier node has not attached yet, and requesting focus against it logs
+ * "FocusRequester is not initialized" and does nothing. It fails *quietly*: the row appears, the
+ * keyboard does not, and the next thing you type goes nowhere. Waiting a frame lets the node
+ * attach. Found on-device — the request is issued either way, so only looking at the screen shows
+ * the difference.
+ */
+@Composable
+private fun rememberAutoFocus(autoFocus: Boolean, onFocusClaimed: () -> Unit): FocusRequester {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(autoFocus) {
+        if (autoFocus) {
+            withFrameNanos { }
+            focusRequester.requestFocus()
+            onFocusClaimed()
+        }
+    }
+    return focusRequester
+}
+
+/**
+ * The drag affordance.
+ *
+ * **⚠️ The gesture lives on this handle, not on the row, and that is not stylistic.** A row is
+ * mostly a `BasicTextField`, and a text field claims long-press for its own selection — so a
+ * drag gesture attached to the row never fired at all. See [DRAG_HANDLE].
+ *
+ * A plain drag rather than a long-press one, now that nothing competes for the pointer: the handle
+ * exists only to be dragged, so making you hold it first would be a wait for nothing.
+ */
+@Composable
+private fun DragHandle(
+    index: Int,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+    style: TextStyle,
+) {
+    Box(
+        modifier = Modifier
+            .sizeIn(minWidth = 40.dp, minHeight = 48.dp)
+            .testTag(ChecklistTestTags.handle(index))
+            .pointerInput(index) {
+                detectDragGestures(
+                    onDragStart = { onDragStart() },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() },
+                    onDrag = { change, amount ->
+                        change.consume()
+                        onDrag(amount.y)
+                    },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = DRAG_HANDLE, style = style)
+    }
+}
+
+/** The row's editable text. Owns [hadFocus] because that is what the commit rule is about. */
+@Composable
+private fun ItemTextField(
+    item: ChecklistItem,
+    index: Int,
+    focusRequester: FocusRequester,
+    onTextChange: (String) -> Unit,
+    onEnter: () -> Unit,
+    onCommit: () -> Unit,
+    textStyle: TextStyle,
+    dimStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    // Tracks whether this row *had* focus, so commit fires on a real focus loss rather than on the
+    // initial `false` every row reports when it first composes. Without it, every row would commit
+    // once on appearing and dirty the body for nothing.
+    var hadFocus by remember { mutableStateOf(false) }
+
+    BasicTextField(
+        value = item.text,
+        onValueChange = onTextChange,
+        // Struck through and dimmed when checked — the row stays readable (you want to see what
+        // you already got) while being obviously done.
+        textStyle = if (item.checked) {
+            dimStyle.copy(textDecoration = TextDecoration.LineThrough)
+        } else {
+            textStyle
+        },
+        singleLine = true,
+        cursorBrush = SolidColor(textStyle.color),
+        // Enter adds the next item, which is what makes a list typeable in one go without reaching
+        // for `+ item` between every line.
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next, autoCorrectEnabled = true),
+        keyboardActions = KeyboardActions(onNext = { onEnter() }),
+        modifier = modifier
+            .focusRequester(focusRequester)
+            // Date shortcuts resolve here, on the way *out* of the row. Doing it on every keystroke
+            // would rewrite text under a live cursor, which is the T023 bug, and this field's
+            // cursor snaps to the end on any external change.
+            .onFocusChanged { if (!it.isFocused && hadFocus) onCommit() }
+            .onFocusChanged { hadFocus = it.isFocused }
+            .testTag(ChecklistTestTags.item(index)),
+    )
+}
+
+/**
+ * The due date, between the text and the delete, tappable to clear.
+ *
+ * **Tapping is the only way to remove a date**: the token is lifted out of the text on parse, so it
+ * cannot be backspaced away in the field. Changing one needs no affordance — type another `@...`
+ * and last-wins takes it.
+ */
+@Composable
+private fun DueChip(
+    due: LocalDate,
+    index: Int,
+    today: LocalDate,
+    onClear: () -> Unit,
+    dimStyle: TextStyle,
+) {
+    val label = dueLabel(due, today)
+    Box(
+        modifier = Modifier
+            .sizeIn(minHeight = 48.dp)
+            .clickable(onClick = onClear)
+            .padding(horizontal = 4.dp)
+            .testTag(ChecklistTestTags.due(index)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label.text,
+            // Overdue is coloured, but the date is still shown either way — colour is never the
+            // only signal, and "how late" is the thing you actually need to judge.
+            style = if (label.overdue) {
+                dimStyle.copy(color = MaterialTheme.colorScheme.error)
+            } else {
+                dimStyle
+            },
+            maxLines = 1,
         )
     }
 }

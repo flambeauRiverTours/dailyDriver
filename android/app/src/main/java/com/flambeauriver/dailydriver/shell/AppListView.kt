@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -94,38 +93,26 @@ fun AppListView(
             }
         }
 
-        LazyColumn(
+        // The rail scrolls this programmatically, so it needs the shared list's state (T176).
+        BottomAnchoredList(
+            rows = apps,
+            key = { it.packageName },
+            testTag = ShellTestTags.APP_LIST,
             state = listState,
-            // fillMaxHeight is load-bearing, not decoration: verticalArrangement only has an
-            // effect when the LazyColumn is TALLER than its content, since what it arranges is
-            // the leftover slack. Inside a Row, fillMaxWidth alone leaves the LazyColumn sized to
-            // its content and top-aligned, so Arrangement.Bottom silently does nothing. (The
-            // transcript's LazyColumn in ShellScreen gets its full height from Column weight(1f)
-            // instead — same visual result, different mechanism. The weight(1f) passed into
-            // AppListView applies to the enclosing Row, not to this.)
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight()
-                .testTag(ShellTestTags.APP_LIST),
-            // Item 0 is drawn at the bottom and is where the list rests, so A is nearest the
-            // prompt and a filtered result still clusters down there. See the note above for why
-            // Arrangement.Bottom alone could never do this.
-            reverseLayout = true,
-        ) {
-            items(apps, key = { it.packageName }) { app ->
-                Text(
-                    // Suffixed with a publisher only where the label is ambiguous (T164). Computed
-                    // over the *whole* index rather than the filtered list: whether "Messages" is
-                    // ambiguous is a property of what is installed, not of what the current query
-                    // happens to have narrowed to.
-                    text = names[app.packageName] ?: app.label,
-                    style = textStyle,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onAppClick(app) }
-                        .padding(vertical = 8.dp),
-                )
-            }
+            modifier = Modifier.fillMaxWidth(),
+        ) { app ->
+            Text(
+                // Suffixed with a publisher only where the label is ambiguous (T164). Computed
+                // over the *whole* index rather than the filtered list: whether "Messages" is
+                // ambiguous is a property of what is installed, not of what the current query
+                // happens to have narrowed to.
+                text = names[app.packageName] ?: app.label,
+                style = textStyle,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onAppClick(app) }
+                    .padding(vertical = 8.dp),
+            )
         }
     }
 }

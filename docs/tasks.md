@@ -491,6 +491,72 @@ Tiered cascade. **The SLM is not the front door.**
   - Not every app publishes anything useful, so the feature degrades to nothing on those. The UI has to say so rather than look broken.
   - **Rejected alternatives.** Standard intent actions (`ACTION_SENDTO` + `smsto:`, `ACTION_DIAL` + `tel:`) are generic but capability-shaped rather than app-shaped, and resolving a *name* to a number needs Contacts — a real privacy step for a launcher that currently reads none. Per-app deep links (`spotify:search:`, `wa.me/`) work today and are an unbounded table of undocumented URIs that break without warning.
 
+- [x] **T175** — `:notes` and `:tasks` open at the wrong end  
+  `P1` `S` · after: T170
+  - **🐛 The same defect T170 fixed in `AppListView`, still present in two more copies.** `NoteListView` and `TaskListView` both do `.reversed()` then lean on `Arrangement.Bottom`, which distributes *slack* and therefore does nothing once the content is taller than the viewport.
+  - Their own comments state the intent that is not being met: notes should put "the newest note closest to the prompt", tasks "the most urgent task closest to hand". On overflow both open at index 0 instead — the **oldest** notes, the **least urgent** tasks.
+  - `NotifListView` uses `Arrangement.Bottom` with no reverse at all; check what it is actually trying to do before changing it, rather than assuming it has the same bug.
+  - **Invisible until the list is long**, which is exactly why T170 survived from T012. Reproduce with enough rows to overflow before fixing, so the fix is verified rather than reasoned.
+  - Fix as T170 did: `reverseLayout = true` over the unreversed list. Do not paper over it with an initial `scrollToItem`, which corrects the position a frame late.
+  - **Reproduced first, as the task demanded.** 16 seeded tasks: `:tasks` opened on task16 → task10, the *least* urgent, with the soonest nine below the fold. Fixed and re-shot: task01 now sits directly above the prompt.
+  - `:notes` confirmed the same way with 10 seeded notes — the newest is now nearest the prompt.
+  - **`NotifListView` was a third variant, not a fourth copy.** It had no hand-reversed list, so only its *resting position* was wrong; its content order was already right. Adopting the fix therefore **flips the order of a short list**, which is the common case for notifications. Done deliberately: every other view in the shell puts item 0 nearest the prompt, and this one's own docs already claimed "the same bottom-anchored shape as `AppListView`" while doing something else. ⚠️ Not verified on-device — overflowing it needs granted notification access and more notifications than an idle emulator produces.
+
+- [x] **T176** — One bottom-anchored list, not four  
+  `P2` `M` · after: T175
+  - Four views (`AppListView`, `NoteListView`, `NotifListView`, `TaskListView`, ~390 lines) each hand-roll the same bottom-anchored `LazyColumn`. **Three of the four got it wrong**, which is the case for extracting it: T170 and T175 are one bug found twice because there was no single place to be right.
+  - Extract a `BottomAnchoredList` taking rows, a key, a test tag and row content. The differences that must survive: `AppListView`'s fast-scroll rail, `NoteListView`'s two-line rows, `TaskListView`'s due labels and toggle.
+  - ⚠️ Do this **after** T175, not instead of it. Fixing the bug inside a refactor makes it impossible to tell which change fixed what.
+  - Built as `shell/BottomAnchoredList.kt`; all four views converted. `AppListView` passes its own `LazyListState` so the fast-scroll rail can still scroll programmatically.
+  - **The component's doc carries the warning that matters**: callers pass rows in *natural* order and must not reverse first. Reversing the data *and* the layout cancels out, which is precisely how three of the four views got it wrong.
+  - Suite unchanged at 725 — the right signal for a refactor. A test needing an edit would have meant this was not one.
+
+- [x] **T177** — Collapse the three launchers, make `splitTagLines` structural  
+  `P2` `S` · after: T172, T169
+  - `AppLauncher`, `SettingsLauncher` and `WebSearchLauncher` are 93 lines of one shape: build an Intent, add `FLAG_ACTIVITY_NEW_TASK`, `try`/`catch ActivityNotFoundException`, return Boolean. One `IntentLauncher` with three factory functions is about a third of that.
+  - `NoteEditorViewModel` applies `splitTagLines` at **four** call sites by hand. Replace with one `editBody { content -> … }` helper so the split is structural rather than remembered — "remember to apply it everywhere" is precisely how T169 happened.
+  - Both are cleanups with no behaviour change, so the existing suite is the check: if a test changes, something was not a cleanup.
+  - `shell/IntentLauncher.kt` replaces `AppLauncher`, `SettingsLauncher` and `WebSearchLauncher` (93 lines → 60 including more documentation than all three carried). All three paths verified on an emulator: `openSettings` → Settings, `openUrl` → Chrome, `launchApp` → Clock via a T1 fuzzy match.
+  - `settings/` is now an empty package and was removed.
+  - `editBody { content -> … }` and `checklistOf(body)` replace the four hand-applied `splitTagLines` calls in `NoteEditorViewModel`. The split is now structural: there is no way to read or rewrite a checklist body that skips it.
+
+- [x] **T178** — Command dispatch lives in two places  
+  `P1` `L` · after: T140
+  - **`ShellViewModel.onSubmit()` has 12 branches and 11 are a bare `return`.** Only `:help` does anything. Each no-op carries a comment saying ShellScreen intercepts it first — so the ViewModel that owns the state does almost none of the deciding, and the composable that should only render does most of it.
+  - **Not sloppiness — forced.** A command needs a `Context` (launchers) or a suspend Room write, and the ViewModel has neither. Every command since has been answered with another callback.
+  - The costs are measurable: **30 parameters** on `ShellScreen`; **15** ViewModel methods that are only `transcript.record(…)` then `input = ""`; four `reservedCommand as?` downcasts plus a four-branch `if/else-if` re-deriving what the parser already knew.
+  - **Fix: the registry should map a token to *behaviour*, not just to a parsed variant.** T140 already owns token → `ReservedCommand`; extend it to a handler returning **effects as data** (`LaunchApp(pkg)`, `OpenUrl(url)`, `Record(text)`) that `MainActivity` performs. `onSubmit` becomes one dispatch, `ShellScreen` goes back to rendering, and adding a command is one registry entry instead of edits across four files. Most of the 30 parameters and all 15 pass-through methods fall out.
+  - ⚠️ **Highest-risk item on this list — plan it before starting.** It touches every command, and the registry property tests (T150) are the safety net that makes it feasible at all. Do T175–T177 first; they are independent and shrink the surface this has to move.
+  - **Don't take this as licence to add DI.** `MainActivity`'s nine `lateinit` fields look like the smell, but with one Activity and no test seams, Hilt would cost more than it returns. The problem is where decisions are made, not how objects are built.
+  - Built as `command/CommandEnvironment.kt` (the seam) + `command/CommandDispatch.kt` (the single dispatch) + a `ShellViewModel.factory`. **Results: `ShellScreen` 30 parameters → 22 and 295 → 222 code lines; `ShellViewModel` 278 → 148 lines with the 15 record-and-clear methods gone; `MainActivity.onCreate` 114 → 60 code lines.** No DI framework, as the note above insisted.
+  - **🔎 The refactor found a UX regression in itself, and the tests caught it.** Clearing the prompt unconditionally on submit closed the browse list you were still filtering — `:apps ca` + Enter threw away the filter that produced the list. The old eleven no-ops had been quietly encoding that. Fixed with a third outcome, `CommandOutcome.Stay`: a browse view with nothing to commit to keeps what was typed, and clearing is the *outcome's* decision rather than the caller's.
+  - **🐛 And it found a second regression, only visible in the exported log.** Moving the logging dropped `ShellScreen`'s deliberate exclusion of alias *definitions*, so `alias a = :apps` started being filed as a **T3 miss** — teaching the training set that a line which worked perfectly was unresolvable. Restored as `isTrainingExample`, with a regression test naming the incident. Nothing but reading a real export would have shown this.
+  - **The folded-in note-pause bug is fixed and verified the only way it can be**: the export now contains a `:notes` row that came from the pause path, which logged nothing before.
+  - Clearing is deferred until dispatch returns and guarded on the input still being what was submitted, so a slow command (`:export` reads the database and writes a file) cannot wipe something typed while it ran.
+  - **31 new tests** against a fake environment (`CommandDispatchTest`), covering every command and the T0→T1→T3 cascade — a surface that had **zero** coverage because it lived inside a composable. `runBlocking` rather than a coroutines-test dispatcher: dispatch suspends but never delays, so no new dependency was needed.
+  - Several `ShellViewModelTest` cases changed, as expected — they asserted the architecture by name ("ShellScreen handles it, not this fallback"). Where the premise died the property underneath was kept: the no-op tests became "browse commands keep the prompt".
+  - Verified on an emulator: every command through Enter, all three pause paths, and an export read back to confirm each tier appears.
+
+- [x] **T179** — Three long functions carrying several jobs each  
+  `P2` `M` · after: T146, T023
+  - **Measure code lines, not total lines, before believing any of this.** This module comments heavily on purpose, so raw length badly overstates complexity: `toNoteType` reads as 55 lines and is 19 of code, `onSubmit` as 67 and is 24. Counting code only, **64 functions are 10+ lines**, which is unremarkable for 7,400 — the problem is the distribution, not the count. Four functions hold most of the weight: `ShellScreen` (295), `ChecklistRow` (117), `MainActivity.onCreate` (114), `StatusLine` (72). Everything else is 53 or under.
+  - **Three extractions, independent of each other and of T175–T178.** None needs the dispatch rework, so this can run alongside T177 as low-risk cleanup.
+
+  1. **`ChecklistRow` (117 → ~40), the best return.** Four separable concerns sharing a function only because they share a row: focus tracking (`hadFocus`, `LaunchedEffect(autoFocus)`), the drag handle, the text field, and the due/delete affordances. Pull the handle and the focus block out first — the handle is self-contained and is the piece with the subtlest history, since the gesture originally never fired at all (`BasicTextField` claims long-press for selection, which is why it has a dedicated `≡` and plain `detectDragGestures`). **Preserve that arrangement exactly**; it is not incidental.
+  2. **`StatusLine` (72 → ~30).** A 36-line lifecycle-scoped `ACTION_BATTERY_CHANGED` receiver sits inside a composable whose job is to draw three pieces of text. Extract `rememberBatteryText()`, and the `repeatOnLifecycle` clock loop as `rememberStatusText()` — the same shape twice. **Keep both scoped to RESUMED**: this is the home screen, paused constantly and rarely destroyed, so an unscoped receiver or ticker outlives every use of it.
+  3. ✅ **Done 2026-08-23, ahead of the other two — it is T178's prerequisite.** `shell/ShellUiState.kt`, pure, with 17 tests covering exactly the logic that had none. Enter's behaviour for `:apps`/`:notes` depends on the filtered list, so dispatch could not move to the ViewModel until this did.
+  3. **`ShellScreen`'s derived state (~60 lines out), and this is the one worth arguing for.** Lines ~172–290 are pure derivation — five `as?` downcasts, then `filteredApps`, `autoLaunchTarget`, `isPlainQuery`, `plainMatchTarget`, `previewText`, `pendingAliasExpansion`. Nothing there touches Compose beyond `remember`. Lifting it into a `ShellUiState` built by a pure function makes it **unit-testable, which none of it is today** — and `previewText` and `plainMatchTarget` are what decide what T1 shows you, so they are among the least appropriate things in the app to have no tests.
+  - **⚠️ Leave the four-branch view switch alone** (`if (appsCommand != null) … else if (notesCommand != null) …`). It re-derives the command type the parser already knew, and it collapses on its own under T178 — fixing it here means fixing it twice.
+  - **Do not touch these, despite the line counts:**
+    - `MainActivity.onCreate` (114) is a flat wiring list with no branching. Splitting it into `wireRepositories()`/`wireLaunchers()` moves lines without reducing anything, and it shrinks as a *consequence* of T178.
+    - `damerauLevenshtein` (26) is an algorithm; `firstJsonObject` (25) is a brace-balancing scanner with string and escape tracking. Both are dense because the problem is, and both are well covered.
+    - `export` (33), `evaluateAliasDefinition` (24) and `parseChecklist` (20) are single-purpose with their decisions already named and extracted. Long is not the same as complex.
+    - `TagChipsRow` (53) is a fair candidate and is **too new** — it landed with T169 and has had one emulator run. Let it settle before reworking it.
+  - No behaviour change anywhere in this task, so the existing suite is the check: if a test needs editing, something here was not an extraction.
+  - **Done. No test needed editing, which is the signal that these were extractions.** `ChecklistRow` 117 → **63** code lines (`rememberAutoFocus`, `DragHandle`, `ItemTextField`, `DueChip`); `StatusLine` 72 → **23** (`rememberClockText`, `rememberBatteryText`). Item 3 landed earlier as T178's prerequisite.
+  - Verified on an emulator, because both halves are lifecycle behaviour a unit test cannot see: the colon still blinks (a 5×25px region alternating between frames — the two dots), the battery still reads, and **drag-reorder still works**, which was the piece most at risk since the gesture only fires from its own handle.
+  - 🔎 Worth knowing for the next person who checks the blink: a lit-pixel *count* over the time cell reports it as static. Compare frames with `ImageChops.difference` and look at the bounding box instead.
+
 ## 04 · Notes storage
 
 Room schema, Markdown format, outbox from day one.
@@ -1108,4 +1174,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**173 tasks — 81 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**178 tasks — 86 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
