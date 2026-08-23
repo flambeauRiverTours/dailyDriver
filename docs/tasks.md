@@ -491,25 +491,34 @@ Tiered cascade. **The SLM is not the front door.**
   - Not every app publishes anything useful, so the feature degrades to nothing on those. The UI has to say so rather than look broken.
   - **Rejected alternatives.** Standard intent actions (`ACTION_SENDTO` + `smsto:`, `ACTION_DIAL` + `tel:`) are generic but capability-shaped rather than app-shaped, and resolving a *name* to a number needs Contacts — a real privacy step for a launcher that currently reads none. Per-app deep links (`spotify:search:`, `wa.me/`) work today and are an unbounded table of undocumented URIs that break without warning.
 
-- [ ] **T175** — `:notes` and `:tasks` open at the wrong end  
+- [x] **T175** — `:notes` and `:tasks` open at the wrong end  
   `P1` `S` · after: T170
   - **🐛 The same defect T170 fixed in `AppListView`, still present in two more copies.** `NoteListView` and `TaskListView` both do `.reversed()` then lean on `Arrangement.Bottom`, which distributes *slack* and therefore does nothing once the content is taller than the viewport.
   - Their own comments state the intent that is not being met: notes should put "the newest note closest to the prompt", tasks "the most urgent task closest to hand". On overflow both open at index 0 instead — the **oldest** notes, the **least urgent** tasks.
   - `NotifListView` uses `Arrangement.Bottom` with no reverse at all; check what it is actually trying to do before changing it, rather than assuming it has the same bug.
   - **Invisible until the list is long**, which is exactly why T170 survived from T012. Reproduce with enough rows to overflow before fixing, so the fix is verified rather than reasoned.
   - Fix as T170 did: `reverseLayout = true` over the unreversed list. Do not paper over it with an initial `scrollToItem`, which corrects the position a frame late.
+  - **Reproduced first, as the task demanded.** 16 seeded tasks: `:tasks` opened on task16 → task10, the *least* urgent, with the soonest nine below the fold. Fixed and re-shot: task01 now sits directly above the prompt.
+  - `:notes` confirmed the same way with 10 seeded notes — the newest is now nearest the prompt.
+  - **`NotifListView` was a third variant, not a fourth copy.** It had no hand-reversed list, so only its *resting position* was wrong; its content order was already right. Adopting the fix therefore **flips the order of a short list**, which is the common case for notifications. Done deliberately: every other view in the shell puts item 0 nearest the prompt, and this one's own docs already claimed "the same bottom-anchored shape as `AppListView`" while doing something else. ⚠️ Not verified on-device — overflowing it needs granted notification access and more notifications than an idle emulator produces.
 
-- [ ] **T176** — One bottom-anchored list, not four  
+- [x] **T176** — One bottom-anchored list, not four  
   `P2` `M` · after: T175
   - Four views (`AppListView`, `NoteListView`, `NotifListView`, `TaskListView`, ~390 lines) each hand-roll the same bottom-anchored `LazyColumn`. **Three of the four got it wrong**, which is the case for extracting it: T170 and T175 are one bug found twice because there was no single place to be right.
   - Extract a `BottomAnchoredList` taking rows, a key, a test tag and row content. The differences that must survive: `AppListView`'s fast-scroll rail, `NoteListView`'s two-line rows, `TaskListView`'s due labels and toggle.
   - ⚠️ Do this **after** T175, not instead of it. Fixing the bug inside a refactor makes it impossible to tell which change fixed what.
+  - Built as `shell/BottomAnchoredList.kt`; all four views converted. `AppListView` passes its own `LazyListState` so the fast-scroll rail can still scroll programmatically.
+  - **The component's doc carries the warning that matters**: callers pass rows in *natural* order and must not reverse first. Reversing the data *and* the layout cancels out, which is precisely how three of the four views got it wrong.
+  - Suite unchanged at 725 — the right signal for a refactor. A test needing an edit would have meant this was not one.
 
-- [ ] **T177** — Collapse the three launchers, make `splitTagLines` structural  
+- [x] **T177** — Collapse the three launchers, make `splitTagLines` structural  
   `P2` `S` · after: T172, T169
   - `AppLauncher`, `SettingsLauncher` and `WebSearchLauncher` are 93 lines of one shape: build an Intent, add `FLAG_ACTIVITY_NEW_TASK`, `try`/`catch ActivityNotFoundException`, return Boolean. One `IntentLauncher` with three factory functions is about a third of that.
   - `NoteEditorViewModel` applies `splitTagLines` at **four** call sites by hand. Replace with one `editBody { content -> … }` helper so the split is structural rather than remembered — "remember to apply it everywhere" is precisely how T169 happened.
   - Both are cleanups with no behaviour change, so the existing suite is the check: if a test changes, something was not a cleanup.
+  - `shell/IntentLauncher.kt` replaces `AppLauncher`, `SettingsLauncher` and `WebSearchLauncher` (93 lines → 60 including more documentation than all three carried). All three paths verified on an emulator: `openSettings` → Settings, `openUrl` → Chrome, `launchApp` → Clock via a T1 fuzzy match.
+  - `settings/` is now an empty package and was removed.
+  - `editBody { content -> … }` and `checklistOf(body)` replace the four hand-applied `splitTagLines` calls in `NoteEditorViewModel`. The split is now structural: there is no way to read or rewrite a checklist body that skips it.
 
 - [ ] **T178** — Command dispatch lives in two places  
   `P1` `L` · after: T140
@@ -1153,4 +1162,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**178 tasks — 81 done, 97 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**178 tasks — 84 done, 94 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

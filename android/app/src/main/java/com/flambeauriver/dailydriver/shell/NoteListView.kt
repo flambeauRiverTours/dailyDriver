@@ -1,13 +1,9 @@
 package com.flambeauriver.dailydriver.shell
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,20 +32,15 @@ fun NoteListView(
     textStyle: TextStyle,
     modifier: Modifier = Modifier,
 ) {
-    // Reversed for the same reason AppListView reverses: the newest note should be the one
-    // closest to the prompt, where your thumb already is.
-    val rows = notes.reversed()
-
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .fillMaxHeight()
-            .testTag(ShellTestTags.NOTE_LIST),
-        verticalArrangement = Arrangement.Bottom,
-    ) {
-        items(rows, key = { it.id }) { note ->
-            NoteRow(note = note, onClick = { onNoteClick(note) }, textStyle = textStyle)
-        }
+    // Newest first from the query, so item 0 is the newest and BottomAnchoredList puts it
+    // nearest the prompt. Passed in natural order — see that file on why not to reverse here.
+    BottomAnchoredList(
+        rows = notes,
+        key = { it.id },
+        testTag = ShellTestTags.NOTE_LIST,
+        modifier = modifier,
+    ) { note ->
+        NoteRow(note = note, onClick = { onNoteClick(note) }, textStyle = textStyle)
     }
 }
 

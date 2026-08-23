@@ -1,12 +1,8 @@
 package com.flambeauriver.dailydriver.shell
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -30,22 +26,25 @@ fun NotifListView(
     textStyle: TextStyle,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .fillMaxHeight()
-            .testTag(ShellTestTags.NOTIF_LIST),
-        verticalArrangement = Arrangement.Bottom,
-    ) {
-        items(notifications, key = { it.key }) { notification ->
-            Text(
-                text = notification.displayLine(),
-                style = textStyle,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNotificationClick(notification) }
-                    .padding(vertical = 8.dp),
-            )
-        }
+    // ⚠️ Adopting the shared list flipped the order of a *short* list here, which is the common
+    // case for notifications: the first one now sits at the bottom rather than the top of the
+    // group. Deliberate — every other view in the shell puts item 0 nearest the prompt, and this
+    // one's own docs already claimed "the same bottom-anchored shape as AppListView" while doing
+    // something else. Unlike the other three it had no hand-reversed list to undo, so only its
+    // resting position was ever wrong (T175/T176).
+    BottomAnchoredList(
+        rows = notifications,
+        key = { it.key },
+        testTag = ShellTestTags.NOTIF_LIST,
+        modifier = modifier,
+    ) { notification ->
+        Text(
+            text = notification.displayLine(),
+            style = textStyle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNotificationClick(notification) }
+                .padding(vertical = 8.dp),
+        )
     }
 }

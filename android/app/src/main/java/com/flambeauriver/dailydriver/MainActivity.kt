@@ -17,7 +17,6 @@ import com.flambeauriver.dailydriver.alias.resolveAliasTarget
 import com.flambeauriver.dailydriver.command.CommandLogExporter
 import com.flambeauriver.dailydriver.command.CommandLogRepository
 import com.flambeauriver.dailydriver.apps.AppIndexRepository
-import com.flambeauriver.dailydriver.apps.AppLauncher
 import com.flambeauriver.dailydriver.editor.NoteEditorViewModel
 import com.flambeauriver.dailydriver.notes.NotesRepository
 import com.flambeauriver.dailydriver.notes.parseChecklist
@@ -28,9 +27,8 @@ import java.time.LocalDateTime
 import java.util.UUID
 import com.flambeauriver.dailydriver.notes.parseNoteQuery
 import com.flambeauriver.dailydriver.notifications.NotificationRepository
-import com.flambeauriver.dailydriver.search.WebSearchLauncher
 import com.flambeauriver.dailydriver.search.googleSearchUrl
-import com.flambeauriver.dailydriver.settings.SettingsLauncher
+import com.flambeauriver.dailydriver.shell.IntentLauncher
 import com.flambeauriver.dailydriver.shell.ShellScreen
 import com.flambeauriver.dailydriver.shell.ShellViewModel
 import com.flambeauriver.dailydriver.ui.theme.DailyDriverTheme
@@ -43,9 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var commandLog: CommandLogRepository
     private lateinit var commandLogExporter: CommandLogExporter
     private lateinit var appIndexRepository: AppIndexRepository
-    private lateinit var appLauncher: AppLauncher
-    private lateinit var settingsLauncher: SettingsLauncher
-    private lateinit var webSearchLauncher: WebSearchLauncher
+    private lateinit var launcher: IntentLauncher
     private lateinit var aliasRepository: AliasRepository
     private lateinit var notificationRepository: NotificationRepository
     private lateinit var notesRepository: NotesRepository
@@ -68,9 +64,7 @@ class MainActivity : AppCompatActivity() {
         enterImmersiveMode()
 
         appIndexRepository = AppIndexRepository(this)
-        appLauncher = AppLauncher(this)
-        settingsLauncher = SettingsLauncher(this)
-        webSearchLauncher = WebSearchLauncher(this)
+        launcher = IntentLauncher(this)
         notificationRepository = NotificationRepository(this)
         notesRepository = NotesRepository(this)
         commandLog = CommandLogRepository(this)
@@ -105,12 +99,12 @@ class MainActivity : AppCompatActivity() {
                     // ever actually noticeable.
                     apps = appIndexRepository.apps,
                     onAppClick = { app ->
-                        appLauncher.launch(app.packageName)
+                        launcher.launchApp(app.packageName)
                         // Leave apps mode on the way out — see ShellViewModel.onAppLaunched.
                         viewModel.onAppLaunched()
                     },
                     onSettingsCommand = {
-                        settingsLauncher.open()
+                        launcher.openSettings()
                         // Same reasoning as onAppClick above — see ShellViewModel.onSettingsLaunched.
                         viewModel.onSettingsLaunched()
                     },
@@ -193,7 +187,7 @@ class MainActivity : AppCompatActivity() {
                         val url = googleSearchUrl(query)
                         when {
                             url == null -> viewModel.onEmptySearch(submittedInput)
-                            webSearchLauncher.open(url) -> viewModel.onSearchLaunched(submittedInput, query)
+                            launcher.openUrl(url) -> viewModel.onSearchLaunched(submittedInput, query)
                             else -> viewModel.onSearchFailed(submittedInput)
                         }
                     },
