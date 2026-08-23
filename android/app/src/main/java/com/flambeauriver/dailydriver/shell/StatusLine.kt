@@ -62,6 +62,57 @@ fun StatusLine(
     textStyle: TextStyle,
     modifier: Modifier = Modifier,
 ) {
+    val clock = rememberClockText(hasUnreadNotifications)
+    val battery = rememberBatteryText()
+
+    val dim = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        // Time and date travel together at the left edge (T171). They are one piece of information
+        // and get read as one — "when is it" — so splitting them across the full width of the
+        // screen made you look twice for something you glance at. Battery is the thing that
+        // genuinely stands alone, so it gets the far side to itself.
+        Row {
+            // Undimmed, unlike the time and date: the dot is the one thing here worth noticing.
+            Text(text = unreadIndicator(clock.unread), style = textStyle)
+            Text(text = clock.text.time, style = dim)
+            // A separator rather than space alone. Once the date sat next to the time the two ran
+            // together as one string, and the blinking colon makes it worse: the time alternates
+            // between "4:28" and "4 28", so at every other tick the only thing dividing the fields
+            // was a gap the same width as the one inside the time itself.
+            Text(text = "·", style = dim, modifier = Modifier.padding(horizontal = 8.dp))
+            Text(text = clock.text.date, style = dim)
+        }
+        // Separated by layout, not by a space inside the string: the battery cell's own leading
+        // column is the charging marker, so when charging there is nothing left to separate it
+        // from whatever precedes it and it reads as "Aug+100%". Found by looking at it.
+        Text(text = battery, style = dim, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+
+/** The clock's blinking text plus the unread flag, refreshed on the same tick. */
+private data class ClockState(val text: StatusLineText, val unread: Boolean)
+
+/**
+ * The blinking clock, ticking only while the Activity is RESUMED.
+ *
+ * **⚠️ The lifecycle scoping is load-bearing, not tidiness.** This Activity *is* the home screen:
+ * it is paused on every app switch and rarely destroyed, so a bare `LaunchedEffect` would keep
+ * waking twice a second for a clock nobody can see, for as long as the process lives.
+ * [repeatOnLifecycle] cancels below RESUMED and restarts on return — which also means coming back
+ * to the launcher paints a current time immediately rather than a stale one.
+ *
+ * [hasUnreadNotifications] is polled on this same tick rather than passed as a value, so T148's dot
+ * refreshes without waiting for something else to recompose the shell. It is a field read, not a
+ * binder call — the service keeps it as a property.
+ */
+@Composable
+private fun rememberClockText(hasUnreadNotifications: () -> Boolean): ClockState {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -76,16 +127,40 @@ fun StatusLine(
 
     var text by remember { mutableStateOf(render(colonVisible = true)) }
     var unread by remember { mutableStateOf(hasUnreadNotifications()) }
+
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var colonVisible = true
+            while (true) {
+                text = render(colonVisible)
+                unread = hasUnreadNotifications()
+                colonVisible = !colonVisible
+                delay(BLINK_INTERVAL_MS)
+            }
+        }
+    }
+
+    return ClockState(text, unread)
+}
+
+/**
+ * Battery level, from the sticky `ACTION_BATTERY_CHANGED` broadcast.
+ *
+ * A broadcast rather than a poll on the blink loop: level changes on the order of minutes, and the
+ * broadcast is *sticky*, so registering returns the current value immediately rather than waiting
+ * for the next change. Registering with a null receiver would read it once; a real receiver keeps
+ * it current while the launcher is on screen.
+ *
+ * **⚠️ Scoped to RESUMED for the same reason the clock is** — this Activity is the home screen and
+ * is paused constantly but rarely destroyed, so an unscoped registration would outlive every use
+ * of it and keep a receiver alive for the life of the process.
+ */
+@Composable
+private fun rememberBatteryText(): String {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var battery by remember { mutableStateOf(batteryText(0, charging = false)) }
 
-    // Battery arrives by broadcast rather than being polled on the blink loop: it changes on the
-    // order of minutes, and ACTION_BATTERY_CHANGED is *sticky*, so registering returns the current
-    // value immediately rather than waiting for the next change. Registering with a null receiver
-    // would read it once; a real receiver keeps it current while the launcher is on screen.
-    //
-    // Scoped to RESUMED like the clock, for the same reason: this Activity is the home screen and
-    // is paused constantly but rarely destroyed, so an unscoped registration would keep a receiver
-    // alive for the life of the process.
     DisposableEffect(lifecycleOwner) {
         val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
         val receiver = object : BroadcastReceiver() {
@@ -122,43 +197,5 @@ fun StatusLine(
         }
     }
 
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            var colonVisible = true
-            while (true) {
-                text = render(colonVisible)
-                unread = hasUnreadNotifications()
-                colonVisible = !colonVisible
-                delay(BLINK_INTERVAL_MS)
-            }
-        }
-    }
-
-    val dim = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        // Time and date travel together at the left edge (T171). They are one piece of information
-        // and get read as one — "when is it" — so splitting them across the full width of the
-        // screen made you look twice for something you glance at. Battery is the thing that
-        // genuinely stands alone, so it gets the far side to itself.
-        Row {
-            // Undimmed, unlike the time and date: the dot is the one thing here worth noticing.
-            Text(text = unreadIndicator(unread), style = textStyle)
-            Text(text = text.time, style = dim)
-            // A separator rather than space alone. Once the date sat next to the time the two ran
-            // together as one string, and the blinking colon makes it worse: the time alternates
-            // between "4:28" and "4 28", so at every other tick the only thing dividing the fields
-            // was a gap the same width as the one inside the time itself.
-            Text(text = "·", style = dim, modifier = Modifier.padding(horizontal = 8.dp))
-            Text(text = text.date, style = dim)
-        }
-        // Separated by layout, not by a space inside the string: the battery cell's own leading
-        // column is the charging marker, so when charging there is nothing left to separate it
-        // from whatever precedes it and it reads as "Aug+100%". Found by looking at it.
-        Text(text = battery, style = dim, modifier = Modifier.padding(start = 8.dp))
-    }
+    return battery
 }

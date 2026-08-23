@@ -537,7 +537,7 @@ Tiered cascade. **The SLM is not the front door.**
   - Several `ShellViewModelTest` cases changed, as expected — they asserted the architecture by name ("ShellScreen handles it, not this fallback"). Where the premise died the property underneath was kept: the no-op tests became "browse commands keep the prompt".
   - Verified on an emulator: every command through Enter, all three pause paths, and an export read back to confirm each tier appears.
 
-- [ ] **T179** — Three long functions carrying several jobs each  
+- [x] **T179** — Three long functions carrying several jobs each  
   `P2` `M` · after: T146, T023
   - **Measure code lines, not total lines, before believing any of this.** This module comments heavily on purpose, so raw length badly overstates complexity: `toNoteType` reads as 55 lines and is 19 of code, `onSubmit` as 67 and is 24. Counting code only, **64 functions are 10+ lines**, which is unremarkable for 7,400 — the problem is the distribution, not the count. Four functions hold most of the weight: `ShellScreen` (295), `ChecklistRow` (117), `MainActivity.onCreate` (114), `StatusLine` (72). Everything else is 53 or under.
   - **Three extractions, independent of each other and of T175–T178.** None needs the dispatch rework, so this can run alongside T177 as low-risk cleanup.
@@ -553,6 +553,9 @@ Tiered cascade. **The SLM is not the front door.**
     - `export` (33), `evaluateAliasDefinition` (24) and `parseChecklist` (20) are single-purpose with their decisions already named and extracted. Long is not the same as complex.
     - `TagChipsRow` (53) is a fair candidate and is **too new** — it landed with T169 and has had one emulator run. Let it settle before reworking it.
   - No behaviour change anywhere in this task, so the existing suite is the check: if a test needs editing, something here was not an extraction.
+  - **Done. No test needed editing, which is the signal that these were extractions.** `ChecklistRow` 117 → **63** code lines (`rememberAutoFocus`, `DragHandle`, `ItemTextField`, `DueChip`); `StatusLine` 72 → **23** (`rememberClockText`, `rememberBatteryText`). Item 3 landed earlier as T178's prerequisite.
+  - Verified on an emulator, because both halves are lifecycle behaviour a unit test cannot see: the colon still blinks (a 5×25px region alternating between frames — the two dots), the battery still reads, and **drag-reorder still works**, which was the piece most at risk since the gesture only fires from its own handle.
+  - 🔎 Worth knowing for the next person who checks the blink: a lit-pixel *count* over the time cell reports it as static. Compare frames with `ImageChops.difference` and look at the bounding box instead.
 
 ## 04 · Notes storage
 
@@ -1171,4 +1174,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**178 tasks — 85 done, 93 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**178 tasks — 86 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
