@@ -491,6 +491,35 @@ Tiered cascade. **The SLM is not the front door.**
   - Not every app publishes anything useful, so the feature degrades to nothing on those. The UI has to say so rather than look broken.
   - **Rejected alternatives.** Standard intent actions (`ACTION_SENDTO` + `smsto:`, `ACTION_DIAL` + `tel:`) are generic but capability-shaped rather than app-shaped, and resolving a *name* to a number needs Contacts — a real privacy step for a launcher that currently reads none. Per-app deep links (`spotify:search:`, `wa.me/`) work today and are an unbounded table of undocumented URIs that break without warning.
 
+- [ ] **T175** — `:notes` and `:tasks` open at the wrong end  
+  `P1` `S` · after: T170
+  - **🐛 The same defect T170 fixed in `AppListView`, still present in two more copies.** `NoteListView` and `TaskListView` both do `.reversed()` then lean on `Arrangement.Bottom`, which distributes *slack* and therefore does nothing once the content is taller than the viewport.
+  - Their own comments state the intent that is not being met: notes should put "the newest note closest to the prompt", tasks "the most urgent task closest to hand". On overflow both open at index 0 instead — the **oldest** notes, the **least urgent** tasks.
+  - `NotifListView` uses `Arrangement.Bottom` with no reverse at all; check what it is actually trying to do before changing it, rather than assuming it has the same bug.
+  - **Invisible until the list is long**, which is exactly why T170 survived from T012. Reproduce with enough rows to overflow before fixing, so the fix is verified rather than reasoned.
+  - Fix as T170 did: `reverseLayout = true` over the unreversed list. Do not paper over it with an initial `scrollToItem`, which corrects the position a frame late.
+
+- [ ] **T176** — One bottom-anchored list, not four  
+  `P2` `M` · after: T175
+  - Four views (`AppListView`, `NoteListView`, `NotifListView`, `TaskListView`, ~390 lines) each hand-roll the same bottom-anchored `LazyColumn`. **Three of the four got it wrong**, which is the case for extracting it: T170 and T175 are one bug found twice because there was no single place to be right.
+  - Extract a `BottomAnchoredList` taking rows, a key, a test tag and row content. The differences that must survive: `AppListView`'s fast-scroll rail, `NoteListView`'s two-line rows, `TaskListView`'s due labels and toggle.
+  - ⚠️ Do this **after** T175, not instead of it. Fixing the bug inside a refactor makes it impossible to tell which change fixed what.
+
+- [ ] **T177** — Collapse the three launchers, make `splitTagLines` structural  
+  `P2` `S` · after: T172, T169
+  - `AppLauncher`, `SettingsLauncher` and `WebSearchLauncher` are 93 lines of one shape: build an Intent, add `FLAG_ACTIVITY_NEW_TASK`, `try`/`catch ActivityNotFoundException`, return Boolean. One `IntentLauncher` with three factory functions is about a third of that.
+  - `NoteEditorViewModel` applies `splitTagLines` at **four** call sites by hand. Replace with one `editBody { content -> … }` helper so the split is structural rather than remembered — "remember to apply it everywhere" is precisely how T169 happened.
+  - Both are cleanups with no behaviour change, so the existing suite is the check: if a test changes, something was not a cleanup.
+
+- [ ] **T178** — Command dispatch lives in two places  
+  `P1` `L` · after: T140
+  - **`ShellViewModel.onSubmit()` has 12 branches and 11 are a bare `return`.** Only `:help` does anything. Each no-op carries a comment saying ShellScreen intercepts it first — so the ViewModel that owns the state does almost none of the deciding, and the composable that should only render does most of it.
+  - **Not sloppiness — forced.** A command needs a `Context` (launchers) or a suspend Room write, and the ViewModel has neither. Every command since has been answered with another callback.
+  - The costs are measurable: **30 parameters** on `ShellScreen`; **15** ViewModel methods that are only `transcript.record(…)` then `input = ""`; four `reservedCommand as?` downcasts plus a four-branch `if/else-if` re-deriving what the parser already knew.
+  - **Fix: the registry should map a token to *behaviour*, not just to a parsed variant.** T140 already owns token → `ReservedCommand`; extend it to a handler returning **effects as data** (`LaunchApp(pkg)`, `OpenUrl(url)`, `Record(text)`) that `MainActivity` performs. `onSubmit` becomes one dispatch, `ShellScreen` goes back to rendering, and adding a command is one registry entry instead of edits across four files. Most of the 30 parameters and all 15 pass-through methods fall out.
+  - ⚠️ **Highest-risk item on this list — plan it before starting.** It touches every command, and the registry property tests (T150) are the safety net that makes it feasible at all. Do T175–T177 first; they are independent and shrink the surface this has to move.
+  - **Don't take this as licence to add DI.** `MainActivity`'s nine `lateinit` fields look like the smell, but with one Activity and no test seams, Hilt would cost more than it returns. The problem is where decisions are made, not how objects are built.
+
 ## 04 · Notes storage
 
 Room schema, Markdown format, outbox from day one.
@@ -1108,4 +1137,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**173 tasks — 81 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**177 tasks — 81 done, 96 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
