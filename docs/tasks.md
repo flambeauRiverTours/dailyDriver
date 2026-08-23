@@ -420,54 +420,65 @@ Tiered cascade. **The SLM is not the front door.**
   - Verified on an API 33 emulator through a real sleep → wake → dismiss-keyguard cycle: the prompt comes back focused with the keyboard up. **No conflict with T149** — the system bars stayed hidden and the status row was intact, which was the interaction worth worrying about.
   - ⚠️ Still worth a confirmation on the S20 FE, since IME policy varies by OEM and the emulator is AOSP. Blocked behind T166: installing a debug build there would require uninstalling the release build and destroying the command log.
 
-- [ ] **T167** — `:apps` cannot find a disambiguated app name  
+- [x] **T167** — `:apps` cannot find a disambiguated app name  
   `P1` `S` · after: T164
   - **🐛 Typing `:apps Messages (Google)` matches nothing**, even though that is the name the list itself just showed you. The filter is unusable for exactly the apps T164 added the suffix for.
   - `AppFiltering.filteredBy` substring-matches `AppEntry.label` only. T164 deliberately kept display names out of `AppEntry` and computed them in `ShellScreen`, but only ever passed them to the *view*. So the suffix is rendered and not searchable — the name on screen is not a name you can type.
   - Fix: pass the display-name map into `filteredBy` and match label **or** display name.
   - ⚠️ This does **not** contradict T164's "matching still sees the real label" test, and check that test still passes rather than assuming. That rule is about `rankedMatches`, where fuzzy *scoring* against `Messages (Google)` is worse for someone typing `mess`. A substring filter has no score to degrade: `mess` matches both strings equally.
+  - Built: `filteredBy(query, names)` matches label **or** display name, with `names` defaulting to empty so callers without a display map behave exactly as before. 10 tests. T164's `rankedMatches` rule is untouched and still passes.
 
-- [ ] **T168** — `:notes` snippets show raw Markdown  
+- [x] **T168** — `:notes` snippets show raw Markdown  
   `P1` `S` · after: T025, T153
   - **🐛 A task note previews as `- [ ] buy milk @2026-08-23`** — checkbox marker and date token and all. Reproduced on an emulator; the checklist row itself is already correct (`[ ] buy milk` with a `tomorrow` label), so this is the list snippet alone.
   - `NoteListView` renders `note.body` directly. The body is Markdown and always was; nothing ever taught the snippet to read it.
   - Fix: build the snippet from parsed content — strip the `- [ ]`/`- [x]` markers and lift out the `@YYYY-MM-DD` tokens, the same way the editor row does.
   - **Strip the marker too, not only the date.** `- [ ] buy milk` is exactly as raw as the token beside it, and fixing one while leaving the other says the leak was a formatting slip rather than the snippet never having been decoded.
+  - Built: `noteSnippet` runs the first meaningful line through `parseChecklist`, which strips the marker and lifts the date, and drops tag lines first so a note opening with `#work` previews its content. Verified on an emulator: the row now reads `buy milk`.
 
-- [ ] **T169** — Tags in a checklist become checkbox rows  
+- [x] **T169** — Tags in a checklist become checkbox rows  
   `P1` `M` · after: T139, T023
   - **🐛 Adding a tag chip to a checklist creates a checkbox that says `#shopping`.** `withTag` appends the tag on its own line at the end of the body (T139), and `parseChecklist` rule 2 makes *any* non-blank line an unchecked item. A tag is note metadata and has no business being something you can tick off.
   - **Do not fix this by changing `parseChecklist`.** It is pinned by `fixtures/checklist-parsing.json` and owes a matching C# implementation (§7.3); rule 2 is also what makes note→checklist conversion a parse rather than a special case.
   - **And do not fix it by having the parser drop tag lines either** — `editItems` is `render(transform(parse(body)))`, so a line the parser drops is a line the render deletes. The first tag you added would vanish on the next keystroke.
   - Fix: a pure `splitTagLines(body)` in `notes/`, used by the editor and by both conversion functions, so tag lines are lifted off before parsing and reattached after rendering. The contract file and the C# obligation stay untouched.
+  - Built as `notes/TagLines.kt` — `splitTagLines`/`rejoin`, applied at all four places the editor reads the body. `fixtures/checklist-parsing.json` and the C# obligation are untouched.
+  - **🔎 The split alone did not fix the reported bug, and finding that out needed the device.** T139's `+ tag` appends a *bare* `#` and hands the cursor back to the body so you type the name — which works for prose and cannot work for a checklist, because a checklist has no body field. The `#` landed as a checkbox, and typing into it produced `- [ ] #shopping`: an item shaped like a tag that can never become one. A bare `#` is correctly not a tag line, so no amount of splitting reaches it.
+  - **So `+ tag` now opens a one-line input in checklist mode** (UI check-in, 2026-08-22), leaving prose notes exactly as they were. **This is still not a second writer of the tag set** — T139's actual objection: the input is transient and commits through the same `withTag` the chips use, so the body remains the only place tags live. `#` is rendered rather than typed, since it is the one character every tag must have.
+  - Commits on Done or on focus loss; blank commits nothing, so opening it by accident costs nothing.
+  - 16 tests, including the round-trip that would have deleted the first tag had the parser simply dropped tag lines. Verified on an emulator: `+ tag` produces a chip, and the checklist row count does not change.
 
-- [ ] **T170** — `:apps` opens scrolled to Z  
+- [x] **T170** — `:apps` opens scrolled to Z  
   `P1` `S` · after: T012
   - **🐛 The list opens showing `z, y, x, w`** and you scroll the whole alphabet to reach A. The intent (documented on `AppListView` since T012) is the opposite: bottom-anchored, A nearest your thumb.
   - The view reverses the list by hand and relies on `Arrangement.Bottom`, which only arranges *slack* — so it does nothing once the content is taller than the screen, which for a real app list is always. A short filtered result sits correctly at the bottom; the unfiltered list starts at index 0, which the manual reverse made Z.
   - Fix: drop `apps.reversed()` and set `reverseLayout = true`, feeding the LazyColumn A→Z. Item 0 is then A, drawn at the bottom, and a reversed list starts at item 0 — so the correct position falls out instead of being arranged into place.
   - The fast-scroll rail still reads Z→A top to bottom, but its indices are now into the A→Z list. Getting that backwards sends every letter to the wrong end.
+  - Built: `reverseLayout = true` over the A→Z list, replacing the manual `.reversed()`. The fast-scroll rail reverses its *letters* while its indices stay A→Z. Verified on an emulator: the list opens on Calendar, Camera, Chrome reading upward.
 
-- [ ] **T171** — Date belongs beside the time  
+- [x] **T171** — Date belongs beside the time  
   `P1` `S` · after: T146, T161
   - Time is at the left edge, date and battery at the right. Time and date are one piece of information read together; battery is the thing that should be off on its own.
   - Fix: regroup the status row as `[dot] [time] [date]` left, `[battery]` right.
+  - Built, plus a `·` separator (UI check-in, 2026-08-22). Adjacency alone was not enough: the blinking colon means the time alternates between `4:28` and `4 28`, so on every other tick the only thing dividing the two fields was a gap the same width as the one inside the time. Reads `8:18 AM · Sun 23 Aug`.
 
-- [ ] **T172** — `:google <query>`  
+- [x] **T172** — `:google <query>`  
   `P2` `S` · after: T140
   - Searches Google for the rest of the line and hands off to the default browser. Registered through T140's dispatcher like every other command, so it documents itself in `:help`.
   - Auto-space comes free: `autoSpaceableTokens` includes any token no other token extends, and nothing extends `:google`.
   - `ACTION_VIEW` on `https://www.google.com/search?q=…` rather than `ACTION_WEB_SEARCH`. The latter respects the device's chosen search engine, which sounds better and is not what was asked for — it also frequently resolves to a search *app* rather than the browser.
   - **The query must be URL-encoded**, and bare `:google` with nothing after it should say so rather than opening a blank search, the same way `:task` does.
   - Worth noting plainly: this is the first command that sends typed text off the device. Nothing is logged differently, but `:google` lines land in the T014 command log like any other input.
+  - Built as `search/WebSearch.kt` (pure, 6 tests) plus `WebSearchLauncher`. Verified on an emulator: Chrome opened on the search URL, and bare `:google` reported `nothing to search`.
 
-- [ ] **T173** — Aliases should take arguments  
+- [x] **T173** — Aliases should take arguments  
   `P2` `M` · after: T144, T162, T163
   - `alias a = :apps` then `a firefox` should run `:apps firefox`. Today `aliases[input.trim()]` is a whole-string lookup, so `a firefox` matches nothing and falls through to T3.
   - Fix: look up the first token and append the remainder to the expansion.
   - **Always append, including when the alias points at an app** (decided 2026-08-22). The alternative considered was expanding-with-arguments only for reserved commands, on the grounds that `alias s = Spotify` makes `s foo` expand to `Spotify foo` and dead-end at T3. Rejected: creating an alias that takes no argument and then passing it one is the user's own doing, and a rule that silently declines to expand in some cases is harder to hold in your head than one that always expands. **Keep the rule uniform — do not add a target-type special case here.**
   - Falls out of that: an app alias given an argument produces a T3 miss on a string the user did not type, which the T014 log will record. That is acceptable and worth knowing when reading the log, not a reason to complicate the rule.
   - Check the interaction with T163's pause-expansion rather than assuming: both paths converge on the same string, but the timer is keyed on `input`, and a bare alias still has to expand on its own.
+  - Built as `alias/AliasExpansion.kt` — whole-string lookup first, then first-token plus remainder. 13 tests. Verified on an emulator: with `alias a = :apps`, typing `a chrome` launched Chrome.
 
 - [ ] **T174** — Launch app shortcuts as a second matching level  
   `P2` `L` · after: T167, T017
@@ -1097,4 +1108,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**173 tasks — 74 done, 99 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**173 tasks — 81 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

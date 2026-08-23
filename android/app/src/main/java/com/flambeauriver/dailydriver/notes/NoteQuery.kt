@@ -86,8 +86,14 @@ private const val SNIPPET_MAX = 80
  * blank line or leading newlines would otherwise preview as empty.
  */
 fun noteSnippet(body: String): String {
-    val firstMeaningfulLine = body.lineSequence()
-        .firstOrNull { it.isNotBlank() }
+    // Decoded, not raw (T167/T168). The body is Markdown, and a task note's first line is
+    // `- [ ] buy milk @2026-08-23` — checkbox marker and date token and all. Running it through the
+    // checklist parser strips both, and does the same for a prose line, which rule 2 reads as an
+    // undated item. Tag lines are dropped first, since a note whose body opens with `#work` should
+    // preview its content rather than its metadata.
+    val firstMeaningfulLine = parseChecklist(splitTagLines(body).content)
+        .firstOrNull { it.text.isNotBlank() }
+        ?.text
         ?.trim()
         ?: return ""
 

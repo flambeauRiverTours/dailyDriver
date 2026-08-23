@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.flambeauriver.dailydriver.alias.expandAlias
 import com.flambeauriver.dailydriver.alias.formatAliasListing
 import com.flambeauriver.dailydriver.alias.parseAliasDefinition
 import com.flambeauriver.dailydriver.apps.AppEntry
@@ -138,6 +139,8 @@ fun ShellScreen(
     onToggleTask: suspend (TaskListItem) -> Unit,
     /** Resolves the note a task lives in, so tapping the text can open it. */
     onOpenTaskNote: suspend (TaskListItem) -> Note?,
+    /** Hands a Google search to the default browser (T172). */
+    onGoogleSearch: (input: String, query: String) -> Unit,
     /** Writes the command log to Downloads; awaits a database read and a file write (T166). */
     onExportCommandLog: suspend (input: String) -> Unit,
     /** T014 — records what the deterministic tiers did with a submitted line. */
@@ -234,8 +237,8 @@ fun ShellScreen(
     // Keyed on the index, not the query: ambiguity is about what is installed (T164).
     val appDisplayNames = remember(apps) { displayNames(apps) }
 
-    val filteredApps = remember(apps, appsCommand) {
-        appsCommand?.let { apps.filteredBy(it.query) }.orEmpty()
+    val filteredApps = remember(apps, appDisplayNames, appsCommand) {
+        appsCommand?.let { apps.filteredBy(it.query, appDisplayNames) }.orEmpty()
     }
     // Hoisted out of the apps-mode branch below because Enter needs it too, not just the timer.
     // Sole-match only — :apps browse mode's own auto-launch is unchanged by the T1 revision below.
@@ -279,7 +282,7 @@ fun ShellScreen(
     // expanding `a` the moment it is typed puts the caret after `:apps ` and makes `alarm`
     // unreachable by fuzzy match. That is the trap that made `:notes` untypeable at T140. The
     // pause is what keeps every longer input reachable, and Enter still expands immediately.
-    val pendingAliasExpansion = aliases[input.trim()]
+    val pendingAliasExpansion = expandAlias(input, aliases)
         // An alias definition ("alias x = y") contains an "=" and is never itself an alias key, but
         // guarding here keeps the two paths from ever racing.
         ?.takeIf { parseAliasDefinition(input) == null }
@@ -422,6 +425,9 @@ fun ShellScreen(
                 tags = editor.tags,
                 onRemoveTag = editor::removeTag,
                 onAddTag = editor::startAddingTag,
+                tagEntry = editor.tagEntry,
+                onTagEntryChange = editor::onTagEntryChange,
+                onCommitTag = editor::commitTag,
                 onTitleChange = editor::onTitleChange,
                 onBodyChange = editor::onBodyChange,
                 onKeep = editor::keepAndClose,
@@ -532,6 +538,12 @@ fun ShellScreen(
                     // Captured before launching, same as :task and the alias definition below —
                     // reading the log and writing the file both take long enough for the prompt to
                     // have moved on by the time the result is known (T166).
+                    // Needs a Context to fire the browser intent, like :settings, and a query to
+                    // report back, like :task — so it is intercepted here rather than in onSubmit.
+                    reservedCommand is ReservedCommand.Google -> {
+                        val submittedInput = input
+                        onGoogleSearch(submittedInput, reservedCommand.query)
+                    }
                     reservedCommand is ReservedCommand.Export -> {
                         val submittedInput = input
                         coroutineScope.launch { onExportCommandLog(submittedInput) }

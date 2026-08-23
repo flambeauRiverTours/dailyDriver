@@ -28,6 +28,8 @@ import java.time.LocalDateTime
 import java.util.UUID
 import com.flambeauriver.dailydriver.notes.parseNoteQuery
 import com.flambeauriver.dailydriver.notifications.NotificationRepository
+import com.flambeauriver.dailydriver.search.WebSearchLauncher
+import com.flambeauriver.dailydriver.search.googleSearchUrl
 import com.flambeauriver.dailydriver.settings.SettingsLauncher
 import com.flambeauriver.dailydriver.shell.ShellScreen
 import com.flambeauriver.dailydriver.shell.ShellViewModel
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appIndexRepository: AppIndexRepository
     private lateinit var appLauncher: AppLauncher
     private lateinit var settingsLauncher: SettingsLauncher
+    private lateinit var webSearchLauncher: WebSearchLauncher
     private lateinit var aliasRepository: AliasRepository
     private lateinit var notificationRepository: NotificationRepository
     private lateinit var notesRepository: NotesRepository
@@ -67,6 +70,7 @@ class MainActivity : AppCompatActivity() {
         appIndexRepository = AppIndexRepository(this)
         appLauncher = AppLauncher(this)
         settingsLauncher = SettingsLauncher(this)
+        webSearchLauncher = WebSearchLauncher(this)
         notificationRepository = NotificationRepository(this)
         notesRepository = NotesRepository(this)
         commandLog = CommandLogRepository(this)
@@ -183,6 +187,16 @@ class MainActivity : AppCompatActivity() {
                         )
                     },
                     onOpenTaskNote = { task -> notesRepository.byId(task.noteId) },
+                    // T172. Resolved here rather than in the composable, which has no launcher
+                    // and no business building URLs.
+                    onGoogleSearch = { submittedInput, query ->
+                        val url = googleSearchUrl(query)
+                        when {
+                            url == null -> viewModel.onEmptySearch(submittedInput)
+                            webSearchLauncher.open(url) -> viewModel.onSearchLaunched(submittedInput, query)
+                            else -> viewModel.onSearchFailed(submittedInput)
+                        }
+                    },
                     // T166. Unlike onCommandResolved below, this is awaited and its result is
                     // shown: the export *is* the command, so a silent failure would be the very
                     // thing this task exists to stop happening.

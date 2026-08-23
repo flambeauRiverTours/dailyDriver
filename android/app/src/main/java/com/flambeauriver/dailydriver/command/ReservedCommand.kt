@@ -59,6 +59,14 @@ sealed interface ReservedCommand {
     data object Notif : ReservedCommand
 
     /**
+     * `:google <query>` — searches Google for [query] and hands off to the default browser (T172).
+     *
+     * Carries its query, unlike [Settings] and [Export], because here the argument *is* the
+     * command: `:google` with nothing after it has nothing to do.
+     */
+    data class Google(val query: String) : ReservedCommand
+
+    /**
      * `:export` — writes the T014 command log to Downloads as JSONL (T166).
      *
      * **No query, and that is a decision rather than an omission.** `:export notes` is a plausible
