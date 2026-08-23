@@ -520,6 +520,22 @@ Tiered cascade. **The SLM is not the front door.**
   - ⚠️ **Highest-risk item on this list — plan it before starting.** It touches every command, and the registry property tests (T150) are the safety net that makes it feasible at all. Do T175–T177 first; they are independent and shrink the surface this has to move.
   - **Don't take this as licence to add DI.** `MainActivity`'s nine `lateinit` fields look like the smell, but with one Activity and no test seams, Hilt would cost more than it returns. The problem is where decisions are made, not how objects are built.
 
+- [ ] **T179** — Three long functions carrying several jobs each  
+  `P2` `M` · after: T146, T023
+  - **Measure code lines, not total lines, before believing any of this.** This module comments heavily on purpose, so raw length badly overstates complexity: `toNoteType` reads as 55 lines and is 19 of code, `onSubmit` as 67 and is 24. Counting code only, **64 functions are 10+ lines**, which is unremarkable for 7,400 — the problem is the distribution, not the count. Four functions hold most of the weight: `ShellScreen` (295), `ChecklistRow` (117), `MainActivity.onCreate` (114), `StatusLine` (72). Everything else is 53 or under.
+  - **Three extractions, independent of each other and of T175–T178.** None needs the dispatch rework, so this can run alongside T177 as low-risk cleanup.
+
+  1. **`ChecklistRow` (117 → ~40), the best return.** Four separable concerns sharing a function only because they share a row: focus tracking (`hadFocus`, `LaunchedEffect(autoFocus)`), the drag handle, the text field, and the due/delete affordances. Pull the handle and the focus block out first — the handle is self-contained and is the piece with the subtlest history, since the gesture originally never fired at all (`BasicTextField` claims long-press for selection, which is why it has a dedicated `≡` and plain `detectDragGestures`). **Preserve that arrangement exactly**; it is not incidental.
+  2. **`StatusLine` (72 → ~30).** A 36-line lifecycle-scoped `ACTION_BATTERY_CHANGED` receiver sits inside a composable whose job is to draw three pieces of text. Extract `rememberBatteryText()`, and the `repeatOnLifecycle` clock loop as `rememberStatusText()` — the same shape twice. **Keep both scoped to RESUMED**: this is the home screen, paused constantly and rarely destroyed, so an unscoped receiver or ticker outlives every use of it.
+  3. **`ShellScreen`'s derived state (~60 lines out), and this is the one worth arguing for.** Lines ~172–290 are pure derivation — five `as?` downcasts, then `filteredApps`, `autoLaunchTarget`, `isPlainQuery`, `plainMatchTarget`, `previewText`, `pendingAliasExpansion`. Nothing there touches Compose beyond `remember`. Lifting it into a `ShellUiState` built by a pure function makes it **unit-testable, which none of it is today** — and `previewText` and `plainMatchTarget` are what decide what T1 shows you, so they are among the least appropriate things in the app to have no tests.
+  - **⚠️ Leave the four-branch view switch alone** (`if (appsCommand != null) … else if (notesCommand != null) …`). It re-derives the command type the parser already knew, and it collapses on its own under T178 — fixing it here means fixing it twice.
+  - **Do not touch these, despite the line counts:**
+    - `MainActivity.onCreate` (114) is a flat wiring list with no branching. Splitting it into `wireRepositories()`/`wireLaunchers()` moves lines without reducing anything, and it shrinks as a *consequence* of T178.
+    - `damerauLevenshtein` (26) is an algorithm; `firstJsonObject` (25) is a brace-balancing scanner with string and escape tracking. Both are dense because the problem is, and both are well covered.
+    - `export` (33), `evaluateAliasDefinition` (24) and `parseChecklist` (20) are single-purpose with their decisions already named and extracted. Long is not the same as complex.
+    - `TagChipsRow` (53) is a fair candidate and is **too new** — it landed with T169 and has had one emulator run. Let it settle before reworking it.
+  - No behaviour change anywhere in this task, so the existing suite is the check: if a test needs editing, something here was not an extraction.
+
 ## 04 · Notes storage
 
 Room schema, Markdown format, outbox from day one.
@@ -1137,4 +1153,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**177 tasks — 81 done, 96 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**178 tasks — 81 done, 97 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
