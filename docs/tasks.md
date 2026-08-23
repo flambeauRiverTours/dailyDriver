@@ -520,7 +520,7 @@ Tiered cascade. **The SLM is not the front door.**
   - `settings/` is now an empty package and was removed.
   - `editBody { content -> … }` and `checklistOf(body)` replace the four hand-applied `splitTagLines` calls in `NoteEditorViewModel`. The split is now structural: there is no way to read or rewrite a checklist body that skips it.
 
-- [ ] **T178** — Command dispatch lives in two places  
+- [x] **T178** — Command dispatch lives in two places  
   `P1` `L` · after: T140
   - **`ShellViewModel.onSubmit()` has 12 branches and 11 are a bare `return`.** Only `:help` does anything. Each no-op carries a comment saying ShellScreen intercepts it first — so the ViewModel that owns the state does almost none of the deciding, and the composable that should only render does most of it.
   - **Not sloppiness — forced.** A command needs a `Context` (launchers) or a suspend Room write, and the ViewModel has neither. Every command since has been answered with another callback.
@@ -528,6 +528,14 @@ Tiered cascade. **The SLM is not the front door.**
   - **Fix: the registry should map a token to *behaviour*, not just to a parsed variant.** T140 already owns token → `ReservedCommand`; extend it to a handler returning **effects as data** (`LaunchApp(pkg)`, `OpenUrl(url)`, `Record(text)`) that `MainActivity` performs. `onSubmit` becomes one dispatch, `ShellScreen` goes back to rendering, and adding a command is one registry entry instead of edits across four files. Most of the 30 parameters and all 15 pass-through methods fall out.
   - ⚠️ **Highest-risk item on this list — plan it before starting.** It touches every command, and the registry property tests (T150) are the safety net that makes it feasible at all. Do T175–T177 first; they are independent and shrink the surface this has to move.
   - **Don't take this as licence to add DI.** `MainActivity`'s nine `lateinit` fields look like the smell, but with one Activity and no test seams, Hilt would cost more than it returns. The problem is where decisions are made, not how objects are built.
+  - Built as `command/CommandEnvironment.kt` (the seam) + `command/CommandDispatch.kt` (the single dispatch) + a `ShellViewModel.factory`. **Results: `ShellScreen` 30 parameters → 22 and 295 → 222 code lines; `ShellViewModel` 278 → 148 lines with the 15 record-and-clear methods gone; `MainActivity.onCreate` 114 → 60 code lines.** No DI framework, as the note above insisted.
+  - **🔎 The refactor found a UX regression in itself, and the tests caught it.** Clearing the prompt unconditionally on submit closed the browse list you were still filtering — `:apps ca` + Enter threw away the filter that produced the list. The old eleven no-ops had been quietly encoding that. Fixed with a third outcome, `CommandOutcome.Stay`: a browse view with nothing to commit to keeps what was typed, and clearing is the *outcome's* decision rather than the caller's.
+  - **🐛 And it found a second regression, only visible in the exported log.** Moving the logging dropped `ShellScreen`'s deliberate exclusion of alias *definitions*, so `alias a = :apps` started being filed as a **T3 miss** — teaching the training set that a line which worked perfectly was unresolvable. Restored as `isTrainingExample`, with a regression test naming the incident. Nothing but reading a real export would have shown this.
+  - **The folded-in note-pause bug is fixed and verified the only way it can be**: the export now contains a `:notes` row that came from the pause path, which logged nothing before.
+  - Clearing is deferred until dispatch returns and guarded on the input still being what was submitted, so a slow command (`:export` reads the database and writes a file) cannot wipe something typed while it ran.
+  - **31 new tests** against a fake environment (`CommandDispatchTest`), covering every command and the T0→T1→T3 cascade — a surface that had **zero** coverage because it lived inside a composable. `runBlocking` rather than a coroutines-test dispatcher: dispatch suspends but never delays, so no new dependency was needed.
+  - Several `ShellViewModelTest` cases changed, as expected — they asserted the architecture by name ("ShellScreen handles it, not this fallback"). Where the premise died the property underneath was kept: the no-op tests became "browse commands keep the prompt".
+  - Verified on an emulator: every command through Enter, all three pause paths, and an export read back to confirm each tier appears.
 
 - [ ] **T179** — Three long functions carrying several jobs each  
   `P2` `M` · after: T146, T023
@@ -1163,4 +1171,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**178 tasks — 84 done, 94 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**178 tasks — 85 done, 93 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

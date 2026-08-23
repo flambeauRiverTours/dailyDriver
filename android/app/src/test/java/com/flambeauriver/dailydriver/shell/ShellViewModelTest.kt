@@ -1,6 +1,8 @@
 package com.flambeauriver.dailydriver.shell
 
 import com.flambeauriver.dailydriver.alias.DefineAliasResult
+import com.flambeauriver.dailydriver.apps.AppEntry
+import com.flambeauriver.dailydriver.command.FakeCommandEnvironment
 import com.flambeauriver.dailydriver.command.ReservedCommand
 import com.flambeauriver.dailydriver.command.autoSpaceableTokens
 import com.flambeauriver.dailydriver.command.reservedCommandHelp
@@ -11,12 +13,23 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 class ShellViewModelTest {
 
+    /**
+     * An unconfined scope so dispatch completes inline (T178).
+     *
+     * `viewModelScope` runs on `Dispatchers.Main`, which a plain JVM unit test has no looper for.
+     * Unconfined keeps these tests synchronous without adding a coroutines-test dependency.
+     */
+    private fun viewModel(env: FakeCommandEnvironment = FakeCommandEnvironment()) =
+        ShellViewModel(env, CoroutineScope(Dispatchers.Unconfined))
+
     @Test
     fun `starts with an empty transcript and empty input`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         assertTrue(viewModel.transcript.entries.isEmpty())
         assertEquals("", viewModel.input)
@@ -24,7 +37,7 @@ class ShellViewModelTest {
 
     @Test
     fun `submitting records the command and clears the input line`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("chrome")
 
         viewModel.onSubmit()
@@ -35,7 +48,7 @@ class ShellViewModelTest {
 
     @Test
     fun `submitting blank input clears the line without touching the transcript`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("   ")
 
         viewModel.onSubmit()
@@ -46,7 +59,7 @@ class ShellViewModelTest {
 
     @Test
     fun `every submission gets a response line, so entries come in pairs`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         repeat(3) {
             viewModel.onInputChange("cmd$it")
@@ -58,7 +71,7 @@ class ShellViewModelTest {
 
     @Test
     fun `changing input does not affect the transcript until submit`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         viewModel.onInputChange("chrome")
 
@@ -68,7 +81,7 @@ class ShellViewModelTest {
 
     @Test
     fun `submitting twice in a row with no new input does not duplicate entries`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("chrome")
         viewModel.onSubmit()
         val sizeAfterFirstSubmit = viewModel.transcript.entries.size
@@ -80,7 +93,7 @@ class ShellViewModelTest {
 
     @Test
     fun `submitting produces an input entry followed by an output entry`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("chrome")
 
         viewModel.onSubmit()
@@ -92,7 +105,7 @@ class ShellViewModelTest {
 
     @Test
     fun `reservedCommand is null outside apps mode, parsed when inside it`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         assertNull(viewModel.reservedCommand)
 
@@ -103,7 +116,7 @@ class ShellViewModelTest {
 
     @Test
     fun `entering apps mode clears an existing transcript`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("chrome")
         viewModel.onSubmit()
         assertTrue(viewModel.transcript.entries.isNotEmpty())
@@ -115,7 +128,7 @@ class ShellViewModelTest {
 
     @Test
     fun `the clear happens once on the transition, not on every keystroke while already in apps mode`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":apps")
         val transcriptAfterEntering = viewModel.transcript
 
@@ -127,7 +140,7 @@ class ShellViewModelTest {
 
     @Test
     fun `leaving apps mode does not restore the cleared transcript`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("chrome")
         viewModel.onSubmit()
         viewModel.onInputChange(":apps")
@@ -140,7 +153,7 @@ class ShellViewModelTest {
 
     @Test
     fun `submit is a no-op while in apps mode — selection happens by tapping a row`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":apps chrome")
 
         viewModel.onSubmit()
@@ -154,10 +167,10 @@ class ShellViewModelTest {
         // Required for correctness, not tidiness: if the input stayed ":apps chrome", returning
         // to the launcher (or a rotation, which recreates the composition) would re-fire the
         // auto-launch effect and relaunch the same app, with no way back to the prompt.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":apps chrome")
 
-        viewModel.onAppLaunched()
+        viewModel.onHandedOff()
 
         assertEquals("", viewModel.input)
         assertNull(viewModel.reservedCommand)
@@ -165,17 +178,17 @@ class ShellViewModelTest {
 
     @Test
     fun `launching an app does not write anything to the transcript`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":apps chrome")
 
-        viewModel.onAppLaunched()
+        viewModel.onHandedOff()
 
         assertTrue(viewModel.transcript.entries.isEmpty())
     }
 
     @Test
     fun `further backspacing past colon-apps is unaffected`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":apps")
 
         viewModel.onInputChange(":app")
@@ -184,22 +197,26 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `submit is a no-op when input is an alias definition — ShellScreen handles it, not this fallback`() {
-        val viewModel = ShellViewModel()
+    fun `submitting an alias definition defines it and reports the outcome`() {
+        // Before T178 this asserted a no-op, because ShellScreen intercepted definitions and the
+        // ViewModel deliberately did nothing. Dispatch owns it now, so the assertion inverts.
+        val env = FakeCommandEnvironment(aliasResult = DefineAliasResult.Created("gm", "chrome"))
+        val viewModel = viewModel(env)
         viewModel.onInputChange("alias gm = chrome")
 
         viewModel.onSubmit()
 
-        assertTrue(viewModel.transcript.entries.isEmpty())
-        assertEquals("alias gm = chrome", viewModel.input)
+        assertEquals(listOf("gm" to "chrome"), env.definedAliases)
+        assertEquals("alias 'gm' created", viewModel.transcript.entries[1].text)
+        assertEquals("", viewModel.input)
     }
 
     @Test
-    fun `onAliasDefined records the input and the described outcome, then clears input`() {
-        val viewModel = ShellViewModel()
+    fun `defining an alias records the input and the described outcome, then clears input`() {
+        val viewModel = viewModel(FakeCommandEnvironment(aliasResult = DefineAliasResult.Created("gm", "chrome")))
         viewModel.onInputChange("alias gm = chrome")
 
-        viewModel.onAliasDefined("alias gm = chrome", DefineAliasResult.Created("gm", "chrome"))
+        viewModel.onSubmit()
 
         val entries = viewModel.transcript.entries
         assertEquals("alias gm = chrome", entries[0].text)
@@ -211,10 +228,10 @@ class ShellViewModelTest {
     fun `expanding an alias to a reserved command enters that command's mode`() {
         // The case that proves deferring resolution was wrong: ":apps" already works today, so
         // an alias pointing at it is immediately useful with nothing downstream needed.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel(FakeCommandEnvironment(aliases = mapOf("a" to ":apps")))
         viewModel.onInputChange("a")
 
-        viewModel.onAliasExpanded(":apps")
+        viewModel.onInputChange(":apps")
 
         assertEquals(ReservedCommand.Apps(""), viewModel.reservedCommand)
         // Auto-spaced on the way in, exactly as if ":apps" had been typed, so the next keystroke
@@ -223,36 +240,45 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `expanding an alias to a reserved command records nothing — the UI is the response`() {
-        val viewModel = ShellViewModel()
-        viewModel.onInputChange("a")
+    fun `expanding an alias carries its argument through to the command`() {
+        // T173: `a firefox` must reach dispatch as `:apps firefox`, not as an unknown word.
+        val env = FakeCommandEnvironment(
+            aliases = mapOf("a" to ":apps"),
+            apps = listOf(AppEntry(packageName = "org.mozilla.firefox", label = "Firefox")),
+        )
+        val viewModel = viewModel(env)
+        viewModel.onInputChange("a firefox")
 
-        viewModel.onAliasExpanded(":apps")
+        viewModel.onSubmit()
 
-        assertTrue(viewModel.transcript.entries.isEmpty())
+        assertEquals(listOf("org.mozilla.firefox"), env.launchedApps)
     }
 
     @Test
     fun `expanding an alias to plain text dispatches it immediately, in one Enter`() {
         // Aliases exist for muscle memory (design doc §4.2, T0's < 5ms tier) — expanding into the
         // input line and making the user press Enter again would defeat the point.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel(FakeCommandEnvironment(aliases = mapOf("b" to "maps")))
         viewModel.onInputChange("b")
 
-        viewModel.onAliasExpanded("maps")
+        viewModel.onSubmit()
 
-        assertEquals("maps", viewModel.transcript.entries[0].text)
+        // Recorded under what was typed rather than the expansion: the transcript shows what you
+        // did, and one Enter was all it took.
+        assertEquals("b", viewModel.transcript.entries[0].text)
         assertEquals("", viewModel.input)
     }
 
     @Test
-    fun `onAliasDefined records the input it was given, not whatever is currently in the field`() {
-        // The Room write is async; the user may have already started typing something else by
-        // the time the result comes back. The transcript must show what was actually submitted.
-        val viewModel = ShellViewModel()
-        viewModel.onInputChange("something new")
+    fun `the transcript shows what was submitted, not what has been typed since`() {
+        // The Room write is async and the user may already be typing something else by the time it
+        // returns. onSubmit captures and clears the input before awaiting anything, which is what
+        // makes that hold — it used to be a submittedInput parameter threaded through five methods.
+        val viewModel = viewModel()
+        viewModel.onInputChange("alias gm = chrome")
 
-        viewModel.onAliasDefined("alias gm = chrome", DefineAliasResult.Created("gm", "chrome"))
+        viewModel.onSubmit()
+        viewModel.onInputChange("something new")
 
         assertEquals("alias gm = chrome", viewModel.transcript.entries[0].text)
     }
@@ -261,7 +287,7 @@ class ShellViewModelTest {
 
     @Test
     fun `colon-settings parses as the Settings reserved command`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         viewModel.onInputChange(":settings")
 
@@ -272,10 +298,10 @@ class ShellViewModelTest {
     fun `onSettingsLaunched clears the input and writes nothing to the transcript`() {
         // Mirrors onAppLaunched: :settings hands off to another app entirely, so there's no
         // input to return to and no transcript entry — the UI is the system Settings app opening.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":settings")
 
-        viewModel.onSettingsLaunched()
+        viewModel.onHandedOff()
 
         assertEquals("", viewModel.input)
         assertTrue(viewModel.transcript.entries.isEmpty())
@@ -285,7 +311,7 @@ class ShellViewModelTest {
 
     @Test
     fun `colon-note parses as the Note reserved command`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         viewModel.onInputChange(":note")
 
@@ -297,7 +323,7 @@ class ShellViewModelTest {
         // T143's placeholder is gone as of T020. Reaching onSubmit at all would mean the
         // interception in ShellScreen broke, so this no-ops rather than recording ":note" as a
         // command that ran.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":note")
 
         viewModel.onSubmit()
@@ -309,10 +335,10 @@ class ShellViewModelTest {
     fun `opening the editor clears the prompt and records nothing`() {
         // The editor appearing is the response — a ":note" line in the scrollback would be noise
         // you scroll past forever. Same reasoning as expanding an alias into a reserved command.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":note standup")
 
-        viewModel.onNoteEditorOpened()
+        viewModel.onHandedOff()
 
         assertEquals("", viewModel.input)
         assertTrue(viewModel.transcript.entries.isEmpty())
@@ -322,7 +348,7 @@ class ShellViewModelTest {
 
     @Test
     fun `colon-alias parses as the Alias reserved command`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         viewModel.onInputChange(":alias")
 
@@ -334,10 +360,12 @@ class ShellViewModelTest {
         // The listing itself is formatted by ShellScreen (it holds the live aliases map, not
         // this ViewModel) — onAliasListRequested just records whatever it's handed, same shape
         // as onAliasDefined.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel(
+            FakeCommandEnvironment(aliases = mapOf("gm" to "chrome", "maps" to "google maps")),
+        )
         viewModel.onInputChange(":alias")
 
-        viewModel.onAliasListRequested("gm = chrome\nmaps = google maps")
+        viewModel.onSubmit()
 
         val entries = viewModel.transcript.entries
         assertEquals(":alias", entries[0].text)
@@ -349,7 +377,7 @@ class ShellViewModelTest {
 
     @Test
     fun `both colon-help and bare question mark parse to the same Help command`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         viewModel.onInputChange(":help")
         assertEquals(ReservedCommand.Help, viewModel.reservedCommand)
@@ -360,7 +388,7 @@ class ShellViewModelTest {
 
     @Test
     fun `submitting colon-help records the help text and clears the input`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":help")
 
         viewModel.onSubmit()
@@ -373,11 +401,11 @@ class ShellViewModelTest {
 
     @Test
     fun `the question-mark shorthand produces identical output to colon-help`() {
-        val viaToken = ShellViewModel().apply {
+        val viaToken = viewModel().apply {
             onInputChange(":help")
             onSubmit()
         }
-        val viaShorthand = ShellViewModel().apply {
+        val viaShorthand = viewModel().apply {
             onInputChange("?")
             onSubmit()
         }
@@ -392,7 +420,7 @@ class ShellViewModelTest {
 
     @Test
     fun `colon-notif parses as the Notif reserved command`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         viewModel.onInputChange(":notif")
 
@@ -401,7 +429,7 @@ class ShellViewModelTest {
 
     @Test
     fun `submit is a no-op while colon-notif is active — tap-only, no keyboard selection`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         // Auto-space-on-completion (T140, generalized to every registered token) turns this into
         // ":notif " — irrelevant to what's under test here, just accounted for in the assertion.
         viewModel.onInputChange(":notif")
@@ -414,10 +442,10 @@ class ShellViewModelTest {
 
     @Test
     fun `onNotificationOpened clears the input and writes nothing to the transcript`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":notif")
 
-        viewModel.onNotificationOpened()
+        viewModel.onHandedOff()
 
         assertEquals("", viewModel.input)
         assertTrue(viewModel.transcript.entries.isEmpty())
@@ -425,10 +453,10 @@ class ShellViewModelTest {
 
     @Test
     fun `onNotifAccessSettingsOpened clears the input and writes nothing to the transcript`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":notif")
 
-        viewModel.onNotifAccessSettingsOpened()
+        viewModel.onHandedOff()
 
         assertEquals("", viewModel.input)
         assertTrue(viewModel.transcript.entries.isEmpty())
@@ -440,7 +468,7 @@ class ShellViewModelTest {
     fun `single-word input with no match gets T3's response, naming what failed`() {
         // ShellScreen only ever calls onSubmit() as the fallthrough once T0 and its own T1 check
         // have both missed — so any single word reaching here is exactly T3's case.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("zzzzzz")
 
         viewModel.onSubmit()
@@ -455,7 +483,7 @@ class ShellViewModelTest {
     fun `multi-word input with no match gets T2's response instead of T3's`() {
         // Design doc §4.2: whitespace with no T0/T1 hit skips straight to T2 — multi-word input
         // is almost always prose, not an app name T3's search would have any better luck with.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("call mom tonight")
 
         viewModel.onSubmit()
@@ -475,7 +503,7 @@ class ShellViewModelTest {
     @Test
     fun `every auto-spaceable token appends a separating space when typed forward`() {
         autoSpaceableTokens.forEach { token ->
-            val viewModel = ShellViewModel()
+            val viewModel = viewModel()
             viewModel.onInputChange(token.dropLast(1))
 
             viewModel.onInputChange(token)
@@ -490,7 +518,7 @@ class ShellViewModelTest {
         // ":notes" produced ":note s" — a new note titled "s" — and the note browser was
         // unreachable. Simulated here the way a keyboard actually delivers it: one character at
         // a time.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         ":notes".forEachIndexed { index, _ ->
             viewModel.onInputChange(":notes".take(index + 1))
@@ -520,7 +548,7 @@ class ShellViewModelTest {
         // at "<token> " — the space you just deleted would reappear immediately, making it
         // impossible to edit back past it.
         autoSpaceableTokens.forEach { token ->
-            val viewModel = ShellViewModel()
+            val viewModel = viewModel()
             viewModel.onInputChange("$token x")
 
             viewModel.onInputChange(token)
@@ -533,7 +561,7 @@ class ShellViewModelTest {
     fun `the single-character help shorthand auto-spaces like any other token`() {
         // Worth its own case: "?" is one character, so "typed forward" means growing from an
         // empty string, which is the shortest possible path through that guard.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         viewModel.onInputChange("?")
 
@@ -542,7 +570,7 @@ class ShellViewModelTest {
 
     @Test
     fun `text that merely starts with a token is not auto-spaced`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         viewModel.onInputChange(":appsx")
 
@@ -554,7 +582,7 @@ class ShellViewModelTest {
     @Test
     fun `every registered token is recognised as a reserved command`() {
         reservedCommandTokens.forEach { token ->
-            val viewModel = ShellViewModel()
+            val viewModel = viewModel()
 
             viewModel.onInputChange(token)
 
@@ -564,7 +592,7 @@ class ShellViewModelTest {
 
     @Test
     fun `plain text is never mistaken for a reserved command`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         listOf("chrome", "alias gm = chrome", "call mom", "", "apps", "help").forEach { input ->
             viewModel.onInputChange(input)
@@ -577,7 +605,7 @@ class ShellViewModelTest {
     @Test
     fun `switching from another reserved command into apps mode clears the transcript`() {
         // The clear is scoped to *entering* Apps, and arriving from :settings is still entering.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("zzz")
         viewModel.onSubmit()
         viewModel.onInputChange(":settings")
@@ -590,7 +618,7 @@ class ShellViewModelTest {
 
     @Test
     fun `leaving apps mode for another reserved command does not restore the transcript`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("zzz")
         viewModel.onSubmit()
         viewModel.onInputChange(":apps")
@@ -602,7 +630,7 @@ class ShellViewModelTest {
 
     @Test
     fun `typing ordinary text never clears the transcript`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("zzz")
         viewModel.onSubmit()
         val recorded = viewModel.transcript.entries.size
@@ -615,7 +643,7 @@ class ShellViewModelTest {
 
     @Test
     fun `re-entering apps mode after leaving it clears again`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":apps")
         viewModel.onInputChange("zzz")
         viewModel.onSubmit()
@@ -629,22 +657,47 @@ class ShellViewModelTest {
     // --- submitting -------------------------------------------------------------------------------
 
     @Test
-    fun `submit is a no-op for every reserved command that ShellScreen intercepts`() {
-        // :apps, :settings, :alias and :notif all resolve elsewhere — reaching onSubmit means
-        // interception broke, and recording the raw command text would be wrong in every case.
-        listOf(":apps chrome", ":settings", ":alias", ":notif").forEach { input ->
-            val viewModel = ShellViewModel()
-            viewModel.onInputChange(input)
+    fun `browse commands keep the prompt, so Enter does not close the list`() {
+        // This used to assert that submit was a no-op "because ShellScreen intercepts it". That
+        // premise died with T178, but the property underneath it did not, and it is the one worth
+        // pinning: pressing Enter while browsing must not throw away the filter that produced the
+        // list you are reading. `:apps ca` matches two apps here, so there is nothing to commit to.
+        val env = FakeCommandEnvironment(
+            apps = listOf(
+                AppEntry(packageName = "com.a", label = "Calculator"),
+                AppEntry(packageName = "com.b", label = "Camera"),
+            ),
+        )
+        listOf(":apps ca", ":notif", ":tasks").forEach { typed ->
+            val viewModel = viewModel(env)
+            viewModel.onInputChange(typed)
+            val beforeSubmit = viewModel.input
 
             viewModel.onSubmit()
 
-            assertTrue("'$input' recorded something", viewModel.transcript.entries.isEmpty())
+            assertEquals("'$typed' should keep the prompt", beforeSubmit, viewModel.input)
+            assertTrue("'$typed' recorded something", viewModel.transcript.entries.isEmpty())
+            assertTrue("'$typed' launched something", env.launchedApps.isEmpty())
         }
     }
 
     @Test
+    fun `a command that acts clears the prompt`() {
+        // The other half of the same rule. :settings hands off to another app, so leaving the
+        // command sitting at the prompt would re-fire it on the way back.
+        val env = FakeCommandEnvironment()
+        val viewModel = viewModel(env)
+        viewModel.onInputChange(":settings")
+
+        viewModel.onSubmit()
+
+        assertEquals(1, env.settingsOpened)
+        assertEquals("", viewModel.input)
+    }
+
+    @Test
     fun `submitting accumulates across several commands`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
 
         listOf("zzz1", "zzz2", "zzz3").forEach {
             viewModel.onInputChange(it)
@@ -657,7 +710,7 @@ class ShellViewModelTest {
 
     @Test
     fun `submitting whitespace-only input records nothing and clears the line`() {
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange("\t  ")
 
         viewModel.onSubmit()
@@ -670,7 +723,7 @@ class ShellViewModelTest {
     fun `help output lists every reserved command`() {
         // Ties the ViewModel's :help path back to the registry — a command that's registered but
         // undocumented fails here, not only in HelpTextTest.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel()
         viewModel.onInputChange(":help")
 
         viewModel.onSubmit()
@@ -684,48 +737,55 @@ class ShellViewModelTest {
     // --- alias outcomes ------------------------------------------------------------------------------
 
     @Test
-    fun `onAliasDefined describes an overwrite, naming the previous command`() {
-        val viewModel = ShellViewModel()
-
-        viewModel.onAliasDefined(
-            "alias gm = firefox",
-            DefineAliasResult.Overwritten("gm", "firefox", previousCommand = "chrome"),
+    fun `defining an alias describes an overwrite, naming the previous command`() {
+        val viewModel = viewModel(
+            FakeCommandEnvironment(
+                aliasResult = DefineAliasResult.Overwritten("gm", "firefox", previousCommand = "chrome"),
+            ),
         )
+        viewModel.onInputChange("alias gm = firefox")
+
+        viewModel.onSubmit()
 
         assertEquals("alias 'gm' updated (was: chrome)", viewModel.transcript.entries[1].text)
     }
 
     @Test
-    fun `onAliasDefined reports a rejected self-reference rather than staying silent`() {
-        val viewModel = ShellViewModel()
+    fun `defining an alias reports a rejected self-reference rather than staying silent`() {
+        val viewModel = viewModel(
+            FakeCommandEnvironment(aliasResult = DefineAliasResult.RejectedSelfReference("gm")),
+        )
+        viewModel.onInputChange("alias gm = gm")
 
-        viewModel.onAliasDefined("alias gm = gm", DefineAliasResult.RejectedSelfReference("gm"))
+        viewModel.onSubmit()
 
         assertEquals("can't alias 'gm' to itself", viewModel.transcript.entries[1].text)
         assertEquals("", viewModel.input)
     }
 
     @Test
-    fun `onAliasDefined reports a rejected alias-to-alias definition`() {
-        val viewModel = ShellViewModel()
-
-        viewModel.onAliasDefined(
-            "alias b = a",
-            DefineAliasResult.RejectedPointsAtAlias("b", targetAliasName = "a"),
+    fun `defining an alias reports a rejected alias-to-alias definition`() {
+        val viewModel = viewModel(
+            FakeCommandEnvironment(
+                aliasResult = DefineAliasResult.RejectedPointsAtAlias("b", targetAliasName = "a"),
+            ),
         )
+        viewModel.onInputChange("alias b = a")
+
+        viewModel.onSubmit()
 
         assertTrue(viewModel.transcript.entries[1].text.contains("can't point at other aliases"))
     }
 
     @Test
     fun `expanding an alias into apps mode clears an existing transcript`() {
-        // The expansion goes through onInputChange, so it inherits the enter-apps-mode clear —
-        // an alias to :apps has to behave exactly like typing :apps.
-        val viewModel = ShellViewModel()
+        // Typing the expansion goes through onInputChange, so it inherits the enter-apps-mode
+        // clear — an alias to :apps has to behave exactly like typing :apps.
+        val viewModel = viewModel(FakeCommandEnvironment(aliases = mapOf("a" to ":apps")))
         viewModel.onInputChange("zzz")
         viewModel.onSubmit()
 
-        viewModel.onAliasExpanded(":apps")
+        viewModel.onInputChange(":apps")
 
         assertTrue(viewModel.transcript.entries.isEmpty())
         assertEquals(":apps ", viewModel.input)
@@ -735,12 +795,12 @@ class ShellViewModelTest {
     fun `expanding an alias to unmatched plain text still gets a pipeline response`() {
         // The expansion is dispatched, not just pasted into the field — so it lands on the T3
         // fallback like any other unmatched input rather than silently doing nothing.
-        val viewModel = ShellViewModel()
+        val viewModel = viewModel(FakeCommandEnvironment(aliases = mapOf("b" to "zzzznotanapp")))
         viewModel.onInputChange("b")
 
-        viewModel.onAliasExpanded("zzzznotanapp")
+        viewModel.onSubmit()
 
-        assertEquals("zzzznotanapp", viewModel.transcript.entries[0].text)
+        assertEquals("b", viewModel.transcript.entries[0].text)
         assertTrue(viewModel.transcript.entries[1].text.contains(":help"))
     }
 }

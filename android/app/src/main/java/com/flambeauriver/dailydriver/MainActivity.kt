@@ -31,6 +31,12 @@ import com.flambeauriver.dailydriver.search.googleSearchUrl
 import com.flambeauriver.dailydriver.shell.IntentLauncher
 import com.flambeauriver.dailydriver.shell.ShellScreen
 import com.flambeauriver.dailydriver.shell.ShellViewModel
+import androidx.compose.runtime.remember
+import com.flambeauriver.dailydriver.command.CommandEnvironment
+import com.flambeauriver.dailydriver.command.CommandResolution
+import com.flambeauriver.dailydriver.notes.Note
+import com.flambeauriver.dailydriver.notes.NoteQuery
+import kotlinx.coroutines.flow.first
 import com.flambeauriver.dailydriver.ui.theme.DailyDriverTheme
 import kotlinx.coroutines.launch
 
@@ -81,97 +87,52 @@ class MainActivity : AppCompatActivity() {
 
         setContent {
             DailyDriverTheme {
-                val viewModel: ShellViewModel = viewModel()
                 val editor: NoteEditorViewModel =
                     viewModel(factory = NoteEditorViewModel.factory(notesRepository))
+                // Built here rather than in onCreate because it closes over the editor, which is
+                // itself a ViewModel and only exists inside the composition (T178).
+                val environment = remember(editor) { commandEnvironment(editor) }
+                val viewModel: ShellViewModel =
+                    viewModel(factory = ShellViewModel.factory(environment))
+
                 ShellScreen(
                     transcript = viewModel.transcript,
                     input = viewModel.input,
                     onInputChange = viewModel::onInputChange,
                     onSubmit = viewModel::onSubmit,
+                    onResolved = viewModel::onResolved,
+                    onHandedOff = viewModel::onHandedOff,
                     reservedCommand = viewModel.reservedCommand,
                     // Reading a plain (non-State) property here means this only picks up a
                     // background refresh (package install/uninstall) the next time something else
                     // triggers recomposition of this scope — typing does, so in practice this is
-                    // never stale for more than a moment while actually using :apps. Sitting idle
-                    // at the plain prompt when a package changes could show stale data until the
-                    // next keystroke or transcript update. Acceptable for T012; revisit if it's
-                    // ever actually noticeable.
+                    // never visibly stale.
                     apps = appIndexRepository.apps,
                     onAppClick = { app ->
                         launcher.launchApp(app.packageName)
-                        // Leave apps mode on the way out — see ShellViewModel.onAppLaunched.
-                        viewModel.onAppLaunched()
+                        // Leave apps mode on the way out: were the input left at `:apps chrome`,
+                        // returning to the launcher would re-trigger auto-launch on the still-
+                        // unique match and bounce straight back out.
+                        viewModel.onHandedOff()
                     },
-                    onSettingsCommand = {
-                        launcher.openSettings()
-                        // Same reasoning as onAppClick above — see ShellViewModel.onSettingsLaunched.
-                        viewModel.onSettingsLaunched()
-                    },
-                    // Same non-reactive-getter caveat as `apps` above — refreshed by
-                    // AliasRepository.define, picked up on the next recomposition, which the
-                    // transcript update after a definition reliably triggers.
+                    // Same non-reactive-getter caveat as `apps` above.
                     aliases = aliasRepository.aliases,
-                    onAliasListRequested = viewModel::onAliasListRequested,
-                    onAliasExpanded = viewModel::onAliasExpanded,
-                    onDefineAlias = { input, name, command ->
-                        // Resolved here rather than inside the repository, which owns aliases and
-                        // has no reason to know about the app index (T162).
-                        val result = aliasRepository.define(
-                            name = name,
-                            command = command,
-                            target = resolveAliasTarget(command, appIndexRepository.apps),
-                        )
-                        viewModel.onAliasDefined(input, result)
-                    },
-                    // Same non-reactive-getter caveat as `apps`/`aliases` above — both properties
-                    // are read fresh on each recomposition, not backed by State/Flow.
                     notifications = notificationRepository.notifications,
                     hasNotificationAccess = notificationRepository.hasAccess(),
                     onNotificationClick = { notification ->
                         notificationRepository.open(notification.key)
-                        viewModel.onNotificationOpened()
-                    },
-                    onNotifAccessSettings = {
-                        notificationRepository.openNotificationAccessSettings()
-                        viewModel.onNotifAccessSettingsOpened()
+                        viewModel.onHandedOff()
                     },
                     // Passed as a lambda rather than a value on purpose — StatusLine polls it on
                     // its own tick, so the dot updates without waiting for this scope to
                     // recompose. See StatusLine's doc comment.
                     hasUnreadNotifications = { notificationRepository.hasUnreadNotifications },
                     editor = editor,
-                    // The editor has taken over the bottom of the screen, so ":note ..." should
-                    // not still be sitting on the prompt behind it.
-                    onNoteEditorOpened = viewModel::onNoteEditorOpened,
-                    // Query string in, live results out. Parsing happens here rather than in the
-                    // composable so ShellScreen never has to know a tag filter and a text search
-                    // are different queries.
-                    observeNotes = { query ->
-                        notesRepository.observe(parseNoteQuery(query))
-                    },
+                    // Query string in, live results out. Parsing happens here so ShellScreen never
+                    // has to know a tag filter and a text search are different queries.
+                    observeNotes = { query -> notesRepository.observe(parseNoteQuery(query)) },
                     observeTasks = notesRepository::observeTasks,
                     observeCompletedTasks = notesRepository::observeCompletedTasks,
-                    // Date resolution happens here, at the moment of entry, so what reaches the
-                    // body is always a literal ISO date (T153). An undated `:task` is due today.
-                    onAddTask = { submittedInput, text ->
-                        val trimmed = text.trim()
-                        if (trimmed.isEmpty()) {
-                            viewModel.onEmptyTask(submittedInput)
-                        } else {
-                            val today = LocalDate.now()
-                            val resolved = resolveDueInText(trimmed, today)
-                            val item = parseChecklist("- [ ] $resolved").single()
-                            val due = item.due ?: today
-                            notesRepository.addTask(
-                                text = item.text,
-                                due = due,
-                                now = System.currentTimeMillis(),
-                                newId = { UUID.randomUUID().toString() },
-                            )
-                            viewModel.onTaskAdded(submittedInput, item.text, shortDate(due))
-                        }
-                    },
                     onToggleTask = { task ->
                         notesRepository.setTaskChecked(
                             noteId = task.noteId,
@@ -181,33 +142,73 @@ class MainActivity : AppCompatActivity() {
                         )
                     },
                     onOpenTaskNote = { task -> notesRepository.byId(task.noteId) },
-                    // T172. Resolved here rather than in the composable, which has no launcher
-                    // and no business building URLs.
-                    onGoogleSearch = { submittedInput, query ->
-                        val url = googleSearchUrl(query)
-                        when {
-                            url == null -> viewModel.onEmptySearch(submittedInput)
-                            launcher.openUrl(url) -> viewModel.onSearchLaunched(submittedInput, query)
-                            else -> viewModel.onSearchFailed(submittedInput)
-                        }
-                    },
-                    // T166. Unlike onCommandResolved below, this is awaited and its result is
-                    // shown: the export *is* the command, so a silent failure would be the very
-                    // thing this task exists to stop happening.
-                    onExportCommandLog = { submittedInput ->
-                        val result = commandLogExporter.export(commandLog.all(), LocalDateTime.now())
-                        viewModel.onCommandLogExported(submittedInput, result)
-                    },
-                    // T014. Fire-and-forget on the activity scope: the log is a by-product of
-                    // running a command, and making the command wait on it would put a database
-                    // write on the launcher's fast path, which §4.2 exists to keep clear.
-                    onCommandResolved = { submitted, resolution ->
-                        lifecycleScope.launch {
-                            commandLog.record(submitted, resolution, System.currentTimeMillis())
-                        }
-                    },
                     focusRegainedSignal = focusRegainedSignal,
                 )
+            }
+        }
+    }
+
+    /**
+     * The one implementation of [CommandEnvironment] (T178).
+     *
+     * Everything a command needs beyond shell state, in one place: this Activity already holds the
+     * launcher, every repository and the exporter, and [editor] supplies the two capabilities that
+     * only exist inside the composition.
+     *
+     * Before T178 each of these was a separate `ShellScreen` parameter, which is how that
+     * composable reached thirty of them and how dispatch ended up living in the UI.
+     */
+    private fun commandEnvironment(editor: NoteEditorViewModel) = object : CommandEnvironment {
+
+        override val apps get() = appIndexRepository.apps
+
+        override val aliases get() = aliasRepository.aliases
+
+        override val hasNotificationAccess get() = notificationRepository.hasAccess()
+
+        override fun launchApp(packageName: String) = launcher.launchApp(packageName)
+
+        override fun openSettings() = launcher.openSettings()
+
+        override fun openUrl(url: String) = launcher.openUrl(url)
+
+        override fun openNotificationAccess(): Boolean {
+            notificationRepository.openNotificationAccessSettings()
+            return true
+        }
+
+        override fun openEditor(title: String) = editor.open(title)
+
+        override fun openNote(note: Note) = editor.openExisting(note)
+
+        override suspend fun notesMatching(query: NoteQuery) = notesRepository.observe(query).first()
+
+        override suspend fun addTask(text: String, due: LocalDate) {
+            notesRepository.addTask(
+                text = text,
+                due = due,
+                now = System.currentTimeMillis(),
+                newId = { UUID.randomUUID().toString() },
+            )
+        }
+
+        override suspend fun defineAlias(name: String, command: String) = aliasRepository.define(
+            name = name,
+            command = command,
+            // Resolved here rather than inside the repository, which owns aliases and has no
+            // reason to know about the app index (T162).
+            target = resolveAliasTarget(command, appIndexRepository.apps),
+        )
+
+        override suspend fun exportCommandLog() =
+            commandLogExporter.export(commandLog.all(), LocalDateTime.now())
+
+        override fun recordResolution(input: String, resolution: CommandResolution) {
+            // Fire-and-forget on the activity scope: the log is a by-product of running a command,
+            // and making the command wait on a database write would put it on the launcher's fast
+            // path, which §4.2 exists to keep clear.
+            lifecycleScope.launch {
+                commandLog.record(input, resolution, System.currentTimeMillis())
             }
         }
     }

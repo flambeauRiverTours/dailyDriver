@@ -108,42 +108,39 @@ fun ShellScreen(
     transcript: Transcript,
     input: String,
     onInputChange: (String) -> Unit,
+    /** Runs whatever is at the prompt. Dispatch lives in [ShellViewModel] since T178. */
     onSubmit: () -> Unit,
+    /**
+     * Acts on typed input *without* Enter — the one-second pause, or a tapped row.
+     *
+     * Routed through the ViewModel rather than performed here so that it goes through the same
+     * dispatch and the same T014 logging. Before T178 each pause path did its own logging, and one
+     * of them — opening a sole note — did none.
+     */
+    onResolved: (input: String) -> Unit,
+    /** Clears the prompt when the UI takes over without a command running (a tapped row). */
+    onHandedOff: () -> Unit,
     reservedCommand: ReservedCommand?,
     apps: List<AppEntry>,
+    /** Opens an app from a tapped row. Enter and the pause go through [onResolved] instead. */
     onAppClick: (AppEntry) -> Unit,
-    onSettingsCommand: () -> Unit,
     aliases: Map<String, String>,
-    onAliasListRequested: (listing: String) -> Unit,
-    onAliasExpanded: (expansion: String) -> Unit,
-    onDefineAlias: suspend (input: String, name: String, command: String) -> Unit,
     notifications: List<NotificationRecord>,
     hasNotificationAccess: Boolean,
     onNotificationClick: (NotificationRecord) -> Unit,
-    onNotifAccessSettings: () -> Unit,
     /** A lambda, not a Boolean — see [StatusLine], which polls it on its own tick. */
     hasUnreadNotifications: () -> Boolean,
     editor: NoteEditorViewModel,
-    /** Clears the `:note ...` text off the prompt once the editor has taken over. */
-    onNoteEditorOpened: () -> Unit,
     /** Live results for a `:notes` query — see [NotesRepository.observe]. */
     observeNotes: (query: String) -> Flow<List<Note>>,
     /** Outstanding tasks — an indexed query over the derived index (T156/T157). */
     observeTasks: () -> Flow<List<TaskListItem>>,
     /** Completed tasks, for `:tasksdone`. */
     observeCompletedTasks: () -> Flow<List<TaskListItem>>,
-    /** Adds a task; awaits a Room write, hence suspend (T155). */
-    onAddTask: suspend (input: String, text: String) -> Unit,
     /** Ticks or unticks a task by rewriting the note body it lives in (T156). */
     onToggleTask: suspend (TaskListItem) -> Unit,
     /** Resolves the note a task lives in, so tapping the text can open it. */
     onOpenTaskNote: suspend (TaskListItem) -> Note?,
-    /** Hands a Google search to the default browser (T172). */
-    onGoogleSearch: (input: String, query: String) -> Unit,
-    /** Writes the command log to Downloads; awaits a database read and a file write (T166). */
-    onExportCommandLog: suspend (input: String) -> Unit,
-    /** T014 — records what the deterministic tiers did with a submitted line. */
-    onCommandResolved: (input: String, resolution: CommandResolution) -> Unit,
     /**
      * Bumped by [MainActivity][com.flambeauriver.dailydriver.MainActivity] whenever the window regains
      * focus — HOME chief among the ways that happens (T015, design doc §4.1: "HOME re-focuses
@@ -247,40 +244,40 @@ fun ShellScreen(
 
     val currentAutoLaunchTarget = ui.currentAutoLaunchTarget
 
+    // Acting on a pause rather than on Enter, for the three things that resolve without one. All
+    // of them hand the submitted line back to the ViewModel, so they go through the same dispatch
+    // and the same T014 logging as Enter (T178). Before that, each did its own logging and the
+    // note case did none at all — losing exactly the examples where the timer beat the user.
+    //
+    // **On the pause rather than instantly**, which was asked for and would not work: expanding
+    // `a` the moment it is typed puts the caret after `:apps ` and makes `alarm` unreachable by
+    // fuzzy match. That is the trap that made `:notes` untypeable at T140.
+    //
+    // Keyed on `input` itself, not just the resolved target: "chr", "chro" and "chrom" all
+    // resolve to the same app, so keying on the target alone would leave the first timer running
+    // and fire mid-word. Re-keying on every keystroke is what "a one second pause" means.
     LaunchedEffect(pendingAliasExpansion, input) {
-        val expansion = pendingAliasExpansion ?: return@LaunchedEffect
+        if (pendingAliasExpansion == null) return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
-        onCommandResolved(input.trim(), CommandResolution(CommandResolution.Tier.T0, expansion))
-        onAliasExpanded(expansion)
+        onResolved(input)
     }
 
     LaunchedEffect(currentAutoLaunchTarget, input, pendingAliasExpansion) {
-        // Yields to the alias timer above rather than racing it, for the same T0-before-T1 reason.
+        // Yields to the alias timer above rather than racing it: an exact alias is T0 and a fuzzy
+        // app match is T1, so the cascade's order holds here exactly as it does on Enter.
         if (pendingAliasExpansion != null) return@LaunchedEffect
-        val target = currentAutoLaunchTarget ?: return@LaunchedEffect
+        if (currentAutoLaunchTarget == null) return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
-        // Logged here as well as in the Enter handler (T014), because this path acts on typed
-        // input *without* Enter ever happening. Missing it did not lose T1 data outright, which
-        // would have been obvious — it lost it whenever the pause timer beat the user to Enter,
-        // so the training set would have been silently biased toward fast typing.
-        onCommandResolved(
-            input.trim(),
-            CommandResolution(CommandResolution.Tier.T1, target.packageName),
-        )
-        onAppClick(target)
+        onResolved(input)
     }
 
-    // The same pause-to-act behaviour for a sole note result. Kept as its own effect rather than
-    // folded into the one above: that one resolves to an AppEntry and ends in onAppClick, and
-    // unifying them would mean a nullable-of-either just to share four lines.
-    //
-    // Keyed on the note's id, not the Note itself — an autosave elsewhere changes updatedAt and
-    // would otherwise restart the timer for what is still the same note.
+    // The same pause-to-act behaviour for a sole note result. Keyed on the note's id, not the
+    // Note itself — an autosave elsewhere changes updatedAt and would otherwise restart the timer
+    // for what is still the same note.
     LaunchedEffect(noteAutoOpenTarget?.id, input) {
-        val target = noteAutoOpenTarget ?: return@LaunchedEffect
+        if (noteAutoOpenTarget == null) return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
-        editor.openExisting(target)
-        onNoteEditorOpened()
+        onResolved(input)
     }
 
     Column(
@@ -311,7 +308,7 @@ fun ShellScreen(
                 notes = noteResults,
                 onNoteClick = { note ->
                     editor.openExisting(note)
-                    onNoteEditorOpened()
+                    onHandedOff()
                 },
                 textStyle = monospace,
                 modifier = Modifier
@@ -328,7 +325,7 @@ fun ShellScreen(
                     coroutineScope.launch {
                         onOpenTaskNote(task)?.let { note ->
                             editor.openExisting(note)
-                            onNoteEditorOpened()
+                            onHandedOff()
                         }
                     }
                 },
@@ -432,110 +429,10 @@ fun ShellScreen(
                 // Priority order is arbitrary in practice — apps-mode input (":apps ...") and
                 // alias definitions ("alias ... = ...") have disjoint shapes, so at most one of
                 // these branches can ever apply to a given input.
-                val aliasAttempt = ui.aliasDefinition
-                val aliasExpansion = aliases[input.trim()]
-
-                // T014 — logged here, once, before the branches run.
-                //
-                // This is the only place that sees every submitted line together with what each
-                // tier found, so it is the only place the log can be complete. Logging inside the
-                // branches would mean a new command silently collecting no training data, and
-                // that failure is invisible: nothing breaks, the dataset is just quietly missing a
-                // third of what you do.
-                //
-                // An alias *definition* is excluded: "alias sp = spotify" is configuration, not a
-                // command anyone will later phrase in natural language, so it is not an example of
-                // anything the model needs to learn.
-                if (input.isNotBlank() && aliasAttempt == null) {
-                    val resolution = classifyResolution(
-                        reservedToken = reservedCommandToken(input),
-                        aliasExpansion = aliasExpansion,
-                        appPackage = (autoLaunchTarget ?: plainMatchTarget)?.packageName,
-                    )
-                    onCommandResolved(input.trim(), resolution)
-                }
-
-                when {
-                    // Enter opens a uniquely-matched app immediately rather than waiting out the
-                    // pause.
-                    autoLaunchTarget != null -> onAppClick(autoLaunchTarget)
-                    // Same idea for :notes — Enter opens the sole remaining note rather than
-                    // waiting out the pause. Sits beside the :apps case because they're the same
-                    // affordance, not near the other reserved-command branches.
-                    noteAutoOpenTarget != null -> {
-                        editor.openExisting(noteAutoOpenTarget)
-                        onNoteEditorOpened()
-                    }
-                    // :settings (T142) has no browse mode to select from like :apps does — Enter
-                    // is what fires it. Checked ahead of the alias branches below only because
-                    // it's the more specific state; the two never actually overlap (alias names
-                    // can't start with `:`).
-                    reservedCommand is ReservedCommand.Settings -> onSettingsCommand()
-                    // :alias (T144) has no browse mode either — it just lists what's defined.
-                    // Formatted here, not in the ViewModel, since ShellScreen is what already
-                    // holds the live aliases map.
-                    reservedCommand is ReservedCommand.Alias ->
-                        onAliasListRequested(aliases.formatAliasListing())
-                    // :notif (T147) without access has nothing to browse — Enter deep-links
-                    // straight to Settings -> Notification access, no explanation screen first
-                    // (design check-in, 2026-08-19). With access, notifCommand is non-null and
-                    // the browse view above is already showing; Enter has nothing to commit to
-                    // (tap-only, like :apps has no keyboard-driven selection beyond a sole
-                    // match), so it falls through to the `else` branch below same as Apps' own
-                    // no-sole-match case does.
-                    reservedCommand is ReservedCommand.Notif && !hasNotificationAccess ->
-                        onNotifAccessSettings()
-                    // :note (T143 registered it, T020 finally gives it something to open). The
-                    // query becomes the initial title, so `:note standup` starts a named note and
-                    // bare `:note` starts an untitled one that gets a date-time stamp on save.
-                    // Opening an EXISTING note by name is T025's job, not this.
-                    reservedCommand is ReservedCommand.Note -> {
-                        editor.open(reservedCommand.query)
-                        onNoteEditorOpened()
-                    }
-                    // Captured before launching, same as :task and the alias definition below —
-                    // reading the log and writing the file both take long enough for the prompt to
-                    // have moved on by the time the result is known (T166).
-                    // Needs a Context to fire the browser intent, like :settings, and a query to
-                    // report back, like :task — so it is intercepted here rather than in onSubmit.
-                    reservedCommand is ReservedCommand.Google -> {
-                        val submittedInput = input
-                        onGoogleSearch(submittedInput, reservedCommand.query)
-                    }
-                    reservedCommand is ReservedCommand.Export -> {
-                        val submittedInput = input
-                        coroutineScope.launch { onExportCommandLog(submittedInput) }
-                    }
-                    // Captured before launching, for the same reason the alias-definition branch
-                    // captures: adding a task awaits a Room write, and by the time it returns the
-                    // live `input` may already be something else.
-                    reservedCommand is ReservedCommand.Task -> {
-                        val submittedInput = input
-                        val text = reservedCommand.text
-                        coroutineScope.launch { onAddTask(submittedInput, text) }
-                    }
-                    // Checked before the definition branch only for readability — the two shapes
-                    // are disjoint, since an alias name can't contain the spaces or "=" that a
-                    // definition requires.
-                    aliasExpansion != null -> onAliasExpanded(aliasExpansion)
-                    // Captured before launching: onDefineAlias awaits a Room write, and by the
-                    // time it returns the live `input` may already be something else the user
-                    // has since typed.
-                    aliasAttempt != null -> {
-                        val submittedInput = input
-                        coroutineScope.launch {
-                            onDefineAlias(submittedInput, aliasAttempt.name, aliasAttempt.command)
-                        }
-                    }
-                    // T1 (design doc §4.2). Enter commits to the same best guess the preview
-                    // line and the pause-timer above already agree on — the best match wins even
-                    // among near-ties, per explicit request.
-                    plainMatchTarget != null -> onAppClick(plainMatchTarget)
-
-                    // Nothing matched at any tier — falls through to the normal submit, which
-                    // no-ops in apps mode rather than recording ":apps ca" as a command.
-                    else -> onSubmit()
-                }
+                // Enter just submits (T178). Everything this used to decide — which command,
+                // whether a sole match exists, whether and how to log it — is now one dispatch in
+                // ShellViewModel, reachable from a unit test for the first time.
+                onSubmit()
             },
                 textStyle = monospace,
                 modifier = Modifier
