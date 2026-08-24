@@ -389,6 +389,72 @@ Partition key `/userId`. For a single user this is one logical partition (20 GB 
 
 Checklist items are derived from the Markdown body, not stored separately — one source of truth.
 
+#### 6.2.1 Markdown body syntax — the wire-format contract inside `body`
+
+`body` is opaque to the document model above, but its contents are not free-form: three token
+grammars are load-bearing, pinned by fixture files under `fixtures/`, and consumed identically by
+Android (built) and `Notes.Shared`/`Notes.Desktop` (not yet built). **The fixtures are the spec.**
+The prose below is a summary for orientation — implement against `fixtures/*.json`, not against
+this section, and if the two ever disagree the fixture wins.
+
+- **Checklist item** — `fixtures/checklist-parsing.json` — `^\s*[-*+]\s+\[([ xX])]\s*(.*)$`
+- **Due date** — `fixtures/due-date-parsing.json` — `(?:^|\s)@(\d{4}-\d{2}-\d{2})(?=\s|$)`
+- **Hashtag** — `fixtures/tag-parsing.json` — `(?:^|\s)#([\p{L}\p{N}_-]+)`
+  (matched with **multiline mode on** — `^`/`$` bind to line boundaries, not just the string's ends, because the whole `body` is scanned at once rather than line by line like the other two. A C# `Regex` needs `RegexOptions.Multiline` here or it will only ever match a tag on the first line.)
+
+(Regexes given verbatim from the Kotlin source — copy them from `fixtures/*.json` or the source
+files under `android/app/src/main/java/com/flambeauriver/dailydriver/notes/`, not from this list,
+before trusting a transcription for a real port.)
+
+**Checklist items** (ADR-0004). A line is a checklist item if it matches the marker regex —
+`-`, `*`, or `+`, a space, `[ ]`/`[x]`/`[X]` (checked is case-insensitive), then the text. **Any
+other non-blank line is treated as an unchecked item with that line's text** — this is what makes
+note→checklist conversion a parse rather than a special case, and it means a body written as plain
+prose on one client still opens as a working checklist on the other. Blank lines are dropped.
+`NoteType.NOTE` / `NoteType.CHECKLIST` (Kotlin) — mirror as an enum with matching wire values, not
+a boolean, since a third rendering mode is plausible later.
+
+**Due dates** (ADR-0006, the storage decision; superseded **in part** by ADR-0007, which added the
+local derived index further down without changing this — see the ⚠️ note below). `@YYYY-MM-DD`
+inline in the item text, date-only, never a time,
+so timezones stay out of the wire format. **The token requires whitespace or end-of-line on both
+sides** — `@2026-08-25` is a due date, `foo@2026-08-25bar` is not — so it can't clip inside
+something that merely contains an `@`. **If a line carries more than one token, the *last* one
+wins.** This is counter-intuitive and exists for a specific reason: the renderer always appends the
+token at the end of the line, so first-wins would make two dates swap on every parse/render
+round-trip. Get this wrong and the C# and Kotlin implementations will silently disagree on exactly
+the case the fixture is designed to catch.
+
+**Hashtags** (§7.3). `#tag`, same whitespace-boundary rule as due dates, **must contain at least one
+letter** so `#123` and `#1` stay prose rather than becoming a tag (otherwise every issue reference
+pasted into a note becomes one). Matching is case-insensitive; tags are stored lowercased.
+**Hashtags inside fenced code blocks (` ``` ` or `~~~`) are excluded** — `#include`, `#define`, and
+CSS `#fff` are the realistic false positives, and all three arrive by pasting a snippet.
+
+**⚠️ Local derived-index pattern — replicate the shape, not the schema.** Android does not store
+checklist items or tags as rows that *could* disagree with `body`; it derives them into indexed
+local tables (`note_tags`, and a `tasks` index per ADR-0007) inside the same transaction as every
+note write, and rebuilds rather than patches when the index and the body might have drifted. This
+is a local SQLite/query-performance decision, not part of the wire format — `Notes.Desktop`'s EF
+Core schema should use the same pattern (a derived, rebuildable local table per queryable
+projection) for the same reason: `LIKE '%work%'` matching `#workout` is a real wrong-results bug,
+not a style preference, and it recurs identically in SQL Server/SQLite as in Room.
+
+**⚠️ Tags are derived locally, not trusted from a caller — except when pulling from the server.**
+On a local save, tags are *always* re-derived from `body`; a caller cannot supply a tag set that
+disagrees with it. On a pull from the server, the server's `tags` array is taken as given, since
+that is already-authoritative pulled state. This asymmetry is deliberate (§6.2's document model
+carries `tags` as a real array) and matters if tag assignment ever moves server-side — don't
+"simplify" it into one code path.
+
+**⚠️ Due dates and tasks have no server representation at all, on purpose (ADR-0007).** Unlike
+tags, nothing about a due date appears in the JSON document above. The task index is
+**client-local, derived, and never synced** — no outbox row, no field on the document, no DTO in
+`Notes.Shared`. Each client (re)computes its own task index from the note bodies it already has.
+Do not add a `dueDate` field to the shared DTO or a `tasks`/outbox entry for it; that would be a
+new decision, not a mirror of an existing one, and ADR-0007 explains why it was deliberately left
+open rather than built.
+
 ### 6.3 API
 
 HTTP-triggered Functions, Cosmos bindings where they fit:
@@ -460,9 +526,21 @@ Cheap to implement, impossible to lose data with, and honest about the tradeoff 
 
 ### 7.3 Shared contract
 
-Merge rules, `rev` comparison, tag parsing, and the DTOs live in `Notes.Shared` and are consumed directly by both `Notes.Desktop` and `Notes.Functions`. Android reimplements them in Kotlin.
+Merge rules, `rev` comparison, the three Markdown parsers (§6.2.1), and the DTOs live in
+`Notes.Shared` and are consumed directly by both `Notes.Desktop` and `Notes.Functions`. Android
+reimplements them in Kotlin.
 
-That reimplementation is the seam where bugs will live. Mitigate with a **shared fixture set** — a JSON corpus of sync scenarios (`base`, `local`, `remote`, `expected`) committed once and executed by both the xUnit suite and the Android unit tests. If the two implementations disagree, a test fails rather than your notes quietly diverging.
+That reimplementation is the seam where bugs will live. Mitigated with **shared fixture sets** — a
+JSON corpus per contract, committed once at the repo root and executed by both the xUnit suite and
+the Android unit tests, with the same rule for each: change the fixture and both implementations,
+never one alone; if the two disagree, that is a failing test, not a judgment call.
+
+- `fixtures/checklist-parsing.json`, `fixtures/due-date-parsing.json`, `fixtures/tag-parsing.json` —
+  the three body-syntax parsers, §6.2.1. **These already exist and are already pinning Android's
+  implementation**; `Notes.Shared` implementing them for the first time is not new design, it is
+  matching a contract that is already live in production on the phone.
+- The sync-scenario corpus (`base`/`local`/`remote`/`expected`) below is the fourth, for merge and
+  conflict behaviour — not yet built on either side, so it is genuinely new design, not a mirror.
 
 ### 7.4 Explicitly not doing
 
