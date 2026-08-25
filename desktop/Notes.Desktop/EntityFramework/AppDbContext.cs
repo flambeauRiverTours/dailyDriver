@@ -10,7 +10,7 @@ namespace Notes.Desktop.EntityFramework
         /// Initializes a new instance of the <see cref="AppDbContext"/> class with the specified options.
         /// </summary>
         /// <param name="options">The options for the context.</param>
-        internal AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
         /// <summary>
         /// Gets or sets the DbSet for the Note entity.
         /// </summary>
@@ -18,7 +18,7 @@ namespace Notes.Desktop.EntityFramework
         /// <summary>
         /// Gets or sets the DbSet for the Task entity.
         /// </summary>
-        internal DbSet<Model.Task> Tasks { get; set; } = null!;
+        internal DbSet<TaskRow> Tasks { get; set; } = null!;
         /// <summary>
         /// Gets or sets the DbSet for the NoteTag entity.
         /// </summary>
@@ -31,7 +31,7 @@ namespace Notes.Desktop.EntityFramework
         /// <summary>
         /// Migrate the database to the latest version asynchronously.
         /// </summary>
-        internal System.Threading.Tasks.Task MigrateAsync() {
+        internal Task MigrateAsync() {
             return Database.MigrateAsync();
         }
 
@@ -73,7 +73,7 @@ namespace Notes.Desktop.EntityFramework
         /// <param name="modelBuilder">The ModelBuilder instance.</param>
         private void BuildTasksTable(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Model.Task>(entity =>
+            modelBuilder.Entity<TaskRow>(entity =>
             {
                 entity.ToTable("Tasks");
                 entity.HasKey(e => new { e.NoteId, e.Position });

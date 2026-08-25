@@ -90,7 +90,7 @@ namespace Notes.Desktop.Migrations
                     b.ToTable("Outbox", (string)null);
                 });
 
-            modelBuilder.Entity("Notes.Desktop.EntityFramework.Model.Task", b =>
+            modelBuilder.Entity("Notes.Desktop.EntityFramework.Model.TaskRow", b =>
                 {
                     b.Property<Guid>("NoteId")
                         .HasColumnType("TEXT");
@@ -134,7 +134,7 @@ namespace Notes.Desktop.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Notes.Desktop.EntityFramework.Model.Task", b =>
+            modelBuilder.Entity("Notes.Desktop.EntityFramework.Model.TaskRow", b =>
                 {
                     b.HasOne("Notes.Desktop.EntityFramework.Model.Note", null)
                         .WithMany()

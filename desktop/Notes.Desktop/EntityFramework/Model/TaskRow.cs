@@ -3,7 +3,7 @@ namespace Notes.Desktop.EntityFramework.Model
     /// <summary>
     /// 
     /// </summary>
-    internal class Task
+    internal class TaskRow
     {
         /// <summary>
         /// Gets or sets the unique identifier for the note associated with the task.
