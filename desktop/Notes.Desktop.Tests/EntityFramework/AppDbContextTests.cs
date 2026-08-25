@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Notes.Desktop.EntityFramework;
 using Notes.Desktop.EntityFramework.Model;
 
-namespace Notes.Desktop.Tests
+namespace Notes.Desktop.Tests.EntityFramework
 {
     public class AppDbContextTests
     {

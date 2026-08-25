@@ -10,9 +10,9 @@ This applies to `Notes.Desktop` and `Notes.Shared` under `desktop/` and to `Note
 
 If the user explicitly asks for a carve-out — pairing on one function, a spike to unblock them — that is theirs to grant in the moment; don't assume it from a prior conversation.
 
-**Solution spans folders.** `Notes.Desktop` lives here; `Notes.Shared` (the contract — POCOs, DTOs, merge rules) and `Notes.Functions` live in `../backend/`. `Notes.Desktop` references `Notes.Shared` directly — flag it in review if a DTO or merge rule gets redefined locally to avoid the cross-folder reference.
+**Solution spans folders.** `Notes.Desktop` lives here; `Notes.Shared` (the contract — POCOs, DTOs, merge rules) and `Notes.Functions` live in `../backend/`. `Notes.Desktop` is meant to reference `Notes.Shared` directly, but doesn't yet — `Notes.Shared.csproj` is still T098's legacy .NET Framework 4.7.2 scaffold (never rebuilt for T042), so the project reference was pulled from `Notes.Desktop.slnx` during T052 rather than pointing at a project that can't build. Wire it back up once T042 lands a real `Notes.Shared`. Flag it in review if a DTO or merge rule gets redefined locally in the meantime to avoid the cross-folder reference.
 
-Current state: default WPF template only (`App.xaml`, `MainWindow.xaml`, no `PackageReference`s). No MVVM toolkit, EF Core, MSAL, Markdig, or test project yet. Everything below is the spec to review against, starting at T052.
+Current state: T052–T054 done. `Notes.Desktop` boots via .NET Generic Host (`App.xaml.cs`), DI-registers `MainWindow`/`MainWindowViewModel`/`IDbContextFactory<AppDbContext>`, and migrates a SQLite database (EF Core, real `dotnet ef` migrations under `Migrations/`) at startup. `MainWindowViewModel` is CommunityToolkit.Mvvm-based (`ObservableObject`, source-generated partial properties, `[RelayCommand]`) with a minimal bound property/command proving the pipeline end to end — no real note-list content yet, that's T055. `Notes.Desktop.Tests` (xUnit v3 + FluentAssertions, `InternalsVisibleTo`-linked) covers EF Core cascade/constraint behavior against a real SQLite connection and basic ViewModel observable/command assertions. Still missing: MSAL, Markdig, and any real note data — the spec below is what to review against as those land, starting at T055.
 
 ## The schema to mirror
 
