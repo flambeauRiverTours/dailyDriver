@@ -14,6 +14,7 @@ namespace Notes.Desktop
         public MainWindow(MainWindowViewModel viewModel)
         {
             InitializeComponent();
+            DataContext = viewModel;
         }
     }
 }

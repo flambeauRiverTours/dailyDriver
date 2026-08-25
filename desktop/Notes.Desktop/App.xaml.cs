@@ -63,7 +63,7 @@ namespace Notes.Desktop
         {
             services.AddSingleton<MainWindow>();
             services.AddSingleton<MainWindowViewModel>();
-            //TODO add EF: T053
+            //TODO add EF: T053 with AddDbContextFactory
         }
 
         /// <summary>
