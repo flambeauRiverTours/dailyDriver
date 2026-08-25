@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="../../backend/Notes.Shared/Notes.Shared.csproj" Id="2727cd6d-4033-4672-b8b8-062e29f90461" />
   <Project Path="Notes.Desktop.csproj" />
 </Solution>

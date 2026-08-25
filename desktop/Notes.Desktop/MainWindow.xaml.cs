@@ -1,13 +1,4 @@
-﻿using System.Text;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace Notes.Desktop
 {
@@ -16,7 +7,11 @@ namespace Notes.Desktop
     /// </summary>
     public partial class MainWindow : Window
     {
-        public MainWindow()
+        /// <summary>
+        /// Initializes a new instance of the MainWindow class with the specified view model.
+        /// </summary>
+        /// <param name="viewModel">The view model for the main window.</param>
+        public MainWindow(MainWindowViewModel viewModel)
         {
             InitializeComponent();
         }
