@@ -864,7 +864,7 @@ Room schema, Markdown format, outbox from day one.
 
 **The .NET job-hunt artifact.** Independent of the SLM. If the schedule slips, protect this.
 
-- [ ] **T052** — Notes.Desktop project: .NET 10 WPF + Generic Host + DI  
+- [x] **T052** — Notes.Desktop project: .NET 10 WPF + Generic Host + DI  
   `P0` `M` · after: T042
 - [ ] **T053** — EF Core + SQLite context and migrations  
   `P0` `M` · after: T052
