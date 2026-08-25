@@ -866,7 +866,7 @@ Room schema, Markdown format, outbox from day one.
 
 - [x] **T052** — Notes.Desktop project: .NET 10 WPF + Generic Host + DI  
   `P0` `M` · after: T042
-- [ ] **T053** — EF Core + SQLite context and migrations  
+- [x] **T053** — EF Core + SQLite context and migrations  
   `P0` `M` · after: T052
   - Offline source of truth; the most-quoted .NET data skill.
 - [ ] **T054** — MVVM scaffolding (CommunityToolkit.Mvvm)  

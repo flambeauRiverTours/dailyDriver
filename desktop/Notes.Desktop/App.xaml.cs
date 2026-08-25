@@ -1,9 +1,12 @@
 using System.Configuration;
 using System.Data;
+using System.IO;
 using System.Windows;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Notes.Desktop.EntityFramework;
 
 namespace Notes.Desktop
 {
@@ -27,6 +30,12 @@ namespace Notes.Desktop
             //Build and start
             InternalHost = builder.Build();
             await InternalHost.StartAsync();
+
+            //Migrate the database
+            using var dbContext = InternalHost.Services
+                .GetRequiredService<IDbContextFactory<AppDbContext>>()
+                .CreateDbContext();
+            await dbContext.MigrateAsync();
 
             //show window
             ShowMainWindow(InternalHost);
@@ -63,7 +72,8 @@ namespace Notes.Desktop
         {
             services.AddSingleton<MainWindow>();
             services.AddSingleton<MainWindowViewModel>();
-            //TODO add EF: T053 with AddDbContextFactory
+            services.AddDbContextFactory<AppDbContext>(options =>
+                options.UseSqlite($"Data Source={AppDbContext.GetDbPath()}"));
         }
 
         /// <summary>
