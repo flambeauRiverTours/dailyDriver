@@ -1,8 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Text;
 using FluentAssertions;
+using Moq;
+using Notes.Desktop.Helpers;
+using Notes.Desktop.ViewModels;
 
 namespace Notes.Desktop.Tests.ViewModelTests
 {
@@ -10,42 +9,89 @@ namespace Notes.Desktop.Tests.ViewModelTests
     {
         #region Tests
         [Fact()]
-        public void MainViewModelTests_Constructor_InitializesButtonClickCountToZero()
+        public void MainViewModelTests_Constructor_InitializesNoteEditorViewModel()
         {
             // Arrange & Act
-            var viewModel = new MainWindowViewModel();
+            var viewModel = new MainWindowViewModel(new NoteEditorViewModel(), new NoteListViewModel(), new RegistryAccessHelper());
             // Assert
-            viewModel.ButtonClickCount.Should().BeEquivalentTo("0");
+            viewModel.Editor.Should().NotBeNull();
         }
 
         [Fact()]
-        public void MainViewModelTests_ButtonClickCount_RaisesPropertyChanged()
+        public void MainViewModelTests_Constructor_InitializesNoteListViewModel()
+        {
+            // Arrange & Act
+            var viewModel = new MainWindowViewModel(new NoteEditorViewModel(), new NoteListViewModel(), new RegistryAccessHelper());
+            // Assert
+            viewModel.List.Should().NotBeNull();
+        }
+
+        [Fact()]
+        public void MainViewModelTests_Constructor_DefaultsListColumnWidthTo200()
+        {
+            // Arrange & Act
+            var viewModel = new MainWindowViewModel(new NoteEditorViewModel(), new NoteListViewModel(), new Mock<IRegistryAccess>().Object);
+            // Assert
+            viewModel.ListColumnWidth.Should().Be("200");
+        }
+
+        [Fact()]
+        public void MainViewModelTests_Constructor_LoadsListColumnWidthFromRegistry()
         {
             // Arrange
-            var viewModel = new MainWindowViewModel();
-            bool propertyChangedRaised = false;
+            var mockRegistryAccess = new Mock<IRegistryAccess>();
+            mockRegistryAccess.Setup(m => m.GetRegistryString("ListColumnWidth", "200")).Returns("250");
+            // Act
+            var viewModel = new MainWindowViewModel(new NoteEditorViewModel(), new NoteListViewModel(), mockRegistryAccess.Object);
+            // Assert
+            viewModel.ListColumnWidth.Should().Be("250");
+        }
+
+        [Fact()]
+        public void MainViewModelTests_Constructor_DoesNotNewNoteEditorViewModelOrNoteListViewModel()
+        {
+            // Arrange
+            var mockRegistryAccess = new Mock<IRegistryAccess>();
+            var mockNoteEditorViewModel = new Mock<NoteEditorViewModel>();
+            var mockNoteListViewModel = new Mock<NoteListViewModel>();
+            // Act
+            var viewModel = new MainWindowViewModel(mockNoteEditorViewModel.Object, mockNoteListViewModel.Object, mockRegistryAccess.Object);
+            // Assert
+            viewModel.Editor.Should().Be(mockNoteEditorViewModel.Object);
+            viewModel.List.Should().Be(mockNoteListViewModel.Object);
+        }
+
+        [Fact()]
+        public void MainViewModelTests_ListColumnWidth_RaisesPropertyChangedEvent()
+        {
+            // Arrange
+            var mockRegistryAccess = new Mock<IRegistryAccess>();
+            var viewModel = new MainWindowViewModel(new NoteEditorViewModel(), new NoteListViewModel(), mockRegistryAccess.Object);
+            bool eventRaised = false;
             viewModel.PropertyChanged += (sender, e) =>
             {
-                if (e.PropertyName == nameof(viewModel.ButtonClickCount))
+                if (e.PropertyName == nameof(MainWindowViewModel.ListColumnWidth))
                 {
-                    propertyChangedRaised = true;
+                    eventRaised = true;
                 }
             };
             // Act
-            viewModel.ButtonClickCount = "5";
+            viewModel.ListColumnWidth = "300";
             // Assert
-            propertyChangedRaised.Should().BeTrue();
+            eventRaised.Should().BeTrue();
         }
 
         [Fact()]
-        public void MainViewModelTests_IncrementButtonClickCount_IncrementsCount()
+        public void MainViewModelTests_BeforeShutdown_SavesListColumnWidthToRegistry()
         {
             // Arrange
-            var viewModel = new MainWindowViewModel();
+            var mockRegistryAccess = new Mock<IRegistryAccess>();
+            var viewModel = new MainWindowViewModel(new NoteEditorViewModel(), new NoteListViewModel(), mockRegistryAccess.Object);
+            viewModel.ListColumnWidth = "300";
             // Act
-            viewModel.IncrementButtonClickCountCommand.Execute(null);
+            viewModel.BeforeShutdown();
             // Assert
-            viewModel.ButtonClickCount.Should().BeEquivalentTo("1");
+            mockRegistryAccess.Verify(m => m.SetRegistryString("ListColumnWidth", "300"), Times.Once);
         }
         #endregion
     }

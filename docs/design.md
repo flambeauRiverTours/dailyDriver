@@ -306,6 +306,7 @@ Native Windows application, **.NET 10 + WPF**, MVVM throughout. This is a delibe
 | HTTP | `HttpClient` via `IHttpClientFactory` + Polly | Retry/backoff on a flaky link is the whole point of an offline client |
 | Auth | **MSAL.NET** public client, PKCE | See §6.4 |
 | Markdown | Markdig | Rendering and round-trip parsing |
+| Settings | Registry (`HKCU\SOFTWARE\DailyDriver\Notes.Desktop`) behind `IRegistryAccess` | Durable UI state (splitter position, theme override). Behind an interface so ViewModels stay testable without touching the real registry |
 | Tests | xUnit + FluentAssertions | Sync engine is the thing worth testing |
 
 ### 5.2 Structure
@@ -325,6 +326,7 @@ Notes.Functions  — C# isolated-worker Azure Functions
 - Two-pane: left is a scrollable note list sorted by `updatedAt` desc, filterable by category; right is the editor.
 - Markdown editor with live preview. Checklist items are clickable checkboxes that rewrite the underlying `- [ ]` line.
 - Category filter is a multi-select over the distinct `tags` set, computed locally from SQLite — instant, no round trip.
+- A search field at the top of the note list, mirroring Android's T026 grammar so one query means the same thing on both clients: a lone `#tag` is an exact tag lookup against the indexed tag table (`#work` must not match `#workout`); anything else is free text over `title` and `body`. It **composes with** the category multi-select rather than replacing it — the filter scopes, search narrows within that scope. `LIKE` rather than FTS, for the reason Android chose it: a personal store is hundreds of rows, and FTS costs a schema migration. ⚠️ Wildcard escaping is load-bearing — `%` and `_` are `LIKE` wildcards, so an unescaped search for "50%" returns every note; T026 hit exactly this and pinned it with tests against real SQLite.
 - Light **and** dark themes (unlike Android) — this is a desktop reading surface, and the asymmetry is intentional. WPF's Fluent theme supports both; bind to the system preference with a manual override.
 - A visible sync status affordance: last-synced timestamp, pending-change count, and any conflict notice. An offline-first app that hides its sync state feels broken rather than offline.
 

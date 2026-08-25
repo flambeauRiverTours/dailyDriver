@@ -872,11 +872,22 @@ Room schema, Markdown format, outbox from day one.
 - [x] **T054** — MVVM scaffolding (CommunityToolkit.Mvvm)  
   `P0` `M` · after: T052
   - Source-generated observables; no hand-rolled INotifyPropertyChanged.
-- [ ] **T055** — Two-pane shell: note list + editor  
+- [x] **T055** — Two-pane shell: note list + editor  
   `P0` `L` · after: T054
+  - **ViewModel-first composition, no navigation framework.** `MainWindowViewModel` grew into the shell VM (holding `List`/`Editor` child VMs) rather than a separate `ShellViewModel`; implicit `DataTemplate`s keyed by `DataType` map each child VM to its `UserControl`, so the shell never names a View. Views take **parameterless** constructors — WPF's BAML loader instantiates template content, not the DI container, and the template sets each `DataContext` automatically. A View constructor taking its VM cannot work here and was the first thing to get wrong.
+  - **Splitter position persists across launches** (`ListColumnWidth`), via a `TwoWay` binding on the list `ColumnDefinition.Width` and `IRegistryAccess`, written on `OnExit`. This is the project's **first settings store** — see §5.1. T059's theme override and anything else needing durable UI state should use it rather than inventing a second one.
+  - ⚠️ **Fully collapsing the list pane is not what the splitter does, and `MinWidth` is why.** The guard that stops a drag reaching zero also clamps a programmatic width of 0, so a collapse toggle has to drive `MinWidth` as well as `Width`. Deferred deliberately — not attempted and not half-built.
+  - **🐛 Test registry cleanup silently did nothing**, leaving values in `HKCU` that accumulated every run. `SetRegistryString` writes a *value*, so `DeleteSubKeyTree` was the wrong API and its `throwOnMissingSubKey: false` swallowed the miss. Fixed by putting `DeleteRegistryKey` on `IRegistryAccess` (`DeleteValue`), which the test needed anyway — better than widening `BASIC_REG_PATH`'s visibility to let the test build the path itself.
 - [ ] **T056** — Note list VM: sort by updatedAt, category multi-select filter  
   `P0` `M` · after: T055
   - Filter computed locally from SQLite — instant, no round trip.
+- [ ] **T180** — Note list search field  
+  `P1` `M` · after: T056
+  - Sits at the top of the note list sidebar. **Mirrors Android's T026 grammar** so one query means the same thing on both clients: a lone `#tag` is an exact lookup against the indexed `NoteTags` table; anything else is free text over `Title` and `Body`.
+  - **Composes with T056's category multi-select, doesn't replace it** — the filter scopes, search narrows within that scope. Two affordances, one result set.
+  - `LIKE`, not FTS — same reasoning as T026: hundreds of rows, and FTS costs a migration.
+  - ⚠️ **Wildcard escaping is load-bearing, and T026 already paid for this once.** `%` and `_` are `LIKE` wildcards, so unescaped, searching "50%" returns every note and "snake_case" also matches "snakeXcase". Whether it bites here depends on how the EF Core query is written — `EF.Functions.Like` passes the pattern straight through, while `string.Contains` translates differently — so decide deliberately and cover it with a test against real SQLite rather than assuming the LINQ provider handles it.
+  - **Open decision:** whether the query grammar belongs in `Notes.Shared` (so the C# and Kotlin implementations can't drift) or stays per-client. §7.3 doesn't currently list it, and Android's `parseNoteQuery` defers to the fixture-pinned tag parser but is not itself pinned — so this is a genuine call to make, not a mirror of an existing decision.
 - [ ] **T057** — Markdown editor + Markdig live preview  
   `P0` `L` · after: T055
 - [ ] **T058** — Checklist checkboxes rewrite underlying `- [ ]` line  

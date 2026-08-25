@@ -1,12 +1,12 @@
-using System.Configuration;
-using System.Data;
-using System.IO;
 using System.Windows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Notes.Desktop.EntityFramework;
+using Notes.Desktop.Helpers;
+using Notes.Desktop.ViewModels;
+using Notes.Desktop.Views;
 
 namespace Notes.Desktop
 {
@@ -49,6 +49,8 @@ namespace Notes.Desktop
         {
             if (InternalHost != null)
             {
+                InternalHost.Services
+                .GetRequiredService<MainWindowViewModel>().BeforeShutdown();
                 await InternalHost.StopAsync();
                 InternalHost.Dispose();
             }
@@ -72,6 +74,9 @@ namespace Notes.Desktop
         {
             services.AddSingleton<MainWindow>();
             services.AddSingleton<MainWindowViewModel>();
+            services.AddSingleton<NoteEditorViewModel>();
+            services.AddSingleton<NoteListViewModel>();
+            services.AddSingleton<IRegistryAccess, RegistryAccessHelper>();
             services.AddDbContextFactory<AppDbContext>(options =>
                 options.UseSqlite($"Data Source={AppDbContext.GetDbPath()}"));
         }
