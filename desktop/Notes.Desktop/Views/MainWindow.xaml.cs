@@ -1,6 +1,6 @@
 using System.Windows;
-
-namespace Notes.Desktop
+using Notes.Desktop.ViewModels;
+namespace Notes.Desktop.Views
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml

@@ -1,14 +1,18 @@
 # Desktop client, .NET and WPF
 
-!!! warning "Not started. Design is complete, the code is a scaffold."
+!!! warning "In progress. The foundations are built, the notes features are not."
 
-    `desktop/Notes.Desktop` holds a default WPF project targeting `net10.0-windows` and nothing
-    else. Everything below is designed but not built. This page gets rewritten as it lands.
+    What runs today: the application starts on the .NET Generic Host with dependency injection,
+    creates and migrates its SQLite database through EF Core, and opens a two-pane MVVM window
+    whose split position is remembered between runs. Both panes are still empty. There is no note
+    list, no editor, no sync and no sign-in yet. The sections below marked as planned are designed
+    but not built, and this page is rewritten as each part lands.
 
 A native Windows notes client that works fully offline and syncs with the Android launcher's notes
 through the [Azure backend](backend.md).
 
-**Planned stack:** .NET 10, WPF, MVVM (CommunityToolkit.Mvvm), EF Core with SQLite.
+**Stack:** .NET 10, WPF, MVVM (CommunityToolkit.Mvvm), EF Core with SQLite. All four are in place
+and running; what is missing is the features built on top of them.
 
 ---
 
@@ -35,9 +39,9 @@ async patterns transfer to any of the three.
 
 ## The shared contract
 
-`Notes.Shared` is one C# library referenced by both the desktop client and the Azure Functions
-backend, so DTOs, merge rules and parsing are defined once.
+Planned, not yet built. `Notes.Shared` will be one C# library referenced by both the desktop client
+and the Azure Functions backend, so DTOs, merge rules and parsing are defined once.
 
-Its parsing has to match Kotlin's exactly. Both languages run the
+Its parsing will have to match Kotlin's exactly. Both languages are to run the
 [same JSON fixture corpus](android.md#one-contract-two-languages) instead of maintaining separate
-examples.
+examples. The Kotlin side already does; the C# side is what remains.

@@ -12,7 +12,7 @@ The full T0–T3 pipeline is live bar T2 itself: all twelve reserved commands ar
 
 **Phase 1 is well underway.** Notes, checklists and tasks all work: Room-backed storage with a transactional outbox, an inline editor with autosave, hashtag parsing and tag chips, checklists with drag-reorder and note↔checklist conversion, due dates with typed shortcuts, `:task`/`:tasks`/`:tasksdone` over a derived task index (ADR-0007), and one-deep undo for every destructive action.
 
-**Desktop client is underway** (T052–T054: Generic Host + DI, EF Core/SQLite with real migrations, CommunityToolkit.Mvvm scaffolding — see [`desktop/CLAUDE.md`](desktop/CLAUDE.md) for current state). **Not started:** the backend and the SLM spike.
+**Desktop client is underway** (T052–T055: Generic Host + DI, EF Core/SQLite with real migrations, CommunityToolkit.Mvvm, and the two-pane shell — both panes still placeholders pending T056/T057. See [`desktop/CLAUDE.md`](desktop/CLAUDE.md) for current state). **Not started:** the backend and the SLM spike.
 
 **CI runs on GitHub Actions** (T158/T159): unit tests, lint and instrumented tests on an API 33 emulator per PR, and a signed APK attached to a GitHub Release on an `android-v*` tag. This coexists with section 10's Azure Pipelines work rather than replacing it — that section is AZ-400 exam surface and keeps the environments, approval gates and IaC. **Install releases with `adb install -r`, not by tapping the APK**; see `docs/releasing.md` for why, and note the launcher has no app-drawer icon by design.
 
