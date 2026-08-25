@@ -869,7 +869,7 @@ Room schema, Markdown format, outbox from day one.
 - [x] **T053** — EF Core + SQLite context and migrations  
   `P0` `M` · after: T052
   - Offline source of truth; the most-quoted .NET data skill.
-- [ ] **T054** — MVVM scaffolding (CommunityToolkit.Mvvm)  
+- [x] **T054** — MVVM scaffolding (CommunityToolkit.Mvvm)  
   `P0` `M` · after: T052
   - Source-generated observables; no hand-rolled INotifyPropertyChanged.
 - [ ] **T055** — Two-pane shell: note list + editor  
