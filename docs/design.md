@@ -258,7 +258,7 @@ Tags are inline hashtags (`#work`) parsed out of the body on save and denormaliz
 
 **A task is a checklist item with a due date**, authored in the note body and nowhere else. There is no `NoteType.TASK` and no change to §6.2's document model. The rule from §6.2 that checklist items are derived from the body is what forces this: a task that could be edited both as a table row and as a `- [ ]` line would be two copies of one fact, free to disagree.
 
-**Querying them goes through a derived index** (ADR-0007, superseding ADR-0006). A `tasks` table carries note id, item position, text, checked state and an indexed `due` column, so "what is due today" is an ordinary indexed query rather than a scan of every note body. Three rules keep it an index rather than a second source of truth: it is only ever written by deriving it from a body, in the same transaction as the note write; it is rebuildable from scratch at any time; and it never syncs. **This is the same shape as `note_tags`** — hashtags are already parsed out of bodies and indexed for exact querying while the body stays authoritative, and tasks are that pattern with a date instead of a tag.
+**Querying them goes through a derived index** (ADR-0007, superseding ADR-0006). A `tasks` table carries note id, item position, text, checked state and an indexed `due` column, so "what is due today" is an ordinary indexed query rather than a scan of every note body. Three rules keep it an index rather than a second source of truth: it is only ever written by deriving it from a body, in the same transaction as the note write; it is rebuildable from scratch at any time; and it is never pushed or pulled. (ADR-0008 later gave the server its own derived index for digest/notification queries — that does not change this client-side one, and still nothing about a task crosses the wire.) **This is the same shape as `note_tags`** — hashtags are already parsed out of bodies and indexed for exact querying while the body stays authoritative, and tasks are that pattern with a date instead of a tag.
 
 **Storage.** A due date is an `@YYYY-MM-DD` token inside the checklist line, sitting alongside the `#hashtags` that §4.6 already puts there:
 
@@ -377,8 +377,8 @@ Isolated worker is also the better story anyway: a real `Program.cs`, standard D
   "title": "Standup notes",
   "body": "markdown source, hashtags inline",
   "tags": ["work"],
-  "createdAt": "2026-08-13T09:00:00Z",
-  "updatedAt": "2026-08-13T09:42:11Z",
+  "createdAt": "2026-08-13T09:00:00+00:00",
+  "updatedAt": "2026-08-13T09:42:11+00:00",
   "deleted": false,
   "sourceDevice": "pixel-8",
   "rev": 7
@@ -386,6 +386,14 @@ Isolated worker is also the better story anyway: a real `Program.cs`, standard D
 ```
 
 `rev` is new in v2: a monotonically increasing revision assigned by the server on each accepted write. With two offline-capable clients, `updatedAt` alone is not enough to reason about causality when device clocks disagree — `rev` gives sync a clock-independent ordering (§7).
+
+**Timestamp format (settled 2026-09-14).** `createdAt` and `updatedAt` are **ISO 8601 with an explicit numeric offset and whole seconds** — `2026-08-13T09:00:00+00:00`. Three rules, and the ordering of their bindingness matters:
+
+- **Whole seconds. No fractional part.** Android stores these as epoch *milliseconds* and .NET's `DateTimeOffset` carries 100-nanosecond ticks, so any sub-second precision is lost by one side or the other on a round trip. Truncate at construction rather than discovering it as a diff.
+- **An explicit offset is required; `Z` is not.** Both spellings denote the same instant and readers must accept either, but the canonical written form carries the numeric offset, which is what .NET emits natively and what this project therefore writes without a custom converter.
+- **The offset need not be zero, but producers should make it zero** — construct with `UtcNow`, never `Now`. This is a convention, not an enforced invariant: nothing normalizes it, because nothing needs to. Sync orders by server-assigned `rev` specifically so clocks and offsets cannot affect correctness (§7.1), and `2026-08-13T11:00:00+02:00` is the same moment as `2026-08-13T09:00:00+00:00` to any conforming parser. A `.Now` in client code is a review finding, not a data bug.
+
+⚠️ **This is not fixture-pinned.** The three corpora under `fixtures/` cover body *syntax* only — property names, enum wire values and this timestamp format have no shared cross-language corpus, so C# and Kotlin agreement here rests on this section plus `Notes.Shared.Tests`. Extending the corpus to the document envelope would close the gap; until then, treat a change to this paragraph as a change to both implementations.
 
 Partition key `/userId`. For a single user this is one logical partition (20 GB cap) — degenerate by design, and correct at this scale. Note the tradeoff in the README; a real multi-tenant design would partition differently, and knowing *why* is the interesting part.
 
@@ -449,13 +457,22 @@ that is already-authoritative pulled state. This asymmetry is deliberate (§6.2'
 carries `tags` as a real array) and matters if tag assignment ever moves server-side — don't
 "simplify" it into one code path.
 
-**⚠️ Due dates and tasks have no server representation at all, on purpose (ADR-0007).** Unlike
-tags, nothing about a due date appears in the JSON document above. The task index is
-**client-local, derived, and never synced** — no outbox row, no field on the document, no DTO in
-`Notes.Shared`. Each client (re)computes its own task index from the note bodies it already has.
-Do not add a `dueDate` field to the shared DTO or a `tasks`/outbox entry for it; that would be a
-new decision, not a mirror of an existing one, and ADR-0007 explains why it was deliberately left
-open rather than built.
+**⚠️ Tasks are derived everywhere and authored only in `body` — but the server now derives too
+(ADR-0008, 2026-08-25, extending ADR-0007).** A due date is still never *authored* anywhere but
+inside a checklist line, and no client ever sends one: there is no outbox row for a task, no
+client-supplied field, and no new conflict case, because the only thing that syncs is still the
+body. What changed is that the server, on accepting a write, runs the same `Notes.Shared` parsers
+and keeps its own **derived** `tasks` array on the note document, so it can answer "what is due
+today" for a digest or notification without scanning every body. Each client still (re)computes its
+own local index exactly as before.
+
+The rules that survive unchanged, and are the ones to hold code to: **a client-supplied task array
+is wrong** (that is two writers of one fact — the server derives or it does nothing), and **the
+stored token stays date-only**. Making it carry a time would give the server an easy UTC "today" at
+the cost of the reason the format is date-only at all, and would invalidate
+`fixtures/due-date-parsing.json` plus both existing implementations. Whoever builds the first
+server-side consumer has to source the user's timezone instead; ADR-0008 leaves that open
+deliberately and says why.
 
 ### 6.3 API
 

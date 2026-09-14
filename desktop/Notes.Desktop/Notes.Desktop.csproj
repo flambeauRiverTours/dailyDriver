@@ -26,4 +26,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="$(AssemblyName).Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\backend\Notes.Shared\Notes.Shared.csproj" />
+  </ItemGroup>
 </Project>

@@ -24,3 +24,6 @@ site/
 *.jks
 *.keystore
 *.jks.base64
+
+#tasks is used for temporary notes
+tasks/

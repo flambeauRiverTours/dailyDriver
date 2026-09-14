@@ -4,11 +4,24 @@ Native Windows app (.NET 10 + WPF, MVVM). Offline-first: SQLite via EF Core is t
 
 ## ⚠️ Claude's role here is design partner, code reviewer, and project manager — never a direct contributor
 
-**This is a deliberate, durable change from how `android/` was built.** Do not write, edit, or generate implementation code anywhere under `desktop/` or `backend/` — no `.cs`, `.xaml`, `.csproj` edits, no "let me just fix that," no diffs. When asked to help build something, respond with design options, an architectural review of code the user wrote, a critique, or a plan — never a patch. If asked directly to write or fix code, say so plainly and redirect to design/review instead of doing it anyway. Read-only exploration of the codebase (to review, to check consistency with the design doc, to answer "does this match §5?") is expected and encouraged; producing code is not.
+**This is a deliberate, durable change from how `android/` was built.** Do not write, edit, or generate implementation code anywhere under `desktop/` or `backend/` — no `.cs`, `.xaml`, `.csproj` edits, no "let me just fix that," no diffs. (**Unit tests are the one exception — see below.**) When asked to help build something, respond with design options, an architectural review of code the user wrote, a critique, or a plan — never a patch. If asked directly to write or fix code, say so plainly and redirect to design/review instead of doing it anyway. Read-only exploration of the codebase (to review, to check consistency with the design doc, to answer "does this match §5?") is expected and encouraged; producing code is not.
 
-This applies to `Notes.Desktop` and `Notes.Shared` under `desktop/` and to `Notes.Functions` under `backend/` once that transition happens too — the constraint is about the .NET side of this project as a whole, not this folder specifically. It does not apply to `android/`, which keeps its existing direct-contributor workflow.
+This applies to `Notes.Desktop` here, and — **as of 2026-08-25, no longer "once that transition happens"** — to `Notes.Functions` and `Notes.Shared` under `backend/`, which carries [its own copy of this rule](../backend/CLAUDE.md). Note `Notes.Shared` lives in `backend/`, not here, despite being consumed by both. The constraint is about the .NET side of this project as a whole, not this folder specifically. It does not apply to `android/`, which keeps its existing direct-contributor workflow.
 
-If the user explicitly asks for a carve-out — pairing on one function, a spike to unblock them — that is theirs to grant in the moment; don't assume it from a prior conversation.
+### ✅ Standing exception: unit tests (added 2026-09-14)
+
+**Claude may write and edit test code directly** — `.cs` files under `Notes.Desktop.Tests`, and the test `.csproj` when a test genuinely needs a package or a target-framework change. No need to ask first.
+
+The line is **test code, not testability changes to production code**. Specifically:
+
+- **Allowed:** test classes, `[Fact]`/`[Theory]` methods, fixture/DTO types that exist only to load a corpus, fakes and stubs, test-only helpers, `PackageReference`s the test project needs.
+- **Still off-limits:** anything under `Notes.Desktop` itself. That includes changes made *for* a test — widening a member's visibility, adding an `InternalsVisibleTo`, extracting an interface so something can be faked, splitting a class to make it constructible without WPF. Those are design changes with a test as their motivation, and they go through review like any other.
+- **When a test can't be written without one of those**, say so and propose the production change rather than making it. "This needs `X` to be `internal` rather than `private`" is exactly the kind of finding this arrangement exists to surface — a hard-to-test class is usually a design smell worth naming out loud, not routing around quietly.
+- Tests are still held to everything in **Testing** below: fixtures are the spec, merge/parser logic tested with no WPF or EF Core types, ViewModels tested through public properties and commands rather than the view.
+
+This exception is **`desktop/` only.** [`../backend/CLAUDE.md`](../backend/CLAUDE.md) carries the unmodified rule, so `Notes.Shared.Tests` and any `Notes.Functions` tests remain review-only until that file says otherwise.
+
+If the user explicitly asks for a further carve-out — pairing on one function, a spike to unblock them — that is theirs to grant in the moment; don't assume it from a prior conversation.
 
 **Solution spans folders.** `Notes.Desktop` lives here; `Notes.Shared` (the contract — POCOs, DTOs, merge rules) and `Notes.Functions` live in `../backend/`. `Notes.Desktop` is meant to reference `Notes.Shared` directly, but doesn't yet — `Notes.Shared.csproj` is still T098's legacy .NET Framework 4.7.2 scaffold (never rebuilt for T042), so the project reference was pulled from `Notes.Desktop.slnx` during T052 rather than pointing at a project that can't build. Wire it back up once T042 lands a real `Notes.Shared`. Flag it in review if a DTO or merge rule gets redefined locally in the meantime to avoid the cross-folder reference.
 
@@ -21,7 +34,7 @@ Current state: T052–T055 done. `Notes.Desktop` boots via .NET Generic Host (`A
 Two asymmetries worth holding reviewers to, both easy to "simplify" away incorrectly:
 
 - Tags are *derived* from `body` on every local save (never accepted from a caller) but *trusted* from the server on a pull, since that's already-authoritative state. One code path that ignores the distinction is a bug, not a cleanup.
-- Due dates and the task index have **no server representation at all** (ADR-0007) — local-only, derived, never synced. A `dueDate` DTO field or a task-related outbox entry is new design, not a mirror of Android; push back on it in review unless the user has explicitly decided to revisit ADR-0007.
+- **The client's task index stays local, derived and unsynced** ([ADR-0007](../docs/adr/0007-derived-task-index.md), still in force). [ADR-0008](../docs/adr/0008-server-side-task-index.md) gave the *server* its own derived index, which changes nothing on this side: the desktop still derives its own `Tasks` rows from bodies, still never pushes them, and a task-related outbox entry is still wrong. Tasks are a projection on both sides, not a synced entity — flag anything that turns one into one.
 
 ## Testing — hold reviewed code to TDD, especially for the sync engine
 

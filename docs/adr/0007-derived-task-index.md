@@ -1,6 +1,12 @@
 # 0007. A derived, queryable task index over note bodies
 
-Status: Accepted (supersedes [0006](0006-tasks-as-dated-checklist-items.md))
+Status: Accepted (supersedes [0006](0006-tasks-as-dated-checklist-items.md); extended by [0008](0008-server-side-task-index.md), 2026-08-25)
+
+> Still accepted in full — nothing below is reversed. [0008](0008-server-side-task-index.md) decides
+> only the question this ADR deliberately left open in its closing paragraph: the server's view of
+> tasks. The client-side index stays local, derived and unsynced exactly as described here. 0008 also
+> resolves one ambiguity in the wording of rule 3 below: "no C# contract" meant no client-authored
+> task field crossing the wire, **not** that `Notes.Shared` may not hold the fixture-pinned parsers.
 
 ## Context
 

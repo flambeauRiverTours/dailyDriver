@@ -829,6 +829,25 @@ Room schema, Markdown format, outbox from day one.
 - [ ] **T042** — Notes.Shared: POCOs, DTOs, tag parsing, merge rules  
   `P0` `L`
   - Referenced by both Desktop and Functions — single source of truth, cannot drift. **Unblocks section 08.**
+  - ⚠️ **Replace the project, don't amend it.** `backend/Notes.Shared/Notes.Shared.csproj` is still T098's scaffold: non-SDK, `TargetFrameworkVersion` **v4.7.2**, `OutputType` **Exe** — it fails to build on its own (`CS5001: no static Main`). Target **`net10.0`**, not `net10.0-windows`: `Notes.Desktop` can reference the former, never the reverse (`NU1201`). Re-add the `ProjectReference` T052 removed.
+  - **The fixtures are the spec and they define more than three parsers.** 95 cases across ~9 functions: `tag-parsing.json` (26 cases); `checklist-parsing.json` (20 parse + `renderCases`, `conversionCases`, `normalizeCases`, `cleanCases` — so parse, render, `toNoteBody`, `normalized()`, `cleaned()`); `due-date-parsing.json` (`storedCases`, `renderCases`, and 21 `inputCases` for `@tomorrow`/`@t+3` resolution). Each file's `rules` and `knownLimits` are part of the contract, not commentary. **Don't transcribe the regexes from §6.2.1** — that section says to copy them from the fixtures or Kotlin source, because the prose is orientation and the fixture wins.
+  - `inputCases` carries a `today` field, so shortcut resolution must **take "today" as a parameter**, never call `DateTime.Now` — otherwise the tests aren't reproducible.
+  - **Fixture harness:** Android puts repo-root `fixtures/` on the unit-test classpath via a `sourceSets` entry in `android/app/build.gradle.kts`. The C# side needs the equivalent, with xUnit `[Theory]` so each case reports as a named test.
+  - **↻ Scope grew with [ADR-0008](adr/0008-server-side-task-index.md) (2026-08-25).** The shared contract now also needs the **task type and the derivation function**, because the server derives its own task index using these same parsers. Deciding this after `Notes.Shared` shipped would have meant changing a contract two clients already implemented — which is exactly why it was decided before this task rather than after.
+  - **↻ Merge rules moved out to [T070] (2026-09-14).** They were in this task's title but are a different kind of work: §7.3 says the three body-syntax fixtures "already exist and are already pinning Android's implementation", so the parsers here were *matching a contract already live in production*, while the sync corpus is "not yet built on either side, so it is genuinely new design, not a mirror". Writing the rules here would mean writing them, then their corpus in T070, then finding the disagreements in T071 — the reverse of the order that made the parsers work. See T070.
+  - **✅ Parsers, types and derivation are done — 180 tests, all 95 fixture cases green.** `Notes.Shared` (`net10.0`) holds `TagParser`, `ChecklistParser`, `InputShortcutParser`, `TaskIndex` and `Model/`; `Notes.Shared.Tests` (`net10.0`, references neither WPF nor EF Core, which is *why* it is separate from `Notes.Desktop.Tests`) executes the corpus. Remaining: the `ProjectReference` from `Notes.Desktop`, and the merge-rules question above.
+  - **Wire-format decisions, none of which are fixture-pinned** — the three corpora cover body *syntax* only, so the document envelope rests on §6.2 plus `Notes.Shared.Tests`:
+    - **`NoteType` serializes as a lowercase string** via `[JsonConverter(typeof(JsonStringEnumConverter<NoteType>))]` plus `[JsonStringEnumMemberName]` per member. System.Text.Json writes enums as **integers** by default, so left alone C# would emit `"type": 0` and Kotlin would never parse it. The attribute sits on the *type* so it travels to every serializer (desktop `HttpClient`, Functions runtime, Cosmos SDK) rather than depending on each configuring options.
+    - **camelCase on the wire achieved by naming the C# properties in camelCase** (`id`, `userId`, `createdAt`, and `text`/`@checked` on `ChecklistItem`) rather than by `[JsonPropertyName]` or a naming policy. Self-consistent and attribute-free; the cost is that the public contract breaks C# convention and every consumer writes `note.createdAt` / `item.@checked`.
+    - **Timestamps: see §6.2** — settled as ISO 8601 with an explicit numeric offset and whole seconds. A `JsonConverter<DateTimeOffset>` was designed and rejected as disproportionate, since §7.1 already makes clocks non-load-bearing.
+  - **🐛 Four bugs worth remembering, all shipped into a fully green suite and caught only when a test finally exercised the new path:**
+    1. *Tag boundary written as a blocklist* (`!IsLetterOrDigit && !IsSymbol`) where the rule is an allowlist — `#` is category `Po` and `(` is `Ps`, so `##work` and `(#work)` both slipped through. `char.IsWhiteSpace` is the whole test.
+    2. *Due-date extraction:* `FirstOrDefault()` on `IReadOnlyCollection<DateOnly>` returns `DateOnly.MinValue`, not null, so every **undated** item got `due = 0001-01-01` — 38 failures. Also first-wins where the contract is last-wins, and `match.Value` parsed instead of `.Groups[1].Value` (the pattern *consumes* its leading whitespace).
+    3. *Shortcut resolution held one fact in two places* — a `HashSet` of reserved words **and** a `switch` mapping them. The loop matched against one and returned from the other, so every non-ISO input returned whatever `HashSet` iteration yielded first: **nondeterministic across runtimes**. One `switch (input)` removed the second list and the bug together.
+    4. *`TaskRow.due` used bare `DateOnly.ToString()`* — the current culture's short-date pattern (`8/25/2026`), not ISO. That column is what both clients query "what's due today" against, and a non-ISO string doesn't sort or range-compare, which is the entire justification for storing it as text in ADR-0007.
+  - **Pattern behind all four: production code written before its test, into a suite that stayed green because nothing exercised the new path.** Write the fixture theory first.
+  - ⚠️ **`Position` in `TaskIndex.TasksOf` is the index in the *full* checklist, not among the dated subset** — Kotlin uses `mapIndexedNotNull`. `Where(...).Select((item, i) => …)` reads naturally, renumbers from zero, and passes every other test; it would break a UI tap's ability to find the right line to tick.
+  - **`TasksOf` lives in its own `TaskIndex.cs`**, not on `ChecklistParser`: the parser is body-level (`string` → `ChecklistItem`) and has no knowledge of the `Note` DTO, which is the right direction for that dependency. Mirrors Kotlin's `TaskIndex.kt`. **No fixture covers `tasksOf` at all** — its 10 tests are hand-written.
 - [ ] **T040** — Entra ID app registration: desktop public client + Android  
   `P0` `M`
   - One registration, two platform configurations.
@@ -850,6 +869,12 @@ Room schema, Markdown format, outbox from day one.
 - [ ] **T048** — Server-side monotonic rev assignment  
   `P0` `M` · after: T046
   - Clock-independent ordering. Clients never invent a rev.
+- [ ] **T181** — Server-side derived task index  
+  `P1` `M` · after: T042, T046
+  - [ADR-0008](adr/0008-server-side-task-index.md). On every accepted write, derive the note's tasks from `body` with the `Notes.Shared` parsers and store them as a derived array on the document — so the backend can answer "what is due today" without scanning every body.
+  - ⚠️ **Never accept a task array from a client.** The server derives or it does nothing; a client-supplied array is two writers of one fact, and 0008 rejected it explicitly. No outbox row, no conflict case — tasks are a projection, not a synced entity, so sync gains nothing new from this.
+  - **Set a targeted Cosmos indexing policy over the due path** rather than inheriting index-everything. Indexing cost lands on writes, throughput is manually pinned at 1000 RU/s (T050) with no autoscale headroom, and the budget is $0.
+  - **Open, deliberately left to the first consumer:** whose "today"? The stored token is date-only so timezones stay out of the wire format (§6.2.1), which works only because "today" is evaluated locally. A digest or notification must source the user's timezone from somewhere. **Adding a time to the token is the wrong answer** — it breaks the reason the format is date-only and invalidates `fixtures/due-date-parsing.json` plus both existing implementations.
 - [ ] **T049** — Soft delete + tombstone purge (timer trigger, 90d)  
   `P1` `M` · after: T046
 - [ ] **T050** — $0 budget alert + manual throughput pinned at 1000 RU/s  
@@ -926,9 +951,13 @@ Two offline replicas. Second-riskiest part after the SLM.
   - Never silently lose the losing edit. Title: `<title> (conflict, <device>, <timestamp>)`.
 - [ ] **T069** — Android SyncWorker (WorkManager) equivalent  
   `P0` `L` · after: T018, T047
-- [ ] **T070** — Shared JSON fixture corpus (base/local/remote/expected)  
+- [ ] **T070** — Shared JSON fixture corpus (base/local/remote/expected) **+ the merge rules themselves**  
   `P0` `M` · after: T042
   - The seam where Kotlin/C# drift will live. Commit once, execute from both test suites.
+  - **↻ Scope grew 2026-09-14: the merge rules moved here from T042.** Unlike the three body-syntax parsers — which T042 implemented against fixtures *already pinning Android's production code* — this corpus does not exist on either side yet (§7.3: "genuinely new design, not a mirror"). So the corpus and the rules are one piece of work with no oracle until it is written, and splitting them would mean writing rules, then their spec, then discovering the disagreements in T071.
+  - **The rules are small; the scenarios are the work.** §7.2 is one paragraph — compare the pushed `baseRev` against the server's current `rev`, accept the newer write, return a conflict marker, client materialises the loser as a separate note titled `<title> (conflict, <device>, <timestamp>)`. What needs designing is the scenario set: offline edit on one client, concurrent conflicting edits, delete-vs-edit, interrupted push, and clock skew (which must *not* affect ordering — `rev` is server-assigned and never client-invented).
+  - Lives in `Notes.Shared` alongside the parsers, per §7.3, and must stay testable with no Functions-runtime or Cosmos SDK dependency.
+  - ⚠️ **Write the corpus theory before the rules.** Every bug in T042 — four of them — was production code written ahead of its test, landing in a suite that stayed green because nothing exercised the new path.
 - [ ] **T071** — xUnit sync tests against fixture corpus  
   `P0` `M` · after: T070
 - [ ] **T072** — Android unit tests against the SAME fixture corpus  
