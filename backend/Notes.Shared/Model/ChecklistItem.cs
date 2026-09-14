@@ -10,5 +10,10 @@ namespace Notes.Shared.Model
         /// Gets or sets whether the checklist item is marked as completed.
         /// </summary>
         public required bool @checked { get; init; }
+
+        /// <summary>
+        /// Gets or sets the due date for the checklist item, if applicable.
+        /// </summary>
+        public DateOnly? due { get; init; }
     }
 }

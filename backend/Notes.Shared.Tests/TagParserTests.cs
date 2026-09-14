@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Notes.Shared.Tests.Helpers.Fixtures;
 
 namespace Notes.Shared.Tests
@@ -10,7 +10,7 @@ namespace Notes.Shared.Tests
         /// </summary>
         /// <returns></returns>
         public static IEnumerable<object[]> TagCases() =>
-            FixtureParser.Parse<TagFixture>("tag-parsing.json").Cases
+            TagFixture.Instance.Cases
             .Select(c => new object[] { c.Body, c.Tags, });
 
         [Theory]
@@ -22,6 +22,6 @@ namespace Notes.Shared.Tests
 
         [Fact]
         public void TagFixture_ContainsAllCases() =>
-            FixtureParser.Parse<TagFixture>("tag-parsing.json").Cases.Should().HaveCount(26);
+            TagFixture.Instance.Cases.Should().HaveCount(26);
     }
 }

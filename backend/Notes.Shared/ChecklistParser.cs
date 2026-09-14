@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Notes.Shared.Model;
 
@@ -51,7 +52,7 @@ namespace Notes.Shared
         /// <returns>ChecklistItem data from input line</returns>
         private static ChecklistItem GetPlainProseChecklistItem(string line)
         {
-            return new ChecklistItem() { @checked = false, text = line };
+            return new ChecklistItem() { @checked = false, text = GetBody(line.TrimStart(), false), due = GetDueDate(line) };
         }
 
         /// <summary>
@@ -73,8 +74,9 @@ namespace Notes.Shared
         {
             return new ChecklistItem()
             {
-                text = GetBody(checklistLine),
-                @checked = GetChecked(checklistLine)
+                text = GetBody(checklistLine, true),
+                @checked = GetChecked(checklistLine),
+                due = GetDueDate(checklistLine)
             };
         }
 
@@ -92,12 +94,43 @@ namespace Notes.Shared
         /// Gets the body of the checklist item
         /// </summary>
         /// <param name="checklistLine">Checklist item text to parse</param>
+        /// <param name="hasCheckbox">Whether the checklist item has a checkbox</param>
         /// <returns>The body text of the checklist item</returns>
-        private static string GetBody(string checklistLine)
+        private static string GetBody(string checklistLine, bool hasCheckbox)
         {
-            return checklistLine.Substring(checklistLine.IndexOf("]") + 1).TrimStart();
+            IEnumerable<Match> dueDates = GetDueDates(checklistLine);
+            if (dueDates.Any())
+            {
+                checklistLine = checklistLine.Remove(checklistLine.LastIndexOf(dueDates.Last().Value), dueDates.Last().Value.Length);
+            }
+            return hasCheckbox ? checklistLine.Substring(checklistLine.IndexOf("]") + 1).TrimStart() : checklistLine.Trim();
         }
 
+        /// <summary>
+        /// Gets the due date of the checklist item if it exists
+        /// </summary>
+        /// <param name="checklistLine">Checklist item text to parse</param>
+        /// <returns>The due date of the checklist item, or null if it doesn't have one</returns>
+        private static DateOnly? GetDueDate(string checklistLine)
+        {
+            var dueDates = GetDueDates(checklistLine);
+            return dueDates.Any() ? DateOnly.ParseExact(dueDates.Last().Groups[1].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture) : null;
+        }
+
+        /// <summary>
+        /// Gets the due dates of the checklist item if it exists
+        /// </summary>
+        /// <param name="checklistLine">Checklist item text to parse</param>
+        /// <returns>The due dates of the checklist item, or an empty collection if it doesn't have any</returns>
+        private static IEnumerable<Match> GetDueDates(string checklistLine)
+        {
+            return DueDateRegex.Matches(checklistLine).Where(match => DateOnly.TryParseExact(match.Groups[1].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _));
+        }
+
+        /// <summary>
+        /// Regex definition for due dates in checklist items
+        /// </summary>
+        private static readonly Regex DueDateRegex = new Regex("(?:^|\\s)@(\\d{4}-\\d{2}-\\d{2})(?=\\s|$)");
         #endregion
 
         #region Render
@@ -119,6 +152,10 @@ namespace Notes.Shared
                 else
                 {
                     result += string.Format("- [{0}] {1}", GetChecked(checklistItem), checklistItem.text);
+                }
+                if (checklistItem.due.HasValue)
+                {
+                    result += string.Format(" @{0}", checklistItem.due.Value.ToString("yyyy-MM-dd"));
                 }
             }
             return result;
@@ -143,7 +180,7 @@ namespace Notes.Shared
         /// <returns>List of cleaned checklist items</returns>
         public static IEnumerable<ChecklistItem> Clean(IReadOnlyCollection<ChecklistItem> checklistItems)
         {
-            return checklistItems.Where(item => !string.IsNullOrWhiteSpace(item.text)).Select(item => new ChecklistItem { @checked = item.@checked, text = item.text.Trim() }).ToList();
+            return checklistItems.Where(item => !string.IsNullOrWhiteSpace(item.text) || item.due.HasValue).Select(item => new ChecklistItem { @checked = item.@checked, text = item.text.Trim(), due = item.due }).ToList();
         }
         #endregion
 
@@ -179,7 +216,7 @@ namespace Notes.Shared
         /// <returns>A single string representing the note body</returns>
         public static string ToNoteBody(string checklistItems)
         {
-            return string.Join("\n", Clean(ParseChecklist(checklistItems)));
+            return string.Join("\n", Clean(ParseChecklist(checklistItems)).Select(item => item.text));
         }
         #endregion
     }

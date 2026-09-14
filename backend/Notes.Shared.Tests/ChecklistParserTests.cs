@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Notes.Shared.Model;
 using Notes.Shared.Tests.Helpers.Fixtures;
 
@@ -75,22 +75,22 @@ namespace Notes.Shared.Tests
 
         [Fact]
         public void ChecklistFixture_Parse_ContainsAllCases() =>
-            FixtureParser.Parse<ChecklistFixture>("checklist-parsing.json").Cases.Should().HaveCount(20);
+            ChecklistFixture.Instance.Cases.Should().HaveCount(20);
 
         [Fact]
         public void ChecklistFixture_Render_ContainsAllCases() =>
-            FixtureParser.Parse<ChecklistFixture>("checklist-parsing.json").RenderCases.Should().HaveCount(4);
+            ChecklistFixture.Instance.RenderCases.Should().HaveCount(4);
 
         [Fact]
         public void ChecklistFixture_Normalize_ContainsAllCases() =>
-            FixtureParser.Parse<ChecklistFixture>("checklist-parsing.json").NormalizeCases.Should().HaveCount(3);
+            ChecklistFixture.Instance.NormalizeCases.Should().HaveCount(3);
 
         [Fact]
         public void ChecklistFixture_Clean_ContainsAllCases() =>
-            FixtureParser.Parse<ChecklistFixture>("checklist-parsing.json").CleanCases.Should().HaveCount(3);
+            ChecklistFixture.Instance.CleanCases.Should().HaveCount(3);
 
         [Fact]
         public void ChecklistFixture_Conversion_ContainsAllCases() =>
-            FixtureParser.Parse<ChecklistFixture>("checklist-parsing.json").ConversionCases.Should().HaveCount(3);
+            ChecklistFixture.Instance.ConversionCases.Should().HaveCount(3);
     }
 }

@@ -1,5 +1,4 @@
 <Solution>
-  <Project Path="../backend/Notes.Functions/Notes.Functions.csproj" Id="a279dc0b-513c-40a7-8017-b3761c9ffdc2" />
   <Project Path="../backend/Notes.Shared.Tests/Notes.Shared.Tests.csproj" />
   <Project Path="../backend/Notes.Shared/Notes.Shared.csproj" />
   <Project Path="../desktop/Notes.Desktop.Tests/Notes.Desktop.Tests.csproj" />

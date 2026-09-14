@@ -10,7 +10,15 @@ C# Azure Functions, **isolated worker model**, .NET 10, HTTP-triggered, Cosmos D
 
 This covers `Notes.Functions` **and `Notes.Shared`, which lives here rather than under `desktop/`** despite being consumed by both. It does not apply to `android/`, which keeps its existing direct-contributor workflow.
 
-If the user explicitly asks for a carve-out — pairing on one function, a spike to unblock them — that is theirs to grant in the moment; don't assume it from a prior conversation.
+### ✅ Standing exception: unit tests (added 2026-09-14)
+
+**Mirrors [`../desktop/CLAUDE.md`](../desktop/CLAUDE.md)'s exception — see there for the full wording and reasoning.** Claude may write and edit test code directly: `.cs` files under `Notes.Shared.Tests` (and `Notes.Functions` tests when they exist), plus the test `.csproj` when a test genuinely needs a package or target-framework change.
+
+The line is **test code, not testability changes to production code.** Fixture/DTO types, fakes, helpers and `PackageReference`s are fine; anything under `Notes.Shared` or `Notes.Functions` is not — including changes made *for* a test, such as widening visibility, adding `InternalsVisibleTo`, or extracting an interface to enable faking. When a test can't be written without one, say so and propose it rather than making it.
+
+Tests remain held to everything in **Testing** below: the fixtures are the spec, and merge/DTO logic must be testable with no Functions-runtime or Cosmos SDK dependency.
+
+If the user explicitly asks for a further carve-out — pairing on one function, a spike to unblock them — that is theirs to grant in the moment; don't assume it from a prior conversation.
 
 Docs are the exception, as on the desktop side: `docs/`, this file, and ADRs are Claude's to edit when asked.
 

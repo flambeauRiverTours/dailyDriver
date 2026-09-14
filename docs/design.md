@@ -377,8 +377,8 @@ Isolated worker is also the better story anyway: a real `Program.cs`, standard D
   "title": "Standup notes",
   "body": "markdown source, hashtags inline",
   "tags": ["work"],
-  "createdAt": "2026-08-13T09:00:00Z",
-  "updatedAt": "2026-08-13T09:42:11Z",
+  "createdAt": "2026-08-13T09:00:00+00:00",
+  "updatedAt": "2026-08-13T09:42:11+00:00",
   "deleted": false,
   "sourceDevice": "pixel-8",
   "rev": 7
@@ -386,6 +386,14 @@ Isolated worker is also the better story anyway: a real `Program.cs`, standard D
 ```
 
 `rev` is new in v2: a monotonically increasing revision assigned by the server on each accepted write. With two offline-capable clients, `updatedAt` alone is not enough to reason about causality when device clocks disagree — `rev` gives sync a clock-independent ordering (§7).
+
+**Timestamp format (settled 2026-09-14).** `createdAt` and `updatedAt` are **ISO 8601 with an explicit numeric offset and whole seconds** — `2026-08-13T09:00:00+00:00`. Three rules, and the ordering of their bindingness matters:
+
+- **Whole seconds. No fractional part.** Android stores these as epoch *milliseconds* and .NET's `DateTimeOffset` carries 100-nanosecond ticks, so any sub-second precision is lost by one side or the other on a round trip. Truncate at construction rather than discovering it as a diff.
+- **An explicit offset is required; `Z` is not.** Both spellings denote the same instant and readers must accept either, but the canonical written form carries the numeric offset, which is what .NET emits natively and what this project therefore writes without a custom converter.
+- **The offset need not be zero, but producers should make it zero** — construct with `UtcNow`, never `Now`. This is a convention, not an enforced invariant: nothing normalizes it, because nothing needs to. Sync orders by server-assigned `rev` specifically so clocks and offsets cannot affect correctness (§7.1), and `2026-08-13T11:00:00+02:00` is the same moment as `2026-08-13T09:00:00+00:00` to any conforming parser. A `.Now` in client code is a review finding, not a data bug.
+
+⚠️ **This is not fixture-pinned.** The three corpora under `fixtures/` cover body *syntax* only — property names, enum wire values and this timestamp format have no shared cross-language corpus, so C# and Kotlin agreement here rests on this section plus `Notes.Shared.Tests`. Extending the corpus to the document envelope would close the gap; until then, treat a change to this paragraph as a change to both implementations.
 
 Partition key `/userId`. For a single user this is one logical partition (20 GB cap) — degenerate by design, and correct at this scale. Note the tradeoff in the README; a real multi-tenant design would partition differently, and knowing *why* is the interesting part.
 
