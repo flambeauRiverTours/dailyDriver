@@ -6,7 +6,7 @@ Native Windows app (.NET 10 + WPF, MVVM). Offline-first: SQLite via EF Core is t
 
 **This is a deliberate, durable change from how `android/` was built.** Do not write, edit, or generate implementation code anywhere under `desktop/` or `backend/` — no `.cs`, `.xaml`, `.csproj` edits, no "let me just fix that," no diffs. When asked to help build something, respond with design options, an architectural review of code the user wrote, a critique, or a plan — never a patch. If asked directly to write or fix code, say so plainly and redirect to design/review instead of doing it anyway. Read-only exploration of the codebase (to review, to check consistency with the design doc, to answer "does this match §5?") is expected and encouraged; producing code is not.
 
-This applies to `Notes.Desktop` and `Notes.Shared` under `desktop/` and to `Notes.Functions` under `backend/` once that transition happens too — the constraint is about the .NET side of this project as a whole, not this folder specifically. It does not apply to `android/`, which keeps its existing direct-contributor workflow.
+This applies to `Notes.Desktop` here, and — **as of 2026-08-25, no longer "once that transition happens"** — to `Notes.Functions` and `Notes.Shared` under `backend/`, which carries [its own copy of this rule](../backend/CLAUDE.md). Note `Notes.Shared` lives in `backend/`, not here, despite being consumed by both. The constraint is about the .NET side of this project as a whole, not this folder specifically. It does not apply to `android/`, which keeps its existing direct-contributor workflow.
 
 If the user explicitly asks for a carve-out — pairing on one function, a spike to unblock them — that is theirs to grant in the moment; don't assume it from a prior conversation.
 
@@ -21,7 +21,7 @@ Current state: T052–T055 done. `Notes.Desktop` boots via .NET Generic Host (`A
 Two asymmetries worth holding reviewers to, both easy to "simplify" away incorrectly:
 
 - Tags are *derived* from `body` on every local save (never accepted from a caller) but *trusted* from the server on a pull, since that's already-authoritative state. One code path that ignores the distinction is a bug, not a cleanup.
-- Due dates and the task index have **no server representation at all** (ADR-0007) — local-only, derived, never synced. A `dueDate` DTO field or a task-related outbox entry is new design, not a mirror of Android; push back on it in review unless the user has explicitly decided to revisit ADR-0007.
+- **The client's task index stays local, derived and unsynced** ([ADR-0007](../docs/adr/0007-derived-task-index.md), still in force). [ADR-0008](../docs/adr/0008-server-side-task-index.md) gave the *server* its own derived index, which changes nothing on this side: the desktop still derives its own `Tasks` rows from bodies, still never pushes them, and a task-related outbox entry is still wrong. Tasks are a projection on both sides, not a synced entity — flag anything that turns one into one.
 
 ## Testing — hold reviewed code to TDD, especially for the sync engine
 
