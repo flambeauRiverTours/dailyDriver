@@ -829,6 +829,12 @@ Room schema, Markdown format, outbox from day one.
 - [ ] **T042** — Notes.Shared: POCOs, DTOs, tag parsing, merge rules  
   `P0` `L`
   - Referenced by both Desktop and Functions — single source of truth, cannot drift. **Unblocks section 08.**
+  - ⚠️ **Replace the project, don't amend it.** `backend/Notes.Shared/Notes.Shared.csproj` is still T098's scaffold: non-SDK, `TargetFrameworkVersion` **v4.7.2**, `OutputType` **Exe** — it fails to build on its own (`CS5001: no static Main`). Target **`net10.0`**, not `net10.0-windows`: `Notes.Desktop` can reference the former, never the reverse (`NU1201`). Re-add the `ProjectReference` T052 removed.
+  - **The fixtures are the spec and they define more than three parsers.** 95 cases across ~9 functions: `tag-parsing.json` (26 cases); `checklist-parsing.json` (20 parse + `renderCases`, `conversionCases`, `normalizeCases`, `cleanCases` — so parse, render, `toNoteBody`, `normalized()`, `cleaned()`); `due-date-parsing.json` (`storedCases`, `renderCases`, and 21 `inputCases` for `@tomorrow`/`@t+3` resolution). Each file's `rules` and `knownLimits` are part of the contract, not commentary. **Don't transcribe the regexes from §6.2.1** — that section says to copy them from the fixtures or Kotlin source, because the prose is orientation and the fixture wins.
+  - `inputCases` carries a `today` field, so shortcut resolution must **take "today" as a parameter**, never call `DateTime.Now` — otherwise the tests aren't reproducible.
+  - **Fixture harness:** Android puts repo-root `fixtures/` on the unit-test classpath via a `sourceSets` entry in `android/app/build.gradle.kts`. The C# side needs the equivalent, with xUnit `[Theory]` so each case reports as a named test.
+  - **↻ Scope grew with [ADR-0008](adr/0008-server-side-task-index.md) (2026-08-25).** The shared contract now also needs the **task type and the derivation function**, because the server derives its own task index using these same parsers. Deciding this after `Notes.Shared` shipped would have meant changing a contract two clients already implemented — which is exactly why it was decided before this task rather than after.
+  - **Merge rules may not belong here.** §7.3 says the sync-scenario corpus is "not yet built on either side", so unlike the parsers there is no fixture pinning them — that makes them real design work, not spec-following, and `L` is already large. Consider splitting them to land with T070's corpus.
 - [ ] **T040** — Entra ID app registration: desktop public client + Android  
   `P0` `M`
   - One registration, two platform configurations.
@@ -850,6 +856,12 @@ Room schema, Markdown format, outbox from day one.
 - [ ] **T048** — Server-side monotonic rev assignment  
   `P0` `M` · after: T046
   - Clock-independent ordering. Clients never invent a rev.
+- [ ] **T181** — Server-side derived task index  
+  `P1` `M` · after: T042, T046
+  - [ADR-0008](adr/0008-server-side-task-index.md). On every accepted write, derive the note's tasks from `body` with the `Notes.Shared` parsers and store them as a derived array on the document — so the backend can answer "what is due today" without scanning every body.
+  - ⚠️ **Never accept a task array from a client.** The server derives or it does nothing; a client-supplied array is two writers of one fact, and 0008 rejected it explicitly. No outbox row, no conflict case — tasks are a projection, not a synced entity, so sync gains nothing new from this.
+  - **Set a targeted Cosmos indexing policy over the due path** rather than inheriting index-everything. Indexing cost lands on writes, throughput is manually pinned at 1000 RU/s (T050) with no autoscale headroom, and the budget is $0.
+  - **Open, deliberately left to the first consumer:** whose "today"? The stored token is date-only so timezones stay out of the wire format (§6.2.1), which works only because "today" is evaluated locally. A digest or notification must source the user's timezone from somewhere. **Adding a time to the token is the wrong answer** — it breaks the reason the format is date-only and invalidates `fixtures/due-date-parsing.json` plus both existing implementations.
 - [ ] **T049** — Soft delete + tombstone purge (timer trigger, 90d)  
   `P1` `M` · after: T046
 - [ ] **T050** — $0 budget alert + manual throughput pinned at 1000 RU/s  

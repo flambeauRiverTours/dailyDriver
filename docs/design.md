@@ -258,7 +258,7 @@ Tags are inline hashtags (`#work`) parsed out of the body on save and denormaliz
 
 **A task is a checklist item with a due date**, authored in the note body and nowhere else. There is no `NoteType.TASK` and no change to §6.2's document model. The rule from §6.2 that checklist items are derived from the body is what forces this: a task that could be edited both as a table row and as a `- [ ]` line would be two copies of one fact, free to disagree.
 
-**Querying them goes through a derived index** (ADR-0007, superseding ADR-0006). A `tasks` table carries note id, item position, text, checked state and an indexed `due` column, so "what is due today" is an ordinary indexed query rather than a scan of every note body. Three rules keep it an index rather than a second source of truth: it is only ever written by deriving it from a body, in the same transaction as the note write; it is rebuildable from scratch at any time; and it never syncs. **This is the same shape as `note_tags`** — hashtags are already parsed out of bodies and indexed for exact querying while the body stays authoritative, and tasks are that pattern with a date instead of a tag.
+**Querying them goes through a derived index** (ADR-0007, superseding ADR-0006). A `tasks` table carries note id, item position, text, checked state and an indexed `due` column, so "what is due today" is an ordinary indexed query rather than a scan of every note body. Three rules keep it an index rather than a second source of truth: it is only ever written by deriving it from a body, in the same transaction as the note write; it is rebuildable from scratch at any time; and it is never pushed or pulled. (ADR-0008 later gave the server its own derived index for digest/notification queries — that does not change this client-side one, and still nothing about a task crosses the wire.) **This is the same shape as `note_tags`** — hashtags are already parsed out of bodies and indexed for exact querying while the body stays authoritative, and tasks are that pattern with a date instead of a tag.
 
 **Storage.** A due date is an `@YYYY-MM-DD` token inside the checklist line, sitting alongside the `#hashtags` that §4.6 already puts there:
 
@@ -449,13 +449,22 @@ that is already-authoritative pulled state. This asymmetry is deliberate (§6.2'
 carries `tags` as a real array) and matters if tag assignment ever moves server-side — don't
 "simplify" it into one code path.
 
-**⚠️ Due dates and tasks have no server representation at all, on purpose (ADR-0007).** Unlike
-tags, nothing about a due date appears in the JSON document above. The task index is
-**client-local, derived, and never synced** — no outbox row, no field on the document, no DTO in
-`Notes.Shared`. Each client (re)computes its own task index from the note bodies it already has.
-Do not add a `dueDate` field to the shared DTO or a `tasks`/outbox entry for it; that would be a
-new decision, not a mirror of an existing one, and ADR-0007 explains why it was deliberately left
-open rather than built.
+**⚠️ Tasks are derived everywhere and authored only in `body` — but the server now derives too
+(ADR-0008, 2026-08-25, extending ADR-0007).** A due date is still never *authored* anywhere but
+inside a checklist line, and no client ever sends one: there is no outbox row for a task, no
+client-supplied field, and no new conflict case, because the only thing that syncs is still the
+body. What changed is that the server, on accepting a write, runs the same `Notes.Shared` parsers
+and keeps its own **derived** `tasks` array on the note document, so it can answer "what is due
+today" for a digest or notification without scanning every body. Each client still (re)computes its
+own local index exactly as before.
+
+The rules that survive unchanged, and are the ones to hold code to: **a client-supplied task array
+is wrong** (that is two writers of one fact — the server derives or it does nothing), and **the
+stored token stays date-only**. Making it carry a time would give the server an easy UTC "today" at
+the cost of the reason the format is date-only at all, and would invalidate
+`fixtures/due-date-parsing.json` plus both existing implementations. Whoever builds the first
+server-side consumer has to source the user's timezone instead; ADR-0008 leaves that open
+deliberately and says why.
 
 ### 6.3 API
 
