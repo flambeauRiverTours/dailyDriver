@@ -18,12 +18,12 @@ through fine-tuning, quantization, deployment and benchmarks.
 | Area | Status | What exists |
 |---|---|---|
 | **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 831 automated tests. |
-| **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | Application shell on the .NET Generic Host with dependency injection, an EF Core and SQLite store with migrations, and the MVVM two-pane layout. No note editing yet. |
+| **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | Application shell on the .NET Generic Host with dependency injection, an EF Core and SQLite store with migrations, the MVVM two-pane layout, and a working Markdown editor with live preview and autosave. 51 automated tests. No note list, sync or sign-in yet. |
 | **[Azure backend](backend.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design and data model complete. |
 | **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-outline:{ .status-todo } Not started | Design, model shortlist and evaluation plan complete. |
 
 The Android launcher is finished to its first milestone and in daily use as a real home screen,
-installed from a signed release built by CI. The desktop client has its foundations built and is
+installed from a signed release built by CI. The desktop client can write and store notes and is
 being worked on now. The backend and the ML pipeline have finished designs and empty project
 scaffolds. Every page says which it is at the top.
 
@@ -53,7 +53,8 @@ The parts where the obvious answer was not the one I took.
 -   **Two languages, one parsing contract**
 
     Kotlin and C# have to parse tags and checklists identically or notes corrupt as they sync.
-    Both run the same JSON fixture files, so any difference fails a test.
+    Both run the same JSON fixture files, so any difference fails a test. Both sides now pass all
+    95 cases.
 
     [Details :material-arrow-right:](android.md#one-contract-two-languages)
 
@@ -78,7 +79,7 @@ The parts where the obvious answer was not the one I took.
 
 === "Desktop"
 
-    .NET 10, WPF, MVVM (CommunityToolkit.Mvvm), EF Core with SQLite.
+    .NET 10, WPF, MVVM (CommunityToolkit.Mvvm), EF Core with SQLite, Markdig.
 
 === "Backend"
 
@@ -97,10 +98,10 @@ The parts where the obvious answer was not the one I took.
 The repository also holds the working engineering documents: the
 [design document](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/design.md), a
 [task log](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/tasks.md) recording what
-was decided and what broke while building each feature, and six
+was decided and what broke while building each feature, and nine
 [architecture decision records](https://github.com/flambeauRiverTours/dailyDriver/tree/main/docs/adr).
 This site is the overview and links to them.
 
-!!! info "Last updated: 25 August 2026"
+!!! info "Last updated: 14 September 2026"
 
     Reflects the state of `main` on that date.

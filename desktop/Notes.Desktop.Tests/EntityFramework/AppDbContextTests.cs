@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Notes.Desktop.EntityFramework;
@@ -15,9 +15,10 @@ namespace Notes.Desktop.Tests.EntityFramework
             TestDbContext testDbContext = new TestDbContext();
             await testDbContext.Context.Database.MigrateAsync(TestContext.Current.CancellationToken);
 
-            var note = new Note { Id = Guid.NewGuid(), /* ... */ };
+            // The tag comes from the body, not from a hand-inserted row: SaveChanges re-derives
+            // NoteTags on every write, so a tag that disagrees with the body is wiped by design.
+            var note = new Note { Id = Guid.NewGuid(), Body = "standup notes #work" };
             testDbContext.Context.Notes.Add(note);
-            testDbContext.Context.NoteTags.Add(new NoteTag { NoteId = note.Id, Tag = "work" });
             await testDbContext.Context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             testDbContext.Context.Notes.Remove(note);
@@ -47,7 +48,7 @@ namespace Notes.Desktop.Tests.EntityFramework
             using (var ctx2 = new AppDbContext(testDbContext.Options))
             {
                 ctx2.NoteTags.Add(new NoteTag { NoteId = noteId, Tag = "work" }); // same key, ctx2 has no idea
-                Func<System.Threading.Tasks.Task> act = async () => await ctx2.SaveChangesAsync();
+                Func<System.Threading.Tasks.Task> act = async () => await ctx2.SaveChangesAsync(CancellationToken.None);
                 await act.Should().ThrowAsync<DbUpdateException>();
             }
 
@@ -60,9 +61,10 @@ namespace Notes.Desktop.Tests.EntityFramework
             TestDbContext testDbContext = new TestDbContext();
             await testDbContext.Context.Database.MigrateAsync(TestContext.Current.CancellationToken);
 
-            var note = new Note { Id = Guid.NewGuid(), /* ... */ };
+            // The tag comes from the body, not from a hand-inserted row: SaveChanges re-derives
+            // NoteTags on every write, so a tag that disagrees with the body is wiped by design.
+            var note = new Note { Id = Guid.NewGuid(), Body = "standup notes #work" };
             testDbContext.Context.Notes.Add(note);
-            testDbContext.Context.NoteTags.Add(new NoteTag { NoteId = note.Id, Tag = "work" });
             await testDbContext.Context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             note.Deleted = true;

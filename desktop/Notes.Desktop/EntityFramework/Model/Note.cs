@@ -1,3 +1,4 @@
+using Notes.Shared.Model;
 namespace Notes.Desktop.EntityFramework.Model
 {
     /// <summary>
@@ -41,14 +42,5 @@ namespace Notes.Desktop.EntityFramework.Model
         /// Gets or sets the source device from which the note was created or last modified. This property can be null or empty if the source device is not specified.
         /// </summary>
         public string SourceDevice { get; set; } = "";
-    }
-
-    /// <summary>
-    /// Enumeration representing the type of a note. It can either be a standard note or a checklist.
-    /// </summary>
-    internal enum NoteType
-    {
-        Note,
-        Checklist,
     }
 }
