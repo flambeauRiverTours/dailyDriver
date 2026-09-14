@@ -34,6 +34,7 @@ What else was on the table, and why it lost.
 | [0006](0006-tasks-as-dated-checklist-items.md) | ~~Tasks are dated checklist items, not a separate entity~~ — superseded by 0007 |
 | [0007](0007-derived-task-index.md) | A derived, queryable task index over note bodies |
 | [0008](0008-server-side-task-index.md) | A server-side derived task index (extends 0007) |
+| [0009](0009-markdig-wpf-over-webview2.md) | Markdig.Wpf over WebView2 for the Markdown preview |
 
 0001 to 0005 were already made — they're written up here after the fact, pulled from `docs/design.md`, so each one has its own citable home instead of being buried in a 500-line document. Anything decided from this point forward should get its ADR written at the time, not backfilled later.
 

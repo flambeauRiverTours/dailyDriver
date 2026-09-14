@@ -1,6 +1,8 @@
 using System.IO;
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Notes.Desktop.EntityFramework.Model;
+using Notes.Shared;
 
 namespace Notes.Desktop.EntityFramework
 {
@@ -135,6 +137,70 @@ namespace Notes.Desktop.EntityFramework
             var appFolder = Path.Combine(appDataFolder, "Notes.Desktop");
             Directory.CreateDirectory(appFolder); // Ensure the directory exists
             return Path.Combine(appFolder, "notes.db");
+        }
+
+        /// <summary>
+        /// Saves the changes
+        /// </summary>
+        /// <param name="ct">Cancellation token</param>
+        /// <returns>Task to await</returns>
+        public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
+        {
+            return await SaveChangesAsync(true, ct);
+        }
+
+        /// <summary>
+        /// Updates derived values from a given note
+        /// </summary>
+        /// <param name="entity">Note entity object</param>
+        /// <param name="ct">Cancellation token</param>
+        /// <returns>Task to await</returns>
+        private async Task DeriveFor(Note entity, CancellationToken ct)
+        {
+            NoteTags.RemoveRange(await NoteTags.Where(t => t.NoteId == entity.Id).ToListAsync(ct));
+            NoteTags.AddRange(TagParser.ParseTags(entity.Body).Select(tag => new NoteTag { NoteId = entity.Id, Tag = tag }));
+
+            Tasks.RemoveRange(await Tasks.Where(t => t.NoteId == entity.Id).ToListAsync(ct));
+            Tasks.AddRange(TaskIndex.TasksOf(entity.Type, entity.Body, entity.Id)
+                .Select(item => new TaskRow() {  Checked = item.@checked, Due = item.due, Text = item.text, Position = item.position, NoteId = entity.Id }));
+
+            if (await Outboxes.FindAsync([entity.Id], ct) is null) { 
+                Outboxes.Add(new Outbox { NoteId = entity.Id, BaseRev = entity.Rev, QueuedAt = DateTimeOffset.UtcNow });
+            }
+
+        }
+
+        /// <summary>
+        /// Don't use
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        public override int SaveChanges()
+        {
+            throw new InvalidOperationException("Use the SaveChangesAsync(CancellationToken ct) method");
+        }
+
+        /// <summary>
+        /// Don't use
+        /// </summary>
+        /// <param name="acceptAllChangesOnSuccess"></param>
+        /// <returns></returns>
+        public override int SaveChanges(bool acceptAllChangesOnSuccess) => SaveChanges();
+
+        /// <summary>
+        /// Saves the changes
+        /// </summary>
+        /// <param name="acceptAllChangesOnSuccess">Passed to base method</param>
+        /// <param name="ct">Cancellation token</param>
+        /// <returns>Task to await</returns>
+        public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
+        {
+            foreach (var entry in ChangeTracker.Entries<Note>()
+                    .Where(entry => entry.State == EntityState.Added || entry.State == EntityState.Modified).ToList())
+            {
+                await DeriveFor(entry.Entity, ct);
+            }
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
         }
     }
 }
