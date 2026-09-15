@@ -71,24 +71,41 @@ fun List<AppEntry>.matchPreview(query: String): String? {
     return if (others == 0) name else "$name  +$others more"
 }
 
-private fun AppEntry.matchAgainst(query: String): AppMatch? {
-    val label = this.label.lowercase()
-    if (label.isEmpty()) return null
+private fun AppEntry.matchAgainst(query: String): AppMatch? =
+    scoreLabel(this.label, query)?.let { AppMatch(this, it.score, it.strategy) }
+
+/** Why one label matched, and how strongly. The label-only half of [AppMatch]. */
+data class LabelMatch(val strategy: MatchStrategy, val score: Double)
+
+/**
+ * Scores one label against an already-normalized [query], or null if nothing matched.
+ *
+ * **Extracted from [AppEntry.matchAgainst] at T182 so the ladder works on any label**, not just
+ * an app's. The unified candidate matcher (`command/CommandCandidate.kt`) scores alias names and
+ * reserved-command tokens through this same function, which is the point: one definition of "why
+ * did this match and how well", so an alias and an app can be ranked against each other at all.
+ *
+ * [query] must already be trimmed and lowercased — callers normalize once for a whole pass rather
+ * than per candidate.
+ */
+fun scoreLabel(label: String, query: String): LabelMatch? {
+    val lowered = label.lowercase()
+    if (lowered.isEmpty()) return null
     // Split from the ORIGINAL label, not the lowercased one — camelCase boundaries are exactly
     // the casing information `lowercase()` destroys.
-    val words = this.label.words()
-    val coverage = query.length.toDouble() / label.length
+    val words = label.words()
+    val coverage = query.length.toDouble() / lowered.length
 
     // Ordered by band, strongest first — the first hit wins, which is what makes this
     // best-of-strategies rather than additive.
     val (strategy, score) = when {
-        label == query -> MatchStrategy.EXACT to 1.0
+        lowered == query -> MatchStrategy.EXACT to 1.0
 
-        label.startsWith(query) -> MatchStrategy.PREFIX to band(0.85, 0.95, coverage)
+        lowered.startsWith(query) -> MatchStrategy.PREFIX to band(0.85, 0.95, coverage)
 
         else -> {
             val initials = words.map { it.first() }.joinToString("")
-            val similarity = editSimilarity(query, label)
+            val similarity = editSimilarity(query, lowered)
             when {
                 initials.startsWith(query) ->
                     MatchStrategy.ACRONYM to band(0.80, 0.85, query.length.toDouble() / initials.length)
@@ -98,15 +115,15 @@ private fun AppEntry.matchAgainst(query: String): AppMatch? {
 
                 words.any { it.startsWith(query) } -> MatchStrategy.WORD_PREFIX to band(0.70, 0.78, coverage)
 
-                label.contains(query) -> MatchStrategy.SUBSTRING to band(0.60, 0.68, coverage)
+                lowered.contains(query) -> MatchStrategy.SUBSTRING to band(0.60, 0.68, coverage)
 
-                label.containsSubsequence(query) -> MatchStrategy.SUBSEQUENCE to band(0.50, 0.58, coverage)
+                lowered.containsSubsequence(query) -> MatchStrategy.SUBSEQUENCE to band(0.50, 0.58, coverage)
 
                 else -> return null
             }
         }
     }
-    return AppMatch(this, score, strategy)
+    return LabelMatch(strategy, score)
 }
 
 /** Contiguity is a stronger signal than scattered characters, so [TYPO] sits above these. */

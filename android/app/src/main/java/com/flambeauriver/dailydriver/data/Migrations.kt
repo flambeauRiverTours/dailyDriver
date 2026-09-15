@@ -3,6 +3,7 @@ package com.flambeauriver.dailydriver.data
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.flambeauriver.dailydriver.command.CommandLogEntry
+import com.flambeauriver.dailydriver.command.CommandUsage
 
 /**
  * 1 → 2: adds the derived `tasks` index (T157, ADR-0007).
@@ -70,5 +71,37 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
             """.trimIndent(),
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_command_log_tier` ON `command_log` (`tier`)")
+    }
+}
+
+/**
+ * 3 → 4: adds the derived `command_usage` index (T183).
+ *
+ * **Created empty and not backfilled**, though unlike 1 → 2 it easily could be — `command_log`
+ * already holds every resolution ever recorded, and one `INSERT ... SELECT target, SUM(count)`
+ * would seed it exactly.
+ *
+ * It is left empty anyway, for the reason `MIGRATION_1_2` gives: a migration is the one place that
+ * must never fail, and the less it does the less there is to fail. The index holds nothing the log
+ * does not already imply, it refills from ordinary use within a day of daily-driving, and
+ * `CommandUsageDao.clear()` plus a rebuild is available if it ever needs seeding deliberately.
+ * Ranking with no data is not broken — it falls back to the coverage order that shipped before
+ * T182, which is exactly the old behaviour.
+ *
+ * DDL hand-written to match what Room generates for [CommandUsage]; `exportSchema` is on and
+ * `MigrationTestHelper` compares the two, so drift fails a test rather than a device.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `command_usage` (
+                `target` TEXT NOT NULL,
+                `count` INTEGER NOT NULL,
+                `lastUsed` INTEGER NOT NULL,
+                PRIMARY KEY(`target`)
+            )
+            """.trimIndent(),
+        )
     }
 }

@@ -557,6 +557,36 @@ Tiered cascade. **The SLM is not the front door.**
   - Verified on an emulator, because both halves are lifecycle behaviour a unit test cannot see: the colon still blinks (a 5×25px region alternating between frames — the two dots), the battery still reads, and **drag-reorder still works**, which was the piece most at risk since the gesture only fires from its own handle.
   - 🔎 Worth knowing for the next person who checks the blink: a lit-pixel *count* over the time cell reports it as static. Compare frames with `ImageChops.difference` and look at the bounding box instead.
 
+- [x] **T182** — One ranked candidate list, replacing three matched collections  
+  `P1` `L` · ADR-0010
+  - **Usability testing: the command line is "all over the place."** Three collections matched three different ways — reserved commands by an exact registry walk, aliases by an exact map lookup, apps by the fuzzy ladder — related only by a hard-coded cascade. A typo in an app name was forgiven; the same typo in a command token was not.
+  - Built as `command/CommandCandidate.kt`: a `Candidate` is an app, alias or command, carrying the `target` string `CommandResolution` already records — one identity, not a third one.
+  - **🔎 The ladder was extracted, not rewritten.** `scoreLabel(label, query)` lifts the seven rungs out of `AppEntry.matchAgainst` so aliases and command tokens score through the same function. All 43 `AppMatchingTest` cases pass untouched, which was the point of extracting rather than generalising the signature.
+  - **⚠️ The literal spec would have broken `chr` → Chrome.** "Exact, then edit distance, then AI" reads naturally but `AppMatching.kt` already explains why edit distance alone is the wrong instrument: `chr` against Chrome is 3 edits out of 6, scoring 0.5 — under the 0.70 typo floor. The ladder lives *inside* the fuzzy stage instead.
+  - **T0-before-T1 is now structural.** The exact pass completes before any fuzzy scoring, so an alias named `cam` beats a fuzzy Camera match by construction rather than by an ordering rule imposed on top.
+  - Ranking is band → usage → coverage → label, the last purely so the list never reshuffles under equal candidates while you read it.
+  - 20 tests, including the two guards that matter: a heavily-used weak match never outranks an unused strong one, and an exact match anywhere beats a fuzzy match anywhere.
+
+- [x] **T183** — Usage index for frequency ranking  
+  `P1` `M` · after: T182 · ADR-0010
+  - `command_usage(target, count, lastUsed)`, a derived index in the ADR-0007 mould — rebuildable, never synced, holding nothing `command_log` does not already imply.
+  - **🔎 Why not just query `command_log`.** It is keyed `(input, target)` because it records *phrasings* — `chr`, `chrome` and `chro` are three training examples sharing an outcome. Ranking wants one number per target summed across every way of asking, which is the opposite aggregation. Giving the training log a second, hot-path job would also turn its failure modes into interaction failures.
+  - **⚠️ One call, two writes, two different gates.** `recordResolution` still logs a T3 miss — those are §8's `unknown` examples — but must not count it: `UNRESOLVED` is the empty string, so counting it builds one meaningless row every unmatched line increments. The `isTrainingExample` gate (alias definitions) continues to cover both.
+  - Migration 3 → 4, created empty. It *could* have been seeded from the log with one `INSERT ... SELECT`, and deliberately is not: a migration is the one place that must never fail, and ranking with no data simply falls back to the pre-T182 coverage order.
+  - Instrumented: 59 tests pass (was 57), including a new case proving the migration leaves `command_log` intact — the obvious mistake being to "move" data that must exist in both shapes.
+
+- [ ] **T184** — Wire the shell to the unified matcher  
+  `P1` `L` · after: T182, T183 · ADR-0010
+  - `ShellUiState` derives ranked candidates; `dispatchCommand` picks the top one instead of walking a cascade; `:apps` scopes the same list to app candidates rather than running its own `filteredBy`.
+  - **Three pause timers collapse into one.** `ShellScreen` currently has separate `LaunchedEffect`s for alias expansion, app auto-launch and note auto-open, each with `delay(AUTO_LAUNCH_DELAY_MS)` and mutual-exclusion guards against the others. That is a symptom of the thing being fixed.
+  - ⚠️ The `alarm`/`a` trap must survive: the danger was ever *instant* expansion, so the timer must still reset on every keystroke.
+  - ⚠️ `CommandDispatchTest`'s cascade cases are the regression net here — especially `an alias beats a fuzzy app match`.
+
+- [ ] **T185** — SLM stage in the unified pipeline  
+  `P2` `M` · after: T184, T036 · ADR-0010
+  - The third stage, behind exact and fuzzy. Runs *inside* the one-second window rather than after it, so the deterministic answer paints immediately and the model either beats the budget or does not.
+  - Deferred behind T036 — there is no engine to call yet, and `NoInferenceEngine` already exercises the absent-model path.
+
 ## 04 · Notes storage
 
 Room schema, Markdown format, outbox from day one.
@@ -1225,4 +1255,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**178 tasks — 86 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**184 tasks — 94 done, 90 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

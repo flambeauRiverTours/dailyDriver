@@ -6,6 +6,8 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import com.flambeauriver.dailydriver.alias.Alias
 import com.flambeauriver.dailydriver.alias.AliasDao
+import com.flambeauriver.dailydriver.command.CommandUsage
+import com.flambeauriver.dailydriver.command.CommandUsageDao
 import com.flambeauriver.dailydriver.command.CommandLogDao
 import com.flambeauriver.dailydriver.command.CommandLogEntry
 import com.flambeauriver.dailydriver.notes.Note
@@ -71,8 +73,9 @@ class Converters {
         SyncState::class,
         TaskRow::class,
         CommandLogEntry::class,
+        CommandUsage::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -83,6 +86,7 @@ abstract class DailyDriverDatabase : RoomDatabase() {
     abstract fun syncStateDao(): SyncStateDao
     abstract fun taskDao(): TaskDao
     abstract fun commandLogDao(): CommandLogDao
+    abstract fun commandUsageDao(): CommandUsageDao
 
     companion object {
         const val NAME = "dailydriver.db"

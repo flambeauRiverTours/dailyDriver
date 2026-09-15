@@ -73,15 +73,57 @@ class MigrationTest {
     }
 
     @Test
-    fun migratingAllTheWayFrom1To3Works() {
+    fun migrate3To4AddsTheUsageIndexAndValidatesAgainstTheExportedSchema() {
+        helper.createDatabase(TEST_DB_4, 3).close()
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB_4, 4, true, MIGRATION_3_4)
+
+        // Created empty, though unlike 2 → 3 it could have been seeded from command_log with one
+        // INSERT ... SELECT. Left empty on purpose: a migration is the one place that must never
+        // fail, ranking with no data simply falls back to the pre-T182 coverage order, and the
+        // index refills from ordinary use.
+        migrated.query("SELECT COUNT(*) FROM command_usage").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        migrated.close()
+    }
+
+    @Test
+    fun migrate3To4PreservesTheCommandLogItDoesNotRead() {
+        // ⚠️ The usage index is derived from the same events the log records, so the obvious
+        // mistake is to "move" the data. It must not: the log is training data with its own
+        // per-phrasing rows, and the index is a separate per-target sum. Both survive.
+        helper.createDatabase(TEST_DB_5, 3).apply {
+            execSQL(
+                "INSERT INTO command_log (input, target, tier, count, firstSeen, lastSeen) " +
+                    "VALUES ('chr', 'com.android.chrome', 'T1', 7, 1, 2)",
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB_5, 4, true, MIGRATION_3_4)
+
+        migrated.query("SELECT count FROM command_log WHERE input = 'chr'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(7, cursor.getInt(0))
+        }
+        migrated.close()
+    }
+
+    @Test
+    fun migratingAllTheWayFrom1To4Works() {
         // The upgrade an existing install actually performs. Running the migrations individually
         // proves each step; running them in sequence proves they compose.
         helper.createDatabase(TEST_DB_3, 1).close()
 
-        val migrated = helper.runMigrationsAndValidate(TEST_DB_3, 3, true, MIGRATION_1_2, MIGRATION_2_3)
+        val migrated = helper.runMigrationsAndValidate(
+            TEST_DB_3, 4, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
+        )
 
         migrated.query("SELECT COUNT(*) FROM tasks").use { assertTrue(it.moveToFirst()) }
         migrated.query("SELECT COUNT(*) FROM command_log").use { assertTrue(it.moveToFirst()) }
+        migrated.query("SELECT COUNT(*) FROM command_usage").use { assertTrue(it.moveToFirst()) }
         migrated.close()
     }
 
@@ -89,5 +131,7 @@ class MigrationTest {
         const val TEST_DB = "migration-test.db"
         const val TEST_DB_2 = "migration-test-2.db"
         const val TEST_DB_3 = "migration-test-3.db"
+        const val TEST_DB_4 = "migration-test-4.db"
+        const val TEST_DB_5 = "migration-test-5.db"
     }
 }
