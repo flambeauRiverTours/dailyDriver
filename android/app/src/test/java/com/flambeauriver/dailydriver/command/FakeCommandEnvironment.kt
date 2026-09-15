@@ -33,6 +33,8 @@ class FakeCommandEnvironment(
     val addedTasks = mutableListOf<Pair<String, LocalDate>>()
     val definedAliases = mutableListOf<Pair<String, String>>()
     val resolutions = mutableListOf<Pair<String, CommandResolution>>()
+    /** Use counts, incremented by [recordResolution] exactly as the real one does. */
+    val usage = mutableMapOf<String, Int>()
     var settingsOpened = 0
     var notificationAccessOpened = 0
     var exportsRequested = 0
@@ -83,5 +85,12 @@ class FakeCommandEnvironment(
 
     override fun recordResolution(input: String, resolution: CommandResolution) {
         resolutions += input to resolution
+        // Mirrors the real implementation's gate: a T3 miss is logged but never counted, because
+        // UNRESOLVED is the empty string and there is nothing to rank.
+        if (resolution.target.isNotEmpty()) {
+            usage[resolution.target] = (usage[resolution.target] ?: 0) + 1
+        }
     }
+
+    override suspend fun usageCounts(): Map<String, Int> = usage
 }

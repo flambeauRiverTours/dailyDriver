@@ -557,6 +557,44 @@ Tiered cascade. **The SLM is not the front door.**
   - Verified on an emulator, because both halves are lifecycle behaviour a unit test cannot see: the colon still blinks (a 5×25px region alternating between frames — the two dots), the battery still reads, and **drag-reorder still works**, which was the piece most at risk since the gesture only fires from its own handle.
   - 🔎 Worth knowing for the next person who checks the blink: a lit-pixel *count* over the time cell reports it as static. Compare frames with `ImageChops.difference` and look at the bounding box instead.
 
+- [x] **T182** — One ranked candidate list, replacing three matched collections  
+  `P1` `L` · ADR-0010
+  - **Usability testing: the command line is "all over the place."** Three collections matched three different ways — reserved commands by an exact registry walk, aliases by an exact map lookup, apps by the fuzzy ladder — related only by a hard-coded cascade. A typo in an app name was forgiven; the same typo in a command token was not.
+  - Built as `command/CommandCandidate.kt`: a `Candidate` is an app, alias or command, carrying the `target` string `CommandResolution` already records — one identity, not a third one.
+  - **🔎 The ladder was extracted, not rewritten.** `scoreLabel(label, query)` lifts the seven rungs out of `AppEntry.matchAgainst` so aliases and command tokens score through the same function. All 43 `AppMatchingTest` cases pass untouched, which was the point of extracting rather than generalising the signature.
+  - **⚠️ The literal spec would have broken `chr` → Chrome.** "Exact, then edit distance, then AI" reads naturally but `AppMatching.kt` already explains why edit distance alone is the wrong instrument: `chr` against Chrome is 3 edits out of 6, scoring 0.5 — under the 0.70 typo floor. The ladder lives *inside* the fuzzy stage instead.
+  - **T0-before-T1 is now structural.** The exact pass completes before any fuzzy scoring, so an alias named `cam` beats a fuzzy Camera match by construction rather than by an ordering rule imposed on top.
+  - Ranking is band → usage → coverage → label, the last purely so the list never reshuffles under equal candidates while you read it.
+  - 20 tests, including the two guards that matter: a heavily-used weak match never outranks an unused strong one, and an exact match anywhere beats a fuzzy match anywhere.
+
+- [x] **T183** — Usage index for frequency ranking  
+  `P1` `M` · after: T182 · ADR-0010
+  - `command_usage(target, count, lastUsed)`, a derived index in the ADR-0007 mould — rebuildable, never synced, holding nothing `command_log` does not already imply.
+  - **🔎 Why not just query `command_log`.** It is keyed `(input, target)` because it records *phrasings* — `chr`, `chrome` and `chro` are three training examples sharing an outcome. Ranking wants one number per target summed across every way of asking, which is the opposite aggregation. Giving the training log a second, hot-path job would also turn its failure modes into interaction failures.
+  - **⚠️ One call, two writes, two different gates.** `recordResolution` still logs a T3 miss — those are §8's `unknown` examples — but must not count it: `UNRESOLVED` is the empty string, so counting it builds one meaningless row every unmatched line increments. The `isTrainingExample` gate (alias definitions) continues to cover both.
+  - Migration 3 → 4, created empty. It *could* have been seeded from the log with one `INSERT ... SELECT`, and deliberately is not: a migration is the one place that must never fail, and ranking with no data simply falls back to the pre-T182 coverage order.
+  - Instrumented: 59 tests pass (was 57), including a new case proving the migration leaves `command_log` intact — the obvious mistake being to "move" data that must exist in both shapes.
+
+- [x] **T184** — Wire the shell to the unified matcher
+  `P1` `L` · after: T182, T183 · ADR-0010
+  - `dispatchCommand` picks the top ranked candidate instead of walking the cascade; `ShellUiState` derives the same ranking, so `plainMatchTarget` and `pendingAliasExpansion` are gone and the preview reads what Enter will act on.
+  - **Three pause timers collapsed into one.** `ShellScreen` had separate `LaunchedEffect`s for alias expansion, app auto-launch and note auto-open, each with its own `delay` and a guard yielding to the one above it — a hand-written cascade. The ranking decides *what*; the timer decides only *when*. The `alarm`/`a` trap survives, since the clock still restarts on every keystroke.
+  - **⚠️ The log had quietly stopped agreeing with the launcher.** `resolutionOf` still re-derived its answer from three exact matchers mirroring the old cascade, so once tokens became fuzzy-matchable at T182, `:aps` ran `:apps` and was logged as a T3 *miss* — training data asserting that a line which worked was unresolvable. Exactly what `classifyResolution`'s own comment warned about ("a second opinion that could disagree with the first"), arriving by a route it did not anticipate. It now reads the same ranking, and `classifyResolution` is deleted rather than left as a second path.
+  - **⚠️ Tier now means the *stage* that answered**, not which lookup ran: exact is T0, fuzzy is T1, whatever kind of candidate it was. A fully typed app name logs T0 where it used to log T1. Existing rows keep their old meaning, which is survivable precisely because the log records what happened rather than a label (§8 reconciles at hand-labelling).
+  - **🔎 Fuzzy matching gave the alias recursion a loop it never had.** `evaluateAliasDefinition` stops an alias *pointing at* another, but nothing stops an expansion from fuzzy-matching some unrelated alias's *name* — and that pair ping-pongs forever. `includeAliases = false` on the second pass makes one substitution structural rather than a property of the data. Pinned by a test that hangs without it.
+  - **🔎 `:tasksDone` and `:tasksdone` were two candidates for one command.** The camelCase spelling is a second registry entry so that it also enters browse mode; under case-insensitive matching both matched equally, which would have split that command's usage count across two rows and shown a phantom "+1 more". Found by the registry-wide property test, not by reading the code. `buildCandidates` dedupes by case.
+  - **Departure from the plan: `:apps` keeps its substring filter.** The plan said scope the unified list; doing that would break the view. Its auto-launch fires when the filter narrows to exactly one row, and SUBSEQUENCE alone matches dozens of labels on a real device — so a fuzzy `:apps` would rarely narrow to one and the affordance would silently vanish. A filter and a matcher answer different questions.
+  - **A pause commits an app or an alias, never a command.** Before this, that fell out of `parseReservedCommand` being exact, so no timer ever saw a half-typed token; now that they are fuzzy-matchable it has to be said out loud, or pausing mid-`:notes` opens the editor on `:note`.
+  - Usage counts are held as `ShellViewModel` state and refreshed after each command, not read per keystroke — ranking is pure and must not await Room on the fast path. Threading them to the shell is what keeps the preview naming what Enter opens.
+  - Dead code removed with the cascade it belonged to: `topMatch`, `matchPreview`, `classifyResolution`, `reservedCommandToken`.
+  - **790 unit tests, 0 failures; lint 0 errors.** `CommandDispatchTest`'s cascade cases pass unedited, including `an alias beats a fuzzy app match` — the T0-before-T1 property, now structural.
+  - ⏳ **Owed: an on-device pass.** Type `ca` before and after using Calculator several times and confirm the top candidate changes; confirm `alarm` is still reachable with `a` aliased; confirm one timer means one commit; `:export` to confirm the log still reads correctly.
+
+- [ ] **T185** — SLM stage in the unified pipeline  
+  `P2` `M` · after: T184, T036 · ADR-0010
+  - The third stage, behind exact and fuzzy. Runs *inside* the one-second window rather than after it, so the deterministic answer paints immediately and the model either beats the budget or does not.
+  - Deferred behind T036 — there is no engine to call yet, and `NoInferenceEngine` already exercises the absent-model path.
+
 ## 04 · Notes storage
 
 Room schema, Markdown format, outbox from day one.
@@ -1225,4 +1263,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**178 tasks — 86 done, 92 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**184 tasks — 94 done, 90 open** (recounted 2026-08-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

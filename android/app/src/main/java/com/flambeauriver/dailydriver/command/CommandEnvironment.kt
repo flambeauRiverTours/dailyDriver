@@ -65,11 +65,24 @@ interface CommandEnvironment {
     suspend fun exportCommandLog(): CommandLogExportResult
 
     /**
-     * Records what the deterministic tiers did with a submitted line (T014).
+     * Records what the deterministic tiers did with a submitted line (T014), and counts the use
+     * for ranking (T183).
      *
-     * **Fire-and-forget by contract.** The log is a by-product of running a command, and a
+     * **Fire-and-forget by contract.** Both writes are a by-product of running a command, and a
      * launcher that made you wait on a database write before opening an app would have its
      * priorities backwards.
+     *
+     * **One call, two writes, two different gates** — see the implementation. The log keeps T3
+     * misses because they are §8's `unknown` examples; the usage index must not, because there is
+     * nothing to rank.
      */
     fun recordResolution(input: String, resolution: CommandResolution)
+
+    /**
+     * Use counts by target, for ranking candidates (T183).
+     *
+     * Read once per pass and handed to `rankCandidates` as a plain map, which is what keeps that
+     * function pure and testable without a database.
+     */
+    suspend fun usageCounts(): Map<String, Int>
 }

@@ -158,17 +158,18 @@ val reservedCommandHelp: List<CommandHelp> = registry.mapNotNull { it.help }
  * and past that the T2/T3 escalation in `ShellViewModel.onSubmit`.
  */
 /**
- * The token [input] matched, or null if none did (T014).
+ * Builds the command a token names, with [query] as its argument (T184).
  *
- * Separate from [parseReservedCommand] because the command log wants to record *which command*
- * ran, not the parsed variant with its argument — `":note standup"` and `":note groceries"` are
- * the same command with different slots, and collapsing them is what makes the log a usable
- * frequency table rather than a list of every note title ever created.
+ * **Built directly rather than by reassembling `"$token $query"` and re-parsing it.** The unified
+ * matcher has already decided which token won and what the remainder is; round-tripping that back
+ * through a string would re-run the tokenizer on text it already tokenized, and a query with
+ * unusual spacing would come out different from what the matcher measured.
  *
- * Shares [matchCommandToken] with the parser, so the two cannot disagree about what matched.
+ * Returns null for a token no longer in the registry, which can only happen if a caller invented
+ * one rather than getting it from [reservedCommandTokens].
  */
-fun reservedCommandToken(input: String): String? =
-    registry.firstOrNull { matchCommandToken(input, it.token) != null }?.token
+fun buildReservedCommand(token: String, query: String): ReservedCommand? =
+    registry.firstOrNull { it.token == token }?.build(query)
 
 fun parseReservedCommand(input: String): ReservedCommand? {
     for (entry in registry) {

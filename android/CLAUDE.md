@@ -80,16 +80,23 @@ Opened by `:note` (bare) or `:note <name>` (pre-fills the title); opening an *ex
 
 The command pipeline is the core of the app. **The SLM (T2) is never the front door** — see the root hard constraints.
 
-| Tier | Handler | Latency budget | Handles |
-|---|---|---|---|
-| T0 | Exact match — reserved commands (`:apps`, `:settings`, `:note`, `:alias`, `:help`/`?`) and user aliases | < 5 ms | Muscle-memory input |
-| T1 | Fuzzy match over the `PackageManager` app index (normalized edit distance + prefix/acronym boost) | < 50 ms | `chr` → Chrome |
-| T2 | SLM intent + slot extraction (MediaPipe) | ~1 s | Free-form natural language |
-| T3 | Fallback — app-name search, else help | — | Everything else |
+**⚠️ The tiers are stages of one pass, not separate lookups** (T182–T184, [ADR-0010](../docs/adr/0010-unified-candidate-matching.md)). `command/CommandCandidate.kt` builds **one list** — every app, every alias, every reserved command — and `rankCandidates` runs the stages over the whole of it. Don't add a fourth collection with its own matcher; add a `Candidate`.
 
-- Escalate T0 → T1 → T2 only when the prior tier's confidence is below threshold; T1 short-circuits on a single high-confidence match.
-- Input containing whitespace with no T0/T1 hit goes straight to T2 — multi-word input is almost always prose, don't waste a tier on it.
-- **Log every T0/T1 resolution** as `(raw_input, resolved_intent)` locally (T014). This is the fine-tuning dataset's real-usage seed — treat it as load-bearing, not telemetry.
+| Stage | Handler | Latency budget | Handles |
+|---|---|---|---|
+| T0 | Exact match over the candidate list | < 5 ms | Muscle-memory input |
+| T1 | Fuzzy match over the same list — the seven-strategy ladder in `apps/AppMatching.kt` | < 50 ms | `chr` → Chrome |
+| T2 | SLM intent + slot extraction (MediaPipe) | ~1 s | Free-form natural language |
+| T3 | Fallback — help | — | Everything else |
+
+- **Ranking is band, then usage, then coverage, then label.** The stage decides the band; within a band the thing you run most wins (`command_usage`, T183). A heavily-used weak match never outranks an unused strong one — that guard is what `CommandCandidateTest` pins hardest.
+- **T0-before-T1 is structural now.** An alias named `cam` beats a fuzzy match on Camera because the exact pass completes first, not because anything checks aliases before apps. Don't reintroduce an ordering branch to "make sure" of it.
+- **Reserved tokens are fuzzy-matchable** — `:aps` reaches `:apps`. Two consequences. `resolutionOf` must read the same ranking dispatch does: it briefly didn't, and logged `:aps` as a T3 *miss* while the command ran fine. And **a typing pause must not commit a command candidate**, or pausing mid-`:notes` opens the editor on `:note` — that rule lives in `ShellUiState.pauseTarget`.
+- **⚠️ Registry casing variants dedupe.** `:tasksDone` is registered beside `:tasksdone` so both spellings enter browse mode; case-insensitive matching would otherwise make them two candidates for one command, splitting its usage count across two rows. `buildCandidates` drops the variant.
+- **`:apps` keeps its substring filter, and that is not an oversight.** A filter and a matcher answer different questions: the browse view's auto-launch fires when the filter narrows to exactly one row, and SUBSEQUENCE alone matches dozens of labels on a real device, so a fuzzy `:apps` would rarely narrow to one.
+- **One pause timer, not three** (`ShellScreen`). There used to be one each for aliases, apps and notes, with guards yielding to each other — a hand-written cascade of the kind ADR-0010 exists to delete. The ranking decides *what*; the timer decides only *when*, and it restarts on every keystroke so `alarm` stays reachable with `a` aliased.
+- Input containing whitespace with no deterministic hit goes straight to T2 — multi-word input is almost always prose, don't waste a stage on it.
+- **Log every resolution** as `(raw_input, resolution)` locally (T014). This is the fine-tuning dataset's real-usage seed — treat it as load-bearing, not telemetry.
 - T3 is what makes T2 shippable: the SLM is allowed to fail, the launcher is not.
 
 ## Room patterns

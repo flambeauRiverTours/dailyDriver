@@ -29,6 +29,13 @@ data class AppMatch(val entry: AppEntry, val score: Double, val strategy: MatchS
  *
  * Within a band, score scales with coverage (`query.length / label.length`), so a short query
  * prefers the tighter label: `ca` ranks Camera above Calculator.
+ *
+ * ⚠️ **That last rule is no longer what the prompt does** (T184). The shell ranks through
+ * `command/CommandCandidate.kt`, which orders by band, then *use count*, then coverage — so `ca`
+ * goes to whichever of Camera/Calculator you actually open, and only falls back to coverage with
+ * no usage data. This function is the app-only path that has no usage to consult: `AliasTarget`
+ * resolves an alias definition's app name with it, where "which did you mean by this name" is a
+ * question about the name alone.
  */
 fun List<AppEntry>.rankedMatches(query: String): List<AppMatch> {
     val normalizedQuery = query.trim().lowercase()
@@ -36,59 +43,41 @@ fun List<AppEntry>.rankedMatches(query: String): List<AppMatch> {
     return mapNotNull { it.matchAgainst(normalizedQuery) }.sortedByDescending { it.score }
 }
 
-/**
- * The single match Enter or a typing pause acts on — the top-ranked entry, full stop, with no
- * separate ambiguity gate. Null only when nothing matched at all.
- *
- * **Revised (2026-08-16, user request), reversing the original design.** T008 originally gated
- * this on both a minimum score *and* a lead over the runner-up, falling through to a
- * disambiguation listing otherwise (`ca` → list Camera/Calendar/Calculator rather than guess).
- * The user explicitly asked for the best match to win even when there are close candidates — the
- * preview line's "+N more" suffix from [matchPreview] is the safety valve instead: it tells you
- * ambiguity exists so you can type further before the pause fires, rather than the app refusing
- * to guess for you.
- */
-fun List<AppEntry>.topMatch(query: String): AppEntry? = rankedMatches(query).firstOrNull()?.entry
+private fun AppEntry.matchAgainst(query: String): AppMatch? =
+    scoreLabel(this.label, query)?.let { AppMatch(this, it.score, it.strategy) }
+
+/** Why one label matched, and how strongly. The label-only half of [AppMatch]. */
+data class LabelMatch(val strategy: MatchStrategy, val score: Double)
 
 /**
- * The hint shown above the prompt as you type, or null when there's nothing worth previewing.
+ * Scores one label against an already-normalized [query], or null if nothing matched.
  *
- * Names the runner-up count as well as the best match — since [topMatch] no longer refuses to
- * act on an ambiguous field, this suffix is the only remaining signal that other candidates
- * exist. `Camera  +2 more` is your cue to keep typing if Camera isn't what you meant, before the
- * pause commits to it.
+ * **Extracted from [AppEntry.matchAgainst] at T182 so the ladder works on any label**, not just
+ * an app's. The unified candidate matcher (`command/CommandCandidate.kt`) scores alias names and
+ * reserved-command tokens through this same function, which is the point: one definition of "why
+ * did this match and how well", so an alias and an app can be ranked against each other at all.
+ *
+ * [query] must already be trimmed and lowercased — callers normalize once for a whole pass rather
+ * than per candidate.
  */
-fun List<AppEntry>.matchPreview(query: String): String? {
-    val ranked = rankedMatches(query)
-    val best = ranked.firstOrNull() ?: return null
-    val others = ranked.size - 1
-
-    // Named the same way the list names it (T164). If the preview said "Messages" while the list
-    // showed "Messages (Google)" and "Messages (Samsung)", the preview would be announcing a
-    // choice it is not making — which is the exact ambiguity the suffix exists to remove.
-    val name = displayNames(this)[best.entry.packageName] ?: best.entry.label
-
-    return if (others == 0) name else "$name  +$others more"
-}
-
-private fun AppEntry.matchAgainst(query: String): AppMatch? {
-    val label = this.label.lowercase()
-    if (label.isEmpty()) return null
+fun scoreLabel(label: String, query: String): LabelMatch? {
+    val lowered = label.lowercase()
+    if (lowered.isEmpty()) return null
     // Split from the ORIGINAL label, not the lowercased one — camelCase boundaries are exactly
     // the casing information `lowercase()` destroys.
-    val words = this.label.words()
-    val coverage = query.length.toDouble() / label.length
+    val words = label.words()
+    val coverage = query.length.toDouble() / lowered.length
 
     // Ordered by band, strongest first — the first hit wins, which is what makes this
     // best-of-strategies rather than additive.
     val (strategy, score) = when {
-        label == query -> MatchStrategy.EXACT to 1.0
+        lowered == query -> MatchStrategy.EXACT to 1.0
 
-        label.startsWith(query) -> MatchStrategy.PREFIX to band(0.85, 0.95, coverage)
+        lowered.startsWith(query) -> MatchStrategy.PREFIX to band(0.85, 0.95, coverage)
 
         else -> {
             val initials = words.map { it.first() }.joinToString("")
-            val similarity = editSimilarity(query, label)
+            val similarity = editSimilarity(query, lowered)
             when {
                 initials.startsWith(query) ->
                     MatchStrategy.ACRONYM to band(0.80, 0.85, query.length.toDouble() / initials.length)
@@ -98,15 +87,15 @@ private fun AppEntry.matchAgainst(query: String): AppMatch? {
 
                 words.any { it.startsWith(query) } -> MatchStrategy.WORD_PREFIX to band(0.70, 0.78, coverage)
 
-                label.contains(query) -> MatchStrategy.SUBSTRING to band(0.60, 0.68, coverage)
+                lowered.contains(query) -> MatchStrategy.SUBSTRING to band(0.60, 0.68, coverage)
 
-                label.containsSubsequence(query) -> MatchStrategy.SUBSEQUENCE to band(0.50, 0.58, coverage)
+                lowered.containsSubsequence(query) -> MatchStrategy.SUBSEQUENCE to band(0.50, 0.58, coverage)
 
                 else -> return null
             }
         }
     }
-    return AppMatch(this, score, strategy)
+    return LabelMatch(strategy, score)
 }
 
 /** Contiguity is a stronger signal than scattered characters, so [TYPO] sits above these. */

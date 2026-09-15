@@ -52,6 +52,29 @@ class ShellViewModel(
     /** Non-null while the input matches a T0 reserved command — see [parseReservedCommand]. */
     val reservedCommand: ReservedCommand? get() = parseReservedCommand(input)
 
+    /**
+     * How often each target has been run, for ranking candidates (T183/T184).
+     *
+     * **Held as state and refreshed after each command rather than read per keystroke.** Ranking
+     * runs on every character typed and is a pure function over a plain map (see `rankCandidates`);
+     * awaiting a Room read there would put the database on the launcher's fast path, which §4.2
+     * exists to keep clear. The table only changes when a command runs, so refreshing there is
+     * both sufficient and off the critical path.
+     *
+     * Loaded once at construction so ranking is correct on the first keystroke after a cold start,
+     * not only after the first command.
+     */
+    var usageCounts by mutableStateOf(emptyMap<String, Int>())
+        private set
+
+    init {
+        refreshUsageCounts()
+    }
+
+    private fun refreshUsageCounts() {
+        dispatchScope.launch { usageCounts = env.usageCounts() }
+    }
+
     fun onInputChange(value: String) {
         // Clear on the transition into apps mode specifically, not any reserved command — real
         // terminal `clear` semantics, not a per-keystroke reset, and scoped to Apps because other
@@ -124,6 +147,10 @@ class ShellViewModel(
             // Guarded on the input still being what was submitted, so a slow command (`:export`
             // reads the database and writes a file) cannot wipe something typed while it ran.
             if (outcome.clearsInput && input == submitted) input = ""
+            // After the command, not before: `recordResolution` is fire-and-forget, so the count
+            // this picks up may still be the pre-command one. That is fine — it is a ranking
+            // input, not a ledger, and it converges on the next command.
+            refreshUsageCounts()
         }
     }
 

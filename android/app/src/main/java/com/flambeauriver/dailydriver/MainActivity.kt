@@ -33,6 +33,8 @@ import com.flambeauriver.dailydriver.shell.ShellScreen
 import com.flambeauriver.dailydriver.shell.ShellViewModel
 import androidx.compose.runtime.remember
 import com.flambeauriver.dailydriver.command.CommandEnvironment
+import com.flambeauriver.dailydriver.command.CommandUsageDao
+import com.flambeauriver.dailydriver.data.DatabaseProvider
 import com.flambeauriver.dailydriver.command.CommandResolution
 import com.flambeauriver.dailydriver.notes.Note
 import com.flambeauriver.dailydriver.notes.NoteQuery
@@ -45,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     // Constructed in onCreate, not as a property initializer — `this` isn't a valid Context yet
     // at property-initializer time (attachBaseContext runs after the object is constructed).
     private lateinit var commandLog: CommandLogRepository
+    private lateinit var commandUsage: CommandUsageDao
     private lateinit var commandLogExporter: CommandLogExporter
     private lateinit var appIndexRepository: AppIndexRepository
     private lateinit var launcher: IntentLauncher
@@ -74,6 +77,7 @@ class MainActivity : AppCompatActivity() {
         notificationRepository = NotificationRepository(this)
         notesRepository = NotesRepository(this)
         commandLog = CommandLogRepository(this)
+        commandUsage = DatabaseProvider.get(this).commandUsageDao()
         commandLogExporter = CommandLogExporter(this)
         // onCreate/onDestroy, not onStart/onStop: unlike a typical app, this Activity IS the home
         // screen — it gets paused/resumed on every app switch but rarely destroyed, so pairing
@@ -117,6 +121,7 @@ class MainActivity : AppCompatActivity() {
                     },
                     // Same non-reactive-getter caveat as `apps` above.
                     aliases = aliasRepository.aliases,
+                    usage = viewModel.usageCounts,
                     notifications = notificationRepository.notifications,
                     hasNotificationAccess = notificationRepository.hasAccess(),
                     onNotificationClick = { notification ->
@@ -204,13 +209,26 @@ class MainActivity : AppCompatActivity() {
             commandLogExporter.export(commandLog.all(), LocalDateTime.now())
 
         override fun recordResolution(input: String, resolution: CommandResolution) {
-            // Fire-and-forget on the activity scope: the log is a by-product of running a command,
-            // and making the command wait on a database write would put it on the launcher's fast
-            // path, which §4.2 exists to keep clear.
+            // Fire-and-forget on the activity scope: both writes are a by-product of running a
+            // command, and making the command wait on a database write would put it on the
+            // launcher's fast path, which §4.2 exists to keep clear.
             lifecycleScope.launch {
-                commandLog.record(input, resolution, System.currentTimeMillis())
+                val now = System.currentTimeMillis()
+                commandLog.record(input, resolution, now)
+
+                // ⚠️ The two writes gate differently, and the difference is the point. The log
+                // KEEPS a T3 miss — those are §8's `unknown` examples and the half that cannot be
+                // synthesised. The usage index must skip it: `UNRESOLVED` is the empty string, so
+                // counting it would build one meaningless row that every unmatched line increments
+                // and that nothing can ever rank.
+                if (resolution.target.isNotEmpty()) {
+                    commandUsage.record(resolution.target, now)
+                }
             }
         }
+
+        override suspend fun usageCounts(): Map<String, Int> =
+            commandUsage.all().associate { it.target to it.count }
     }
 
     /**

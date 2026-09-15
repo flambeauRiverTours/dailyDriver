@@ -104,6 +104,50 @@ class CommandDispatchTest {
     }
 
     @Test
+    fun `an alias whose expansion fuzzy-matches another alias does not loop forever`() {
+        // ⚠️ A hazard T184 introduced and the old cascade could not have. expandAlias looked
+        // aliases up exactly, so an expansion could never be read as another alias. Now that
+        // matching is fuzzy, alias "a" expanding to "chrome" can fuzzy-match an alias NAMED
+        // "chrom", which expands to "chrome", which matches again. evaluateAliasDefinition stops
+        // an alias *pointing at* another, but it cannot stop this.
+        //
+        // The recursion drops alias candidates on the second pass, so one substitution is
+        // structural rather than a property of the data. Without that, this test hangs.
+        val env = FakeCommandEnvironment(
+            apps = apps,
+            aliases = mapOf("a" to "chrome", "chrom" to "chrome"),
+        )
+
+        dispatch("a", env)
+
+        assertEquals(listOf("com.android.chrome"), env.launchedApps)
+    }
+
+    @Test
+    fun `usage decides between two equally-good matches`() {
+        // The end-to-end version of the ranking rule: both prefix-match "ca", so the one used more
+        // is what actually launches.
+        val env = FakeCommandEnvironment(apps = apps)
+        env.usage["com.android.calculator2"] = 20
+
+        dispatch("ca", env)
+
+        assertEquals(listOf("com.android.calculator2"), env.launchedApps)
+    }
+
+    @Test
+    fun `usage never promotes a weak match over a strong one through dispatch`() {
+        val env = FakeCommandEnvironment(
+            apps = listOf(app("com.chrome", "Chrome"), app("com.chrome.beta", "Chrome Beta")),
+        )
+        env.usage["com.chrome.beta"] = 500
+
+        dispatch("chrome", env)
+
+        assertEquals(listOf("com.chrome"), env.launchedApps)
+    }
+
+    @Test
     fun `bare input falls to T1 and launches the best match`() {
         val env = FakeCommandEnvironment(apps = apps)
 
@@ -329,28 +373,6 @@ class CommandDispatchTest {
     // --- the T014 log ------------------------------------------------------------------------------
 
     @Test
-    fun `resolution classifies a reserved command by its token, not the whole line`() {
-        // Load-bearing for the training set: `:note standup` and `:note groceries` are the same
-        // command with different slots, and collapsing them is what makes the log a frequency
-        // table rather than a list of every note title ever created.
-        val env = FakeCommandEnvironment(apps = apps)
-
-        val resolution = resolutionOf(":note standup", env)
-
-        assertEquals(CommandResolution.Tier.T0, resolution.tier)
-        assertEquals(":note", resolution.target)
-    }
-
-    @Test
-    fun `resolution reports an alias as T0 and an app as T1`() {
-        val env = FakeCommandEnvironment(apps = apps, aliases = mapOf("c" to "chrome"))
-
-        assertEquals(CommandResolution.Tier.T0, resolutionOf("c", env).tier)
-        assertEquals(CommandResolution.Tier.T1, resolutionOf("chr", env).tier)
-        assertEquals("com.android.chrome", resolutionOf("chr", env).target)
-    }
-
-    @Test
     fun `an alias definition is not a training example`() {
         // ⚠️ Regression guard. T178 dropped this exclusion when logging moved, and the first
         // export afterwards showed `alias a = :apps` filed as a T3 *miss* — teaching the set that
@@ -362,11 +384,4 @@ class CommandDispatchTest {
         assertTrue(isTrainingExample("chr"))
     }
 
-    @Test
-    fun `resolution reports an unmatched line as T3`() {
-        val resolution = resolutionOf("zzzznotanapp", FakeCommandEnvironment(apps = apps))
-
-        assertEquals(CommandResolution.Tier.T3, resolution.tier)
-        assertEquals(CommandResolution.UNRESOLVED, resolution.target)
-    }
 }

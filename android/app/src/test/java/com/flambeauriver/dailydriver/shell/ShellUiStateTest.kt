@@ -9,11 +9,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * T179 — the shell's derived state.
+ * T179 — the shell's derived state, reworked at T184.
  *
  * None of this was reachable from a test before the extraction: it lived inside `ShellScreen` as a
- * run of `remember` blocks. `previewText` and `plainMatchTarget` decide what T1 shows you and what
- * Enter commits to, so this is the coverage that was most conspicuously missing.
+ * run of `remember` blocks. `previewText` and what a pause commits to decide what you see and what
+ * happens without Enter, so this is the coverage that was most conspicuously missing.
  */
 class ShellUiStateTest {
 
@@ -29,8 +29,11 @@ class ShellUiStateTest {
 
     private val aliases = mapOf("s" to "Spotify", "a" to ":apps")
 
-    private fun state(input: String, aliasMap: Map<String, String> = aliases) =
-        shellUiState(input, apps, aliasMap, displayNames(apps))
+    private fun state(
+        input: String,
+        aliasMap: Map<String, String> = aliases,
+        usage: Map<String, Int> = emptyMap(),
+    ) = shellUiState(input, apps, aliasMap, displayNames(apps), usage)
 
     // --- what mode are we in -----------------------------------------------------------------------
 
@@ -54,12 +57,12 @@ class ShellUiStateTest {
     }
 
     @Test
-    fun `an alias definition is recognised and is not a plain query`() {
+    fun `an alias definition is recognised and is not ranked as a query`() {
         val ui = state("alias x = Spotify")
 
         assertEquals("x", ui.aliasDefinition?.name)
         assertEquals("Spotify", ui.aliasDefinition?.command)
-        assertTrue(!ui.isPlainQuery)
+        assertTrue(ui.candidates.isEmpty())
     }
 
     // --- the apps filter ---------------------------------------------------------------------------
@@ -98,42 +101,53 @@ class ShellUiStateTest {
         assertEquals(listOf("com.google.android.apps.messaging"), ui.filteredApps.map { it.packageName })
     }
 
-    // --- T1 at the bare prompt ---------------------------------------------------------------------
+    // --- the ranked candidate list (T184) ----------------------------------------------------------
 
     @Test
     fun `bare input resolves to the best fuzzy match`() {
         val ui = state("chr")
 
-        assertTrue(ui.isPlainQuery)
-        assertEquals("com.android.chrome", ui.plainMatchTarget?.packageName)
+        assertEquals("com.android.chrome", ui.topCandidate?.candidate?.target)
         assertEquals("Chrome", ui.previewText)
     }
 
     @Test
-    fun `T1 does not run while a reserved command is active`() {
-        // Otherwise `:apps chr` would carry a bare-prompt target as well as a filter target, and
-        // Enter would have two answers.
+    fun `nothing is ranked while a reserved command is active`() {
+        // Otherwise `:apps chr` would carry a bare-prompt candidate as well as a filter target,
+        // and Enter would have two answers. The mode already answered the question.
         val ui = state(":apps chr")
 
-        assertTrue(!ui.isPlainQuery)
-        assertNull(ui.plainMatchTarget)
+        assertTrue(ui.candidates.isEmpty())
+        assertNull(ui.topCandidate)
         assertNull(ui.previewText)
     }
 
     @Test
-    fun `T1 does not run on an alias name`() {
-        // An alias expands; it must not also fuzzy-match. `s` would otherwise hit Spotify by two
-        // routes at once.
+    fun `an alias outranks the app it shadows rather than suppressing the ranking`() {
+        // ⚠️ Changed at T184. `s` used to skip matching entirely because it was an alias key, so
+        // the shell could not say what else the input might mean. Now it is one candidate among
+        // several and wins on being exact — the T0-before-T1 rule falling out of the ranking
+        // (ADR-0010) instead of being imposed by a branch.
         val ui = state("s")
 
-        assertTrue(!ui.isPlainQuery)
-        assertNull(ui.plainMatchTarget)
+        assertEquals("Spotify", ui.topCandidate?.candidate?.target)
+        assertTrue(ui.candidates.size > 1)
     }
 
     @Test
-    fun `an alias previews its expansion rather than an app`() {
-        assertEquals("Spotify", state("s").previewText)
-        assertEquals(":apps", state("a").previewText)
+    fun `an alias previews its expansion rather than its name`() {
+        // The preview answers "what will Enter do", so an alias shows the far side of it.
+        assertTrue(state("s").previewText!!.startsWith("Spotify"))
+        assertTrue(state("a").previewText!!.startsWith(":apps"))
+    }
+
+    @Test
+    fun `the preview counts every kind of candidate, not just apps`() {
+        // ⚠️ Deliberate change. Before T184 the count came from the app matcher alone, so a
+        // reserved command or an alias that also answered to the input went unmentioned. The
+        // suffix is the only ambiguity signal there is; it has to count what it is ranking.
+        assertEquals("Chrome", state("chrome").previewText)
+        assertTrue(state("s").previewText!!.contains("more"))
     }
 
     @Test
@@ -141,40 +155,66 @@ class ShellUiStateTest {
         assertNull(state("alias x = Spotify").previewText)
     }
 
-    // --- alias expansion ---------------------------------------------------------------------------
-
     @Test
-    fun `an alias expands, with any argument appended`() {
-        assertEquals(":apps", state("a").pendingAliasExpansion)
-        assertEquals(":apps firefox", state("a firefox").pendingAliasExpansion)
+    fun `usage reorders the preview so it still names what Enter would open`() {
+        // The promise the preview makes. Both prefix-match, so if the shell ranked without the
+        // counts dispatch uses, the dim line would name one app while Enter opened another.
+        assertTrue(state("me").previewText!!.startsWith("Messages (Google)"))
+
+        val flipped = state("me", usage = mapOf("com.samsung.android.messaging" to 9))
+        assertTrue(flipped.previewText!!.startsWith("Messages (Samsung)"))
+        assertEquals("com.samsung.android.messaging", flipped.topCandidate?.candidate?.target)
     }
 
     @Test
-    fun `a definition never expands as an alias`() {
-        // The two paths must never race — `alias a = x` starts with a token that is itself an
-        // alias name in this fixture.
-        assertNull(state("alias a = Spotify").pendingAliasExpansion)
+    fun `a disambiguated app is previewed by the name the list shows`() {
+        // T164 — a preview reading "Messages" while the list shows two of them would be
+        // announcing a choice it is not making.
+        assertTrue(state("me").previewText!!.startsWith("Messages ("))
+    }
+
+    // --- what a pause acts on (T184's single timer) ------------------------------------------------
+
+    @Test
+    fun `the pause target is the apps sole match in apps mode, and the top candidate otherwise`() {
+        assertEquals("com.android.chrome", state(":apps chr").pauseTarget)
+        assertEquals("com.android.chrome", state("chr").pauseTarget)
     }
 
     @Test
-    fun `input that is not an alias expands to nothing`() {
-        assertNull(state("chr").pendingAliasExpansion)
+    fun `an alias commits on a pause, as it did before the timers were merged`() {
+        assertEquals("Spotify", state("s").pauseTarget)
+        assertEquals(":apps", state("a").pauseTarget)
     }
 
-    // --- what a pause acts on ----------------------------------------------------------------------
+    @Test
+    fun `a reserved command never commits on a pause`() {
+        // ⚠️ The rule T184 had to state out loud. Tokens are fuzzy-matchable now, so `:note` is
+        // the top candidate while `:notes` is half-typed — and a pause there must not open the
+        // editor. Enter commits anything; a pause commits only what is cheap to be wrong about.
+        assertNull(state(":not").pauseTarget)
+        assertNull(state(":expor").pauseTarget)
+    }
 
     @Test
-    fun `the pause target is the apps sole match in apps mode, and T1's guess otherwise`() {
-        assertEquals("com.android.chrome", state(":apps chr").currentAutoLaunchTarget?.packageName)
-        assertEquals("com.android.chrome", state("chr").currentAutoLaunchTarget?.packageName)
+    fun `a fully typed reserved command does not commit on a pause either`() {
+        // It parses as a mode rather than a query, so there is nothing ranked to commit to.
+        assertNull(state(":export").pauseTarget)
+        assertNull(state(":tasks").pauseTarget)
+    }
+
+    @Test
+    fun `a definition being typed never commits on a pause`() {
+        assertNull(state("alias a = Spotify").pauseTarget)
     }
 
     @Test
     fun `there is nothing to act on for empty input`() {
         val ui = state("")
 
-        assertNull(ui.currentAutoLaunchTarget)
-        assertNull(ui.pendingAliasExpansion)
+        assertNull(ui.pauseTarget)
+        assertNull(ui.topCandidate)
         assertNull(ui.reservedCommand)
+        assertNull(ui.previewText)
     }
 }
