@@ -121,6 +121,7 @@ class MainActivity : AppCompatActivity() {
                     },
                     // Same non-reactive-getter caveat as `apps` above.
                     aliases = aliasRepository.aliases,
+                    usage = viewModel.usageCounts,
                     notifications = notificationRepository.notifications,
                     hasNotificationAccess = notificationRepository.hasAccess(),
                     onNotificationClick = { notification ->

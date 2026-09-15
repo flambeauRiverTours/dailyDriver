@@ -19,19 +19,22 @@ no widgets. You type what you want.
 
 ## The command cascade
 
-Everything typed at the prompt falls through four tiers in order, stopping at the first that
-produces an answer. This is the central design decision in the application.
+Everything typed at the prompt is matched against one list of candidates: every installed app,
+every user alias, every reserved command. The list is scored in stages, and the stages run in
+order, so an exact match anywhere beats a fuzzy match anywhere. This is the central design decision
+in the application.
 
 ```mermaid
 flowchart TD
-    I["user types at the prompt"] --> T0
+    I["user types at the prompt"] --> C["one candidate list:<br/>apps, aliases, commands"]
+    C --> T0
 
-    T0{"<b>T0</b>: exact match<br/>reserved command or alias"}
-    T0 -- "hit" --> D0["dispatch immediately"]
+    T0{"<b>T0</b>: exact match<br/>over the whole list"}
+    T0 -- "hit" --> D0["run it"]
     T0 -- "miss" --> T1
 
-    T1{"<b>T1</b>: fuzzy match<br/>installed app names"}
-    T1 -- "hit" --> D1["launch best match"]
+    T1{"<b>T1</b>: fuzzy match<br/>over the same list"}
+    T1 -- "hit" --> D1["run the best match"]
     T1 -- "miss" --> G{"input contains<br/>whitespace?"}
 
     G -- "no, single token" --> T3
@@ -47,8 +50,13 @@ flowchart TD
     style D2 stroke-dasharray: 5 5
 ```
 
+When several candidates match equally well, the one ranked first is the one used most often, not
+the one that happens to sort first alphabetically. Every command run is counted in a small local
+index, so `ca` goes to Calculator or Camera depending on which the user actually opens. That index
+is derived and can be rebuilt from the command log at any time.
+
 T2 is dashed because it does not exist yet, and the launcher is fully usable without it. The model
-is one tier of a cascade, never a dependency of the home screen. If the weights are missing, still
+is one stage of a pipeline, never a dependency of the home screen. If the weights are missing, still
 downloading, or produce garbage, input falls to T3 and the user gets a real answer instead of a
 spinner or a crash.
 
@@ -63,7 +71,7 @@ The gate between T2 and T3 is crude on purpose. Input containing whitespace look
 is worth sending to a model; a single unmatched token almost never is. The cheap check avoids
 waking an LLM to reject the word `asdf`.
 
-### Tier 0: reserved commands
+### Reserved commands
 
 | Command | Does |
 |---|---|
@@ -83,11 +91,16 @@ waking an LLM to reject the word `asdf`.
 Commands are registered in a table carrying their own help text, so help output cannot drift from
 the set of commands that exist.
 
-### Tier 1: fuzzy app matching
+### The fuzzy stage
 
-An in-memory index built from `PackageManager`, matched with edit distance plus prefix and
-substring scoring. Best match always wins, with no "did you mean" prompt. A wrong guess costs one
-keystroke to correct; a confirmation prompt costs a tap every time.
+Seven scoring strategies in a ladder, best one wins: exact, prefix, acronym, typo, word prefix,
+substring, subsequence. Edit distance is one rung rather than the whole method, because `chr` is
+not a typo of Chrome, it is an abbreviation of it, and edit distance scores that pair barely above
+noise.
+
+Best match always wins, with no "did you mean" prompt. A wrong guess costs one keystroke to
+correct; a confirmation prompt costs a tap every time. A dim line above the prompt shows the match
+and how many others also matched, which is the signal to keep typing.
 
 ---
 

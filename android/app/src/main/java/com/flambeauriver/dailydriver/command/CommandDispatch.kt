@@ -1,13 +1,12 @@
 package com.flambeauriver.dailydriver.command
 
 import com.flambeauriver.dailydriver.alias.describeDefineAliasResult
-import com.flambeauriver.dailydriver.alias.expandAlias
 import com.flambeauriver.dailydriver.alias.formatAliasListing
 import com.flambeauriver.dailydriver.alias.parseAliasDefinition
+import com.flambeauriver.dailydriver.apps.MatchStrategy
 import com.flambeauriver.dailydriver.apps.displayNames
 import com.flambeauriver.dailydriver.apps.filteredBy
 import com.flambeauriver.dailydriver.apps.soleAutoLaunchTarget
-import com.flambeauriver.dailydriver.apps.topMatch
 import com.flambeauriver.dailydriver.notes.parseChecklist
 import com.flambeauriver.dailydriver.notes.parseNoteQuery
 import com.flambeauriver.dailydriver.notes.resolveDueInText
@@ -63,32 +62,51 @@ suspend fun dispatchCommand(
     input: String,
     env: CommandEnvironment,
     today: LocalDate = LocalDate.now(),
+    includeAliases: Boolean = true,
 ): CommandOutcome {
     if (input.isBlank()) return CommandOutcome.Silent
 
-    parseReservedCommand(input)?.let { return runReserved(it, env, today) }
-
-    // A definition is configuration rather than a command, and is checked before expansion so
-    // that `alias a = x` can never be read as a *use* of the alias `a`.
+    // A definition is configuration rather than a command, and is checked before anything can read
+    // it as a *use* of the alias it defines.
     parseAliasDefinition(input)?.let { attempt ->
         return CommandOutcome.say(describeDefineAliasResult(env.defineAlias(attempt.name, attempt.command)))
     }
 
-    // T0. An alias is dispatched as if its expansion had been typed — one Enter, not two, since
-    // aliases exist for muscle memory. This cannot recurse: an alias may never point at another,
-    // which `evaluateAliasDefinition` rejects at definition time.
-    expandAlias(input, env.aliases)?.let { return dispatchCommand(it, env, today) }
-
-    // T1. The best fuzzy match wins, even among near-ties (T008).
-    env.apps.topMatch(input)?.let {
-        env.launchApp(it.packageName)
-        return CommandOutcome.Silent
-    }
-
+    val top = rankCandidates(input, buildCandidates(env.apps, env.aliases, includeAliases), env.usageCounts())
+        .firstOrNull()
     // T3. T2 is skipped while the SLM is absent — see [unmatchedResponse] for why prose degrades
     // here rather than dead-ending.
-    return CommandOutcome.say(unmatchedResponse(input, escalationTier(input)))
+        ?: return CommandOutcome.say(unmatchedResponse(input, escalationTier(input)))
+
+    return when (val candidate = top.candidate) {
+        // Built from the registry rather than by reassembling and re-parsing a string: the matcher
+        // already decided which token won and what the remainder is.
+        is Candidate.Command ->
+            buildReservedCommand(candidate.token, top.argument)
+                ?.let { runReserved(it, env, today) }
+                ?: CommandOutcome.Silent
+
+        // Dispatched as if the expansion had been typed — one Enter, not two, since aliases exist
+        // for muscle memory.
+        //
+        // ⚠️ `includeAliases = false` on the recursion, and it is load-bearing in a way the old
+        // exact-only lookup never needed. `evaluateAliasDefinition` stops an alias *pointing at*
+        // another, but nothing stops an expansion from fuzzy-matching some unrelated alias's name
+        // — and that pair would ping-pong forever. Dropping aliases for the second pass makes "one
+        // substitution" structural rather than a property of the data.
+        is Candidate.Alias ->
+            dispatchCommand(joinArgument(candidate.expansion, top.argument), env, today, includeAliases = false)
+
+        is Candidate.App -> {
+            env.launchApp(candidate.target)
+            CommandOutcome.Silent
+        }
+    }
 }
+
+/** Re-attaches an argument to an expansion, without inventing a trailing space when there is none. */
+private fun joinArgument(head: String, argument: String): String =
+    if (argument.isEmpty()) head else "$head $argument"
 
 private suspend fun runReserved(
     command: ReservedCommand,
@@ -179,14 +197,6 @@ private suspend fun runReserved(
 }
 
 /**
- * Classifies a submitted line for the T014 log, without running it.
- *
- * **Kept beside dispatch so the two can never disagree about which tier answered.** The log's
- * whole value is that its `tier` reflects what actually happened, and before T178 the
- * classification was duplicated across three call sites in `ShellScreen` — with a fourth path,
- * the note auto-open, that logged nothing at all.
- */
-/**
  * Whether a submitted line belongs in the T014 training log at all.
  *
  * **An alias definition is excluded.** `alias sp = spotify` is configuration, not a command anyone
@@ -197,8 +207,33 @@ private suspend fun runReserved(
 fun isTrainingExample(input: String): Boolean =
     input.isNotBlank() && parseAliasDefinition(input) == null
 
-fun resolutionOf(input: String, env: CommandEnvironment): CommandResolution = classifyResolution(
-    reservedToken = reservedCommandToken(input),
-    aliasExpansion = expandAlias(input, env.aliases),
-    appPackage = env.apps.topMatch(input)?.packageName,
-)
+/**
+ * Classifies a submitted line for the T014 log, without running it.
+ *
+ * **Rewritten at T184 to read the same ranking dispatch acts on**, which it had stopped doing.
+ * It used to re-derive the answer from three separate matchers — an exact token walk, an exact
+ * alias lookup, a fuzzy app match — mirroring the cascade [dispatchCommand] no longer runs. Once
+ * reserved tokens became fuzzy-matchable (ADR-0010) the two disagreed: `:aps` launched the app
+ * list and was logged as a T3 *miss*, which is training data that says a line which worked was
+ * unresolvable. That is the failure `classifyResolution`'s own comment warned about — "a second
+ * opinion that could disagree with the first" — arriving by a route it did not anticipate.
+ *
+ * **Tier is now the pipeline stage that answered, which is a slight shift in meaning.** An exact
+ * match is T0 and anything the fuzzy ladder rescued is T1, regardless of *what* matched — so
+ * typing an app's full name logs T0 where it used to log T1. The tiers survive this redesign as
+ * stage labels rather than as separate lookups (ADR-0010), and stage is what the label now says.
+ *
+ * Suspending because the ranking consults the usage index. It is already called from inside
+ * dispatch's coroutine, so this costs no extra hop.
+ */
+suspend fun resolutionOf(input: String, env: CommandEnvironment): CommandResolution {
+    val top = rankCandidates(input, buildCandidates(env.apps, env.aliases), env.usageCounts())
+        .firstOrNull()
+        // T2 is skipped entirely: the SLM does not exist, and when it does its output is what this
+        // data trains, so logging its guesses as ground truth would be circular.
+        ?: return CommandResolution(CommandResolution.Tier.T3, CommandResolution.UNRESOLVED)
+
+    val tier =
+        if (top.strategy == MatchStrategy.EXACT) CommandResolution.Tier.T0 else CommandResolution.Tier.T1
+    return CommandResolution(tier, top.candidate.target)
+}

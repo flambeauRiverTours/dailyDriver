@@ -116,14 +116,24 @@ Registered as a HOME activity (`ACTION_MAIN` + `CATEGORY_HOME` + `CATEGORY_DEFAU
 
 The single most important design decision: **the SLM is one tier of a cascade, not the front door.** A launcher that waits on a language model to open a phone app is a worse launcher.
 
-| Tier | Handler | Latency | Handles |
+| Stage | Handler | Latency | Handles |
 |---|---|---|---|
-| **T0** | Exact match — user aliases, reserved commands (`:apps`, `:notes`, `:note`, `:task`, `:tasks`, `:alias`, `:notif`, `:settings`, `:help`) | < 5 ms | Muscle-memory input |
-| **T1** | Fuzzy app-name match over the `PackageManager` index (normalized edit distance + prefix/acronym boost) | < 50 ms | `chr` → Chrome |
+| **T0** | Exact match over the candidate list | < 5 ms | Muscle-memory input |
+| **T1** | Fuzzy match over the same list (the seven-strategy ladder in `apps/AppMatching.kt`) | < 50 ms | `chr` → Chrome |
 | **T2** | SLM intent + slot extraction | ~1 s | Free-form natural language |
-| **T3** | Fallback — treat as app-name search, else show help | — | Everything else |
+| **T3** | Fallback — show help | — | Everything else |
 
-Escalation rule: T0 → T1 → T2 only when the prior tier's confidence is below threshold. T1 short-circuits on a single high-confidence match. If input contains whitespace and no tier-0/1 hit, go straight to T2 (multi-word input is almost always prose).
+**Reworked at T182–T184 ([ADR-0010](adr/0010-unified-candidate-matching.md)).** This used to read as three collections matched three different ways — reserved commands by an exact registry walk, aliases by an exact map lookup, apps by the fuzzy ladder — with the tiers naming *which lookup ran*. Usability testing called the result "all over the place", and it was: the same typo was forgiven in an app name and rejected in a command token, because they were matched by different code.
+
+There is now **one candidate list** — every app, every alias, every reserved command — and the tiers are **stages of one pass over it**. A candidate carries a `target`, which is the string the T014 log records and the key the usage index counts. So T0 is no longer "the alias table"; it is "whatever matched exactly, of any kind", and the T0-before-T1 property holds because the exact pass finishes before the fuzzy pass starts, not because anything checks aliases first.
+
+Escalation rule: the stages run in order and the strongest match wins the band; within a band, **candidates are ordered by how often they have been run** (`command_usage`, T183), then by coverage. Everything deterministic completes in microseconds and paints the preview immediately; a **one-second budget** then commits the best answer, and T2 runs *inside* that window once it exists rather than after it. If input contains whitespace and no deterministic hit, it is prose and goes to T2.
+
+Two rules the unification does not change, and one it adds:
+
+- The SLM still never sits on the fast path — the one-second budget is a firmer version of that guarantee, not a weaker one.
+- `:apps` keeps its own substring **filter**, which is a different question from matching: the browse view's auto-launch fires when the filter narrows to one row, and the fuzzy ladder is permissive enough that it rarely would.
+- A typing pause now commits only what is cheap to be wrong about (an app, or an alias); reserved commands need Enter. That used to fall out of tokens being matched exactly, and has to be stated once they are fuzzy-matchable.
 
 Two consequences worth designing for deliberately:
 

@@ -79,6 +79,26 @@ sits on the fast path. Making the one-second budget explicit — after which the
 answer commits regardless — is a firmer guarantee than the previous arrangement, where nothing
 bounded the model's turn at all.
 
+**Three things only implementing it revealed** (added at T184, after the fact).
+
+- **The training log became a second opinion.** `resolutionOf` re-derived its answer from the three
+  exact matchers the cascade used to run. Once tokens were fuzzy-matchable, `:aps` ran `:apps` and
+  was logged as a T3 *miss*. `classifyResolution`'s own comment had warned about exactly this — "a
+  second opinion that could disagree with the first" — and it arrived by a route that comment did
+  not anticipate: not a careless duplicate call site, but the same call site left behind by a
+  change underneath it. The log now reads the ranking, and the tier it records is the *stage* that
+  answered rather than which lookup ran.
+- **A typing pause must not commit a reserved command.** Enter commits anything; a pause commits
+  only what is cheap to be wrong about. That used to fall out of tokens matching exactly, so no
+  timer ever saw a half-typed one. Under fuzzy matching, pausing midway through `:notes` would open
+  the editor on `:note`, so the rule has to be stated rather than inherited.
+- **`:apps` keeps its own substring filter**, contrary to the plan's "scope the unified list". Its
+  auto-launch fires when the filter narrows to exactly one row, and the fuzzy ladder is permissive
+  enough — SUBSEQUENCE alone matches dozens of labels on a real device — that it would rarely
+  narrow to one, quietly removing the affordance. A filter and a matcher answer different
+  questions, and that distinction was already written down in `AppFiltering.kt` before this ADR
+  proposed erasing it.
+
 **§4.2's cascade description no longer matches the implementation.** The tiers survive as pipeline
 stages and as the `CommandResolution.Tier` labels the log records, but "escalate T0 → T1 → T2 only
 when the prior tier's confidence is below threshold" describes separate lookups that no longer

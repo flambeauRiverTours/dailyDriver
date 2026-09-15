@@ -38,17 +38,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import com.flambeauriver.dailydriver.alias.expandAlias
 import com.flambeauriver.dailydriver.alias.formatAliasListing
 import com.flambeauriver.dailydriver.apps.AppEntry
-import com.flambeauriver.dailydriver.apps.filteredBy
 import com.flambeauriver.dailydriver.apps.displayNames
-import com.flambeauriver.dailydriver.apps.matchPreview
-import com.flambeauriver.dailydriver.apps.soleAutoLaunchTarget
-import com.flambeauriver.dailydriver.apps.topMatch
-import com.flambeauriver.dailydriver.command.CommandResolution
-import com.flambeauriver.dailydriver.command.classifyResolution
-import com.flambeauriver.dailydriver.command.reservedCommandToken
 import com.flambeauriver.dailydriver.command.ReservedCommand
 import com.flambeauriver.dailydriver.editor.ChecklistBinding
 import com.flambeauriver.dailydriver.editor.UndoRow
@@ -125,6 +117,15 @@ fun ShellScreen(
     /** Opens an app from a tapped row. Enter and the pause go through [onResolved] instead. */
     onAppClick: (AppEntry) -> Unit,
     aliases: Map<String, String>,
+    /**
+     * Use counts by target, for ranking candidates (T183/T184).
+     *
+     * **Passed in so the preview ranks with the same numbers dispatch does.** Without it the dim
+     * line would still order by coverage while Enter ordered by use, and `ca` would preview Camera
+     * while opening Calculator — breaking the one promise the preview makes. Same non-reactive
+     * caveat as `apps`: it is refreshed after each command rather than observed.
+     */
+    usage: Map<String, Int>,
     notifications: List<NotificationRecord>,
     hasNotificationAccess: Boolean,
     onNotificationClick: (NotificationRecord) -> Unit,
@@ -168,8 +169,8 @@ fun ShellScreen(
     // One pure derivation of everything this line of input implies (T179). Keyed on the app
     // index as well as the input, since installing or removing an app changes the answer.
     val appDisplayNames = remember(apps) { displayNames(apps) }
-    val ui = remember(input, apps, aliases, appDisplayNames) {
-        shellUiState(input, apps, aliases, appDisplayNames)
+    val ui = remember(input, apps, aliases, appDisplayNames, usage) {
+        shellUiState(input, apps, aliases, appDisplayNames, usage)
     }
     val appsCommand = ui.appsCommand
     val notifCommand = ui.notifCommand(hasNotificationAccess)
@@ -237,45 +238,34 @@ fun ShellScreen(
     }
 
     val filteredApps = ui.filteredApps
-    val autoLaunchTarget = ui.autoLaunchTarget
-    val plainMatchTarget = ui.plainMatchTarget
     val previewText = ui.previewText
-    val pendingAliasExpansion = ui.pendingAliasExpansion
 
-    val currentAutoLaunchTarget = ui.currentAutoLaunchTarget
-
-    // Acting on a pause rather than on Enter, for the three things that resolve without one. All
-    // of them hand the submitted line back to the ViewModel, so they go through the same dispatch
-    // and the same T014 logging as Enter (T178). Before that, each did its own logging and the
-    // note case did none at all — losing exactly the examples where the timer beat the user.
+    // One timer (T184). There were three — an exact alias, a fuzzy app or `:apps` sole match, and
+    // a `:notes` sole result — each with its own `delay` and a guard yielding to the one above it,
+    // which is a hand-written cascade of exactly the kind ADR-0010 exists to delete. The ranking
+    // now decides *what* the pause acts on; this decides only *when*.
+    //
+    // All of it hands the submitted line back to the ViewModel, so a pause goes through the same
+    // dispatch and the same T014 logging as Enter (T178). Before that, each path did its own
+    // logging and the note case did none at all — losing exactly the examples where the timer beat
+    // the user.
     //
     // **On the pause rather than instantly**, which was asked for and would not work: expanding
     // `a` the moment it is typed puts the caret after `:apps ` and makes `alarm` unreachable by
-    // fuzzy match. That is the trap that made `:notes` untypeable at T140.
+    // fuzzy match. That is the trap that made `:notes` untypeable at T140, and collapsing the
+    // timers does not touch it — the clock still restarts on every keystroke, so typing `alarm`
+    // straight through never commits at `a`.
     //
-    // Keyed on `input` itself, not just the resolved target: "chr", "chro" and "chrom" all
-    // resolve to the same app, so keying on the target alone would leave the first timer running
-    // and fire mid-word. Re-keying on every keystroke is what "a one second pause" means.
-    LaunchedEffect(pendingAliasExpansion, input) {
-        if (pendingAliasExpansion == null) return@LaunchedEffect
-        delay(AUTO_LAUNCH_DELAY_MS)
-        onResolved(input)
-    }
+    // Keyed on `input` itself, not just the resolved target: "chr", "chro" and "chrom" all resolve
+    // to the same app, so keying on the target alone would leave the first timer running and fire
+    // mid-word. Re-keying on every keystroke is what "a one second pause" means. The target is a
+    // key *as well*, because a note result arrives from a flow and can appear without the input
+    // changing at all — and it is the note's id rather than the Note, since an autosave elsewhere
+    // changes `updatedAt` and would otherwise restart the clock for what is still the same note.
+    val pauseTarget = ui.pauseTarget ?: noteAutoOpenTarget?.id
 
-    LaunchedEffect(currentAutoLaunchTarget, input, pendingAliasExpansion) {
-        // Yields to the alias timer above rather than racing it: an exact alias is T0 and a fuzzy
-        // app match is T1, so the cascade's order holds here exactly as it does on Enter.
-        if (pendingAliasExpansion != null) return@LaunchedEffect
-        if (currentAutoLaunchTarget == null) return@LaunchedEffect
-        delay(AUTO_LAUNCH_DELAY_MS)
-        onResolved(input)
-    }
-
-    // The same pause-to-act behaviour for a sole note result. Keyed on the note's id, not the
-    // Note itself — an autosave elsewhere changes updatedAt and would otherwise restart the timer
-    // for what is still the same note.
-    LaunchedEffect(noteAutoOpenTarget?.id, input) {
-        if (noteAutoOpenTarget == null) return@LaunchedEffect
+    LaunchedEffect(input, pauseTarget) {
+        if (pauseTarget == null) return@LaunchedEffect
         delay(AUTO_LAUNCH_DELAY_MS)
         onResolved(input)
     }

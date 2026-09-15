@@ -17,7 +17,7 @@ class AppMatchingTest {
 
     private val apps = listOf(chrome, calculator, calendar, camera, googleMaps, payPal, settings)
 
-    private fun topMatch(query: String) = apps.rankedMatches(query).firstOrNull()
+    private fun topMatch(query: String, over: List<AppEntry> = apps) = over.rankedMatches(query).firstOrNull()
 
     // --- the design doc's own worked example ------------------------------------------------
 
@@ -144,56 +144,14 @@ class AppMatchingTest {
         assertEquals(chrome, topMatch("  chr  ")?.entry)
     }
 
-    // --- topMatch (what Enter / a pause acts on) ------------------------------------------------
-
     @Test
-    fun `topMatch is the best-ranked entry, unambiguous case`() {
-        assertEquals(chrome, apps.topMatch("chr"))
-    }
-
-    @Test
-    fun `topMatch wins even among near-tied candidates — best guess, not a refusal to guess`() {
-        // Calculator / Calendar / Camera all score within a hair of each other. Reversed from the
-        // original design (which listed candidates instead) per explicit request: the preview
-        // line's "+N more" is the disambiguation signal now, not a gate on launching at all.
-        assertEquals(camera, apps.topMatch("ca"))
-    }
-
-    @Test
-    fun `topMatch is null only when nothing matched at all`() {
-        assertNull(apps.topMatch("zzzzzz"))
-        assertNull(apps.topMatch(""))
-    }
-
-    // --- preview line ---------------------------------------------------------------------------
-
-    @Test
-    fun `preview names the single match on its own`() {
-        assertEquals("Chrome", apps.matchPreview("chrome"))
-    }
-
-    @Test
-    fun `preview reports the runner-up count, so you can tell Enter won't act`() {
-        val preview = apps.matchPreview("ca")
-
-        assertTrue(preview!!.startsWith("Camera"))
-        assertTrue(preview.contains("more"))
-    }
-
-    @Test
-    fun `nothing to preview for a blank query or a query that matches nothing`() {
-        assertNull(apps.matchPreview(""))
-        assertNull(apps.matchPreview("zzzzzz"))
-    }
-
-    @Test
-    fun `even a weak subsequence-only match is actionable via topMatch when it's the only one`() {
+    fun `even a weak subsequence-only match is actionable when it's the only one`() {
         // No score floor anymore — a lone SUBSEQUENCE hit still wins, since the user asked for
         // the best match to always be what Enter/a pause acts on.
         val weak = listOf(AppEntry("com.x", "Xylophone Tuner Deluxe"))
 
         assertEquals(MatchStrategy.SUBSEQUENCE, weak.rankedMatches("xye").first().strategy)
-        assertEquals(weak.first(), weak.topMatch("xye"))
+        assertEquals(weak.first(), topMatch("xye", weak)?.entry)
     }
 
     // --- labels the real PackageManager can hand us ---------------------------------------------
@@ -218,24 +176,23 @@ class AppMatchingTest {
         val none = emptyList<AppEntry>()
 
         assertTrue(none.rankedMatches("chrome").isEmpty())
-        assertNull(none.topMatch("chrome"))
-        assertNull(none.matchPreview("chrome"))
+        assertNull(topMatch("chrome", none))
     }
 
     @Test
     fun `labels containing digits and symbols still match`() {
         val odd = listOf(AppEntry("com.pw", "1Password"), AppEntry("com.msg", "+Message"))
 
-        assertEquals(odd[0], odd.topMatch("1pass"))
-        assertEquals(odd[1], odd.topMatch("+mes"))
+        assertEquals(odd[0], topMatch("1pass", odd)?.entry)
+        assertEquals(odd[1], topMatch("+mes", odd)?.entry)
     }
 
     @Test
     fun `non-ASCII labels match on their own characters`() {
         val intl = listOf(AppEntry("com.a", "日本語辞書"), AppEntry("com.b", "Café"))
 
-        assertEquals(intl[0], intl.topMatch("日本"))
-        assertEquals(intl[1], intl.topMatch("caf"))
+        assertEquals(intl[0], topMatch("日本", intl)?.entry)
+        assertEquals(intl[1], topMatch("caf", intl)?.entry)
     }
 
     // --- score bands ------------------------------------------------------------------------------
@@ -363,7 +320,7 @@ class AppMatchingTest {
     @Test
     fun `rankedMatches returns every match, not just the best few`() {
         // "ca" reaches Calculator/Calendar/Camera by prefix and others more weakly; the caller
-        // (matchPreview's "+N more") depends on the count being complete.
+        // (the preview line's "+N more") depends on the count being complete.
         val ranked = apps.rankedMatches("ca")
 
         assertTrue(ranked.size >= 3)
@@ -373,32 +330,6 @@ class AppMatchingTest {
     @Test
     fun `matching is pure — the same query gives the same ranking every time`() {
         assertEquals(apps.rankedMatches("ca"), apps.rankedMatches("ca"))
-        assertEquals(apps.topMatch("ca"), apps.topMatch("ca"))
     }
 
-    // --- preview line -------------------------------------------------------------------------------
-
-    @Test
-    fun `two matches read as plus one more`() {
-        val two = listOf(chrome, AppEntry("com.x", "Chromatic"))
-
-        assertEquals("Chrome  +1 more", two.matchPreview("chro"))
-    }
-
-    @Test
-    fun `the preview's leading name is always the same entry topMatch would act on`() {
-        // These two are the promise the UI makes: what you see previewed is what Enter opens.
-        listOf("c", "ca", "chr", "gm", "maps", "chrm", "pp").forEach { query ->
-            val preview = apps.matchPreview(query)
-            val top = apps.topMatch(query)
-
-            assertTrue("'$query'", preview!!.startsWith(top!!.label))
-        }
-    }
-
-    @Test
-    fun `a whitespace-only query previews nothing`() {
-        assertNull(apps.matchPreview("   "))
-        assertNull(apps.topMatch("   "))
-    }
 }

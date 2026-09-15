@@ -1,6 +1,7 @@
 package com.flambeauriver.dailydriver.command
 
 import com.flambeauriver.dailydriver.apps.AppEntry
+import com.flambeauriver.dailydriver.apps.displayNames
 import com.flambeauriver.dailydriver.apps.LabelMatch
 import com.flambeauriver.dailydriver.apps.MatchStrategy
 import com.flambeauriver.dailydriver.apps.scoreLabel
@@ -150,4 +151,36 @@ private fun Candidate.bestMatch(
     // Score comparison is safe as a proxy for strategy strength: `band()` keeps the strategies'
     // score ranges disjoint, so a higher score is always the stronger rung.
     return listOfNotNull(wholeMatch, tokenMatch).maxByOrNull { it.first.score }
+}
+
+/**
+ * Everything the prompt could currently mean, from the three sources that used to be matched
+ * separately (T184).
+ *
+ * App labels come from [displayNames] so a disambiguated name stays typeable (T167) — the same
+ * name the browse list shows is the name you can type, which is the bug that fix existed for.
+ *
+ * Reserved tokens come from the registry rather than a second list, so registering a command still
+ * means touching exactly one place (T140's property, pinned by `ReservedCommandParserTest`).
+ *
+ * ⚠️ **Deduplicated by case, because the registry holds casing variants of one command.**
+ * `:tasksDone` is registered beside `:tasksdone` purely so the camelCase spelling still enters
+ * browse mode, where `parseReservedCommand` matches exactly. Matching here is case-insensitive, so
+ * both entries match the same input equally well and the pair would be two candidates for one
+ * command — a phantom "+1 more" in the preview, and worse, two rows in the usage index splitting
+ * the count for a command you only ever ran one of. The canonical entry is registered first and is
+ * the one kept; the variant needs no candidate of its own, since the spelling it exists to rescue
+ * already matches the canonical one exactly.
+ */
+fun buildCandidates(
+    apps: List<AppEntry>,
+    aliases: Map<String, String>,
+    includeAliases: Boolean = true,
+): List<Candidate> {
+    val names = displayNames(apps)
+    return buildList {
+        apps.forEach { add(Candidate.App(it, names[it.packageName] ?: it.label)) }
+        if (includeAliases) aliases.forEach { (name, expansion) -> add(Candidate.Alias(name, expansion)) }
+        reservedCommandTokens.distinctBy { it.lowercase() }.forEach { add(Candidate.Command(it)) }
+    }
 }

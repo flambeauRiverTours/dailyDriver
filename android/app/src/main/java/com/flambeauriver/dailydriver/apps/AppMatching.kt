@@ -29,46 +29,18 @@ data class AppMatch(val entry: AppEntry, val score: Double, val strategy: MatchS
  *
  * Within a band, score scales with coverage (`query.length / label.length`), so a short query
  * prefers the tighter label: `ca` ranks Camera above Calculator.
+ *
+ * ⚠️ **That last rule is no longer what the prompt does** (T184). The shell ranks through
+ * `command/CommandCandidate.kt`, which orders by band, then *use count*, then coverage — so `ca`
+ * goes to whichever of Camera/Calculator you actually open, and only falls back to coverage with
+ * no usage data. This function is the app-only path that has no usage to consult: `AliasTarget`
+ * resolves an alias definition's app name with it, where "which did you mean by this name" is a
+ * question about the name alone.
  */
 fun List<AppEntry>.rankedMatches(query: String): List<AppMatch> {
     val normalizedQuery = query.trim().lowercase()
     if (normalizedQuery.isEmpty()) return emptyList()
     return mapNotNull { it.matchAgainst(normalizedQuery) }.sortedByDescending { it.score }
-}
-
-/**
- * The single match Enter or a typing pause acts on — the top-ranked entry, full stop, with no
- * separate ambiguity gate. Null only when nothing matched at all.
- *
- * **Revised (2026-08-16, user request), reversing the original design.** T008 originally gated
- * this on both a minimum score *and* a lead over the runner-up, falling through to a
- * disambiguation listing otherwise (`ca` → list Camera/Calendar/Calculator rather than guess).
- * The user explicitly asked for the best match to win even when there are close candidates — the
- * preview line's "+N more" suffix from [matchPreview] is the safety valve instead: it tells you
- * ambiguity exists so you can type further before the pause fires, rather than the app refusing
- * to guess for you.
- */
-fun List<AppEntry>.topMatch(query: String): AppEntry? = rankedMatches(query).firstOrNull()?.entry
-
-/**
- * The hint shown above the prompt as you type, or null when there's nothing worth previewing.
- *
- * Names the runner-up count as well as the best match — since [topMatch] no longer refuses to
- * act on an ambiguous field, this suffix is the only remaining signal that other candidates
- * exist. `Camera  +2 more` is your cue to keep typing if Camera isn't what you meant, before the
- * pause commits to it.
- */
-fun List<AppEntry>.matchPreview(query: String): String? {
-    val ranked = rankedMatches(query)
-    val best = ranked.firstOrNull() ?: return null
-    val others = ranked.size - 1
-
-    // Named the same way the list names it (T164). If the preview said "Messages" while the list
-    // showed "Messages (Google)" and "Messages (Samsung)", the preview would be announcing a
-    // choice it is not making — which is the exact ambiguity the suffix exists to remove.
-    val name = displayNames(this)[best.entry.packageName] ?: best.entry.label
-
-    return if (others == 0) name else "$name  +$others more"
 }
 
 private fun AppEntry.matchAgainst(query: String): AppMatch? =
