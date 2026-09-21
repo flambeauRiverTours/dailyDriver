@@ -27,3 +27,6 @@ site/
 
 #tasks is used for temporary notes
 tasks/
+
+# log files contain potentially sensitive info
+dailydriver-command-log-*.jsonl

@@ -158,14 +158,46 @@ class StructuredOutputTest {
     @Test
     fun `the label space covers every reserved command`() {
         // The stale-label-space bug that prompted settling §4.3: four of ten commands had no label.
-        // This fails if a command is added without one.
+        //
+        // ⚠️ This list is hand-maintained, and on 2026-09-21 it was caught being wrong in exactly
+        // the way it exists to prevent: T140 registered `:google` and `:export` and neither brought
+        // a label, and this test passed throughout because nobody added them here either. A test
+        // that only fails when someone remembers to update it is not a guard. It is kept because a
+        // wrong list still beats no list, but the durable fix is an exhaustive `when` over
+        // ReservedCommand, which the compiler enforces — see the note on Intent.WEB_SEARCH.
         listOf(
             "list_apps", "search_notes", "create_note", "open_note",
             "add_task", "list_tasks", "list_completed_tasks",
-            "list_aliases", "list_notifications", "open_settings", "help",
+            "list_aliases", "list_notifications", "open_settings",
+            "web_search", "export_log", "help",
         ).forEach { wire ->
             assertTrue("no Intent for '$wire'", Intent.fromWire(wire) != Intent.UNKNOWN)
         }
+    }
+
+    @Test
+    fun `web_search carries its query as a slot`() {
+        // The query *is* the command for `:google` (ReservedCommand.Google), so a web_search with
+        // no slot is not a usable result even though it validates. Pinned because this label was
+        // added late and carries the bulk of the free-form input T2 exists to handle.
+        val result = parseIntent(
+            """{"intent":"web_search","slots":{"query":"ice price algorithm"},"confidence":0.88}""",
+        )
+
+        assertNotNull(result)
+        assertEquals(Intent.WEB_SEARCH, result!!.intent)
+        assertEquals("ice price algorithm", result.slots["query"])
+    }
+
+    @Test
+    fun `export_log validates without slots`() {
+        // The opposite shape: `:export` takes no argument (ReservedCommand.Export), so an empty
+        // slots map is correct rather than missing data.
+        val result = parseIntent("""{"intent":"export_log","slots":{},"confidence":0.95}""")
+
+        assertNotNull(result)
+        assertEquals(Intent.EXPORT_LOG, result!!.intent)
+        assertTrue(result!!.slots.isEmpty())
     }
 
     @Test

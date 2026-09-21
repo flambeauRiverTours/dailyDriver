@@ -17,15 +17,17 @@ through fine-tuning, quantization, deployment and benchmarks.
 
 | Area | Status | What exists |
 |---|---|---|
-| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 849 automated tests. |
-| **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | Application shell on the .NET Generic Host with dependency injection, an EF Core and SQLite store with migrations, the MVVM two-pane layout, and a working Markdown editor with live preview and autosave. 51 automated tests. No note list, sync or sign-in yet. |
+| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 851 automated tests. |
+| **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | Application shell on the .NET Generic Host with dependency injection, an EF Core and SQLite store with migrations, the MVVM two-pane layout, a working Markdown editor with live preview and autosave, and a note list with tag filtering. 84 automated tests. No sync or sign-in yet. |
 | **[Azure backend](backend.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design and data model complete. |
-| **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-outline:{ .status-todo } Not started | Design, model shortlist and evaluation plan complete. |
+| **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-outline:{ .status-todo } Not started | No model and no training yet. The code that will consume one is built and tested, and a month of real usage has been logged on the phone to seed the dataset. |
 
 The Android launcher is finished to its first milestone and in daily use as a real home screen,
-installed from a signed release built by CI. The desktop client can write and store notes and is
-being worked on now. The backend and the ML pipeline have finished designs and empty project
-scaffolds. Every page says which it is at the top.
+installed from a signed release built by CI. The desktop client can write, store, list and filter
+notes, and is being worked on now. The backend has a finished design and an empty project
+scaffold. The ML pipeline has a finished design, the parsing and validation layers that will sit
+around the model, and its first month of collected training data. Every page says which it is at
+the top.
 
 ---
 
