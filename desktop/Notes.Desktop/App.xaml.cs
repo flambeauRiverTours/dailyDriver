@@ -36,7 +36,7 @@ namespace Notes.Desktop
                 .GetRequiredService<IDbContextFactory<AppDbContext>>()
                 .CreateDbContext();
             await dbContext.MigrateAsync();
-
+            await InternalHost.Services.GetRequiredService<NoteListViewModel>().InitializeCommand.ExecuteAsync(null);
             //show window
             ShowMainWindow(InternalHost);
         }
@@ -49,7 +49,7 @@ namespace Notes.Desktop
         {
             if (InternalHost != null)
             {
-                InternalHost.Services
+                await InternalHost.Services
                 .GetRequiredService<MainWindowViewModel>().BeforeShutdown();
                 await InternalHost.StopAsync();
                 InternalHost.Dispose();

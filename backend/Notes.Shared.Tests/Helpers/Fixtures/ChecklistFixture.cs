@@ -30,6 +30,6 @@ namespace Notes.Shared.Tests.Helpers.Fixtures
         /// Gets or sets the list of cleaning cases for testing.
         /// </summary>
         public required IReadOnlyList<ChecklistCleanCase> CleanCases { get; init; }
-        
+
     }
 }

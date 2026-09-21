@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Notes.Desktop.EntityFramework;
@@ -114,5 +114,5 @@ namespace Notes.Desktop.Tests.EntityFramework
             Context.Dispose();
             _connection.Close();
         }
-    }   
+    }
 }

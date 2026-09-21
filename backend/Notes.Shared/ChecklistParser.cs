@@ -145,7 +145,7 @@ namespace Notes.Shared
             foreach (ChecklistItem checklistItem in checklist)
             {
                 if (!string.IsNullOrEmpty(result)) { result += "\n"; }
-                if(string.IsNullOrEmpty(checklistItem.text))
+                if (string.IsNullOrEmpty(checklistItem.text))
                 {
                     result += string.Format("- [{0}]", GetChecked(checklistItem));
                 }

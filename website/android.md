@@ -5,7 +5,7 @@
     Installed on a Galaxy S20 FE from a signed release and set as the actual home screen, with a
     fallback launcher kept available. Launcher shell, command pipeline, app browser, aliases,
     notifications, notes, checklists and tasks are all built and verified on hardware.
-    **831 automated tests**: 774 unit, 57 instrumented.
+    **849 automated tests**: 790 unit, 59 instrumented.
 
     Not built yet: the on-device model itself (tier T2), which is
     [a separate workstream](ml-pipeline.md).
@@ -204,7 +204,7 @@ with both system bars hidden.
 
 ## Testing
 
-593 unit tests on the JVM covering parsing, matching, view models and formatting. 57 instrumented
+790 unit tests on the JVM covering parsing, matching, view models and formatting. 59 instrumented
 tests covering Room, migrations and schema export. Room's exported schema is diffed against the
 compiled entities by a test, so a schema change without a migration fails the build instead of
 corrupting a database in the field.

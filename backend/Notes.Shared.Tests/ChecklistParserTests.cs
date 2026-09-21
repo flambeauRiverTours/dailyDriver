@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Notes.Shared.Model;
 using Notes.Shared.Tests.Helpers.Fixtures;
 
@@ -12,7 +12,7 @@ namespace Notes.Shared.Tests
 
         public static IEnumerable<object[]> RenderCases() =>
             ChecklistFixture.Instance.RenderCases
-                .Select(c => new object[] { c.Items, c.Body });   
+                .Select(c => new object[] { c.Items, c.Body });
 
         public static IEnumerable<object[]> ConversionCases() =>
     ChecklistFixture.Instance.ConversionCases
@@ -20,7 +20,7 @@ namespace Notes.Shared.Tests
 
         public static IEnumerable<object[]> CleanCases() =>
             ChecklistFixture.Instance.CleanCases
-                .Select(c => new object[] { c.Items, c.Cleaned }); 
+                .Select(c => new object[] { c.Items, c.Cleaned });
 
         public static IEnumerable<object[]> NormalizeCases() =>
     ChecklistFixture.Instance.NormalizeCases

@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Notes.Shared.Tests.Helpers.Fixtures;
 
 namespace Notes.Shared.Tests

@@ -1,12 +1,12 @@
 using System.IO;
-using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Notes.Desktop.EntityFramework.Model;
 using Notes.Shared;
 
 namespace Notes.Desktop.EntityFramework
 {
-    internal class AppDbContext : DbContext
+    public class AppDbContext : DbContext
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="AppDbContext"/> class with the specified options.
@@ -33,7 +33,8 @@ namespace Notes.Desktop.EntityFramework
         /// <summary>
         /// Migrate the database to the latest version asynchronously.
         /// </summary>
-        internal Task MigrateAsync() {
+        internal Task MigrateAsync()
+        {
             return Database.MigrateAsync();
         }
 
@@ -58,8 +59,8 @@ namespace Notes.Desktop.EntityFramework
                 entity.Property(e => e.Type).IsRequired();
                 entity.Property(e => e.Title).IsRequired();
                 entity.Property(e => e.Body).IsRequired();
-                entity.Property(e => e.CreatedAt).IsRequired();
-                entity.Property(e => e.UpdatedAt).IsRequired();
+                entity.Property(e => e.CreatedAt).IsRequired().HasConversion(UtcTicks);
+                entity.Property(e => e.UpdatedAt).IsRequired().HasConversion(UtcTicks);
                 entity.Property(e => e.Deleted).IsRequired();
                 entity.Property(e => e.Rev);
                 entity.Property(e => e.SourceDevice).IsRequired();
@@ -121,7 +122,7 @@ namespace Notes.Desktop.EntityFramework
                 entity.HasKey(e => e.NoteId);
                 entity.Property(e => e.NoteId).IsRequired();
                 entity.Property(e => e.BaseRev);
-                entity.Property(e => e.QueuedAt).IsRequired();
+                entity.Property(e => e.QueuedAt).IsRequired().HasConversion(UtcTicks);
 
                 entity.HasOne<Note>().WithMany().HasForeignKey(x => x.NoteId).OnDelete(DeleteBehavior.Cascade);
             });
@@ -162,9 +163,10 @@ namespace Notes.Desktop.EntityFramework
 
             Tasks.RemoveRange(await Tasks.Where(t => t.NoteId == entity.Id).ToListAsync(ct));
             Tasks.AddRange(TaskIndex.TasksOf(entity.Type, entity.Body, entity.Id)
-                .Select(item => new TaskRow() {  Checked = item.@checked, Due = item.due, Text = item.text, Position = item.position, NoteId = entity.Id }));
+                .Select(item => new TaskRow() { Checked = item.@checked, Due = item.due, Text = item.text, Position = item.position, NoteId = entity.Id }));
 
-            if (await Outboxes.FindAsync([entity.Id], ct) is null) { 
+            if (await Outboxes.FindAsync([entity.Id], ct) is null)
+            {
                 Outboxes.Add(new Outbox { NoteId = entity.Id, BaseRev = entity.Rev, QueuedAt = DateTimeOffset.UtcNow });
             }
 
@@ -202,5 +204,11 @@ namespace Notes.Desktop.EntityFramework
             }
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
         }
+
+        /// <summary>
+        /// Stores timestamps as UTC ticks so SQLite can ORDER BY them — it refuses to order
+        /// DateTimeOffset, which it keeps as offset-bearing TEXT that does not sort lexically
+        /// </summary>
+        private static readonly ValueConverter<DateTimeOffset, long> UtcTicks = new(v => v.UtcTicks, v => new DateTimeOffset(v, TimeSpan.Zero));
     }
 }
