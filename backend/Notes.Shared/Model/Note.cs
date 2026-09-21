@@ -50,7 +50,7 @@ namespace Notes.Shared.Model
         /// <summary>
         /// Gets or sets the revision number of the note. This property is used to track changes and updates to the note over time. It is nullable, allowing for cases where a revision number may not be applicable or available.
         /// </summary>
-        public long? rev { get; init;  }
+        public long? rev { get; init; }
     }
 
     /// <summary>

@@ -488,6 +488,208 @@ namespace Notes.Desktop.Tests.ViewModelTests
 
         #endregion
 
+        #region Switching notes
+
+        /// <summary>
+        /// Puts a second note in the database directly, so a test has something to switch *to*
+        /// without driving a second ViewModel.
+        /// </summary>
+        private static async Task<Guid> GivenAnExistingNote(
+            InMemoryDbContextFactory factory, string title, string body)
+        {
+            var id = Guid.NewGuid();
+            using var write = factory.CreateDbContext();
+            write.Notes.Add(new Note
+            {
+                Id = id,
+                Title = title,
+                Body = body,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                SourceDevice = "Android"
+            });
+            await write.SaveChangesAsync(Ct);
+            return id;
+        }
+
+        [Fact]
+        public async Task Load_WhileDirty_FlushesTheOutgoingNoteFirst()
+        {
+            using var factory = new InMemoryDbContextFactory();
+            var viewModel = NewViewModel(factory);
+
+            viewModel.Title = "Note A";
+            viewModel.Body = "A, first draft";
+            await SaveAsync(viewModel);
+
+            var idB = await GivenAnExistingNote(factory, "Note B", "B body");
+
+            // The user keeps typing. Autosave has not fired, so these characters exist only in the
+            // ViewModel — this is the three-second window the flush exists to protect.
+            viewModel.Body = "A, plus three more seconds of typing";
+
+            await viewModel.LoadCommand.ExecuteAsync(idB);
+
+            using var read = factory.CreateDbContext();
+            var noteA = await read.Notes.SingleAsync(n => n.Id != idB, Ct);
+
+            // Without the flush this still reads "A, first draft" and the typing is gone with no
+            // error anywhere — LoadAsync would simply have assigned over Title and Body.
+            noteA.Body.Should().Be("A, plus three more seconds of typing");
+
+            // And the editor is now showing B, clean.
+            viewModel.Title.Should().Be("Note B");
+            viewModel.Body.Should().Be("B body");
+            viewModel.IsDirty.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task Load_AfterTyping_DoesNotThrow()
+        {
+            using var factory = new InMemoryDbContextFactory();
+            var viewModel = NewViewModel(factory);
+            viewModel.Body = "something typed, which arms the autosave timer";
+            var id = await GivenAnExistingNote(factory, "Note B", "B body");
+
+            // The regression this pins: LoadAsync cancels the pending autosave, then NoteToDraft
+            // assigns Body, which calls Debounce again. If cancelling disposes the token source
+            // without clearing the field, that second call cancels a disposed source and throws
+            // ObjectDisposedException — from inside a property setter, mid-load.
+            var act = () => viewModel.LoadCommand.ExecuteAsync(id);
+
+            await act.Should().NotThrowAsync();
+        }
+
+        [Fact]
+        public async Task TypingAfterALoad_DoesNotThrow()
+        {
+            using var factory = new InMemoryDbContextFactory();
+            var viewModel = NewViewModel(factory);
+            viewModel.Body = "first note";
+            var id = await GivenAnExistingNote(factory, "Note B", "B body");
+            await viewModel.LoadCommand.ExecuteAsync(id);
+
+            // The other side of the same field: a keystroke after a load has to find the debounce
+            // field in a usable state, whatever the load left behind.
+            var act = () => viewModel.Body = "now editing B";
+
+            act.Should().NotThrow();
+        }
+
+        [Fact]
+        public async Task Load_LeavesTheEditorClean()
+        {
+            using var factory = new InMemoryDbContextFactory();
+            var id = await GivenAnExistingNote(factory, "Note B", "B body");
+            var viewModel = NewViewModel(factory);
+
+            await viewModel.LoadCommand.ExecuteAsync(id);
+
+            DateTimeOffset afterLoad;
+            using (var read = factory.CreateDbContext())
+            {
+                afterLoad = (await read.Notes.SingleAsync(Ct)).UpdatedAt;
+            }
+
+            // Populating the editor runs through the same observable setters a keystroke does, so
+            // without the snapshot being reset here, merely opening a note would mark it dirty,
+            // autosave it three seconds later, and move it to the top of a list sorted by
+            // UpdatedAt. Reading a note would reorder the list.
+            viewModel.IsDirty.Should().BeFalse();
+
+            await SaveAsync(viewModel);
+
+            using var verify = factory.CreateDbContext();
+            (await verify.Notes.SingleAsync(Ct)).UpdatedAt.Should().Be(afterLoad);
+        }
+
+        [Fact]
+        public async Task Load_WhileDirtyWithNoBody_DiscardsTheTitle()
+        {
+            using var factory = new InMemoryDbContextFactory();
+            var viewModel = NewViewModel(factory);
+            viewModel.Title = "a heading typed and then abandoned";
+            var id = await GivenAnExistingNote(factory, "Note B", "B body");
+
+            await viewModel.LoadCommand.ExecuteAsync(id);
+
+            using var read = factory.CreateDbContext();
+
+            // Documented consequence, not an oversight: the flush runs SaveAsync, whose blank-body
+            // guard returns early, so a title with no body is never written and switching away
+            // loses it. That follows directly from Save_WithABlankBodyButATitle_StillWritesNothing
+            // — a title alone is not a note. If that rule changes, this test changes with it.
+            (await read.Notes.CountAsync(Ct)).Should().Be(1);
+            viewModel.Title.Should().Be("Note B");
+        }
+
+        #endregion
+
+        #region Dirtiness as a derived fact
+
+        [Fact]
+        public async Task TypingAndThenUndoingIt_LeavesNothingToSave()
+        {
+            using var factory = new InMemoryDbContextFactory();
+            var viewModel = NewViewModel(factory);
+            viewModel.Body = "the original text";
+            await SaveAsync(viewModel);
+
+            DateTimeOffset firstWrite;
+            using (var read = factory.CreateDbContext())
+            {
+                firstWrite = (await read.Notes.SingleAsync(Ct)).UpdatedAt;
+            }
+
+            viewModel.Body = "the original text with a typo";
+            viewModel.IsDirty.Should().BeTrue();
+
+            viewModel.Body = "the original text";
+
+            // The payoff for deriving dirtiness by comparison rather than setting a flag: typing a
+            // character and deleting it again leaves nothing to write. A flag set in the change
+            // handler cannot know the text came back, so it would save byte-identical content and
+            // bump UpdatedAt for an edit that no longer exists.
+            viewModel.IsDirty.Should().BeFalse();
+
+            await SaveAsync(viewModel);
+
+            using var verify = factory.CreateDbContext();
+            (await verify.Notes.SingleAsync(Ct)).UpdatedAt.Should().Be(firstWrite);
+        }
+
+        [Fact]
+        public void IsDirty_NotifiesWhenTheBodyChanges()
+        {
+            using var factory = new InMemoryDbContextFactory();
+            var viewModel = NewViewModel(factory);
+            var raised = new List<string?>();
+            viewModel.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+            viewModel.Body = "typed";
+
+            // IsDirty is computed, and computed properties do not announce themselves. Nothing
+            // binds to it yet, so this pins the [NotifyPropertyChangedFor] rather than a visible
+            // behaviour — the failure mode otherwise is a save indicator, or T062's sync
+            // affordance, that binds correctly and simply never updates.
+            raised.Should().Contain(nameof(NoteEditorViewModel.IsDirty));
+        }
+
+        [Fact]
+        public void IsDirty_NotifiesWhenTheTitleChanges()
+        {
+            using var factory = new InMemoryDbContextFactory();
+            var viewModel = NewViewModel(factory);
+            var raised = new List<string?>();
+            viewModel.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+            viewModel.Title = "typed";
+
+            raised.Should().Contain(nameof(NoteEditorViewModel.IsDirty));
+        }
+
+        #endregion
+
         // Not covered here, deliberately:
         //
         //   * **Autosave timing.** Asserting that a save lands three seconds after a keystroke means

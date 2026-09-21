@@ -18,7 +18,7 @@ namespace Notes.Shared.Tests.Helpers.Fixtures
         public static T Parse<T>(string fileName)
         {
             var result = JsonSerializer.Deserialize<T>(GetJSON(fileName), _jsonOptions);
-            if(result == null)
+            if (result == null)
             {
                 throw new InvalidOperationException($"Failed to deserialize fixture file '{fileName}' into type '{typeof(T).FullName}'.");
             }
@@ -35,12 +35,12 @@ namespace Notes.Shared.Tests.Helpers.Fixtures
         {
             string targetFileName = Path.Combine(AppContext.BaseDirectory, "fixtures", fileName);
 
-            if(!File.Exists(targetFileName))
+            if (!File.Exists(targetFileName))
             {
                 throw new FileNotFoundException("Fixture file not found", targetFileName);
             }
 
             return File.ReadAllText(targetFileName);
-        } 
+        }
     }
 }

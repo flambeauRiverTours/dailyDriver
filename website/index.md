@@ -17,7 +17,7 @@ through fine-tuning, quantization, deployment and benchmarks.
 
 | Area | Status | What exists |
 |---|---|---|
-| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 831 automated tests. |
+| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 849 automated tests. |
 | **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | Application shell on the .NET Generic Host with dependency injection, an EF Core and SQLite store with migrations, the MVVM two-pane layout, and a working Markdown editor with live preview and autosave. 51 automated tests. No note list, sync or sign-in yet. |
 | **[Azure backend](backend.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design and data model complete. |
 | **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-outline:{ .status-todo } Not started | Design, model shortlist and evaluation plan complete. |
@@ -98,10 +98,10 @@ The parts where the obvious answer was not the one I took.
 The repository also holds the working engineering documents: the
 [design document](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/design.md), a
 [task log](https://github.com/flambeauRiverTours/dailyDriver/blob/main/docs/tasks.md) recording what
-was decided and what broke while building each feature, and nine
+was decided and what broke while building each feature, and ten
 [architecture decision records](https://github.com/flambeauRiverTours/dailyDriver/tree/main/docs/adr).
 This site is the overview and links to them.
 
-!!! info "Last updated: 15 September 2026"
+!!! info "Last updated: 21 September 2026"
 
     Reflects the state of `main` on that date.

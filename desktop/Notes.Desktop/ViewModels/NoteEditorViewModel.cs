@@ -5,17 +5,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Notes.Desktop.EntityFramework;
 using Notes.Desktop.EntityFramework.Model;
+using NoteType = Notes.Shared.Model.NoteType;
 
 namespace Notes.Desktop.ViewModels
 {
-    public partial class NoteEditorViewModel: ObservableObject
+    public partial class NoteEditorViewModel : ObservableObject
     {
         /// <summary>
         /// Initialized the VM
         /// </summary>
         /// <param name="dbContextFactory">DB context factory</param>
         /// <param name="logger">Logger instance</param>
-        internal NoteEditorViewModel(IDbContextFactory<AppDbContext> dbContextFactory, ILogger<NoteEditorViewModel> logger)
+        public NoteEditorViewModel(IDbContextFactory<AppDbContext> dbContextFactory, ILogger<NoteEditorViewModel> logger)
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;
@@ -27,14 +28,16 @@ namespace Notes.Desktop.ViewModels
         #endregion
         #region Observable Properties
         [ObservableProperty]
-        public partial string Title { get; set; }
+        [NotifyPropertyChangedFor(nameof(IsDirty))]
+        public partial string Title { get; set; } = string.Empty;
         [ObservableProperty]
-        public partial string Body { get; set; }
-        [ObservableProperty]
-        public partial bool IsDirty { get; set; }
+        [NotifyPropertyChangedFor(nameof(IsDirty))]
+        public partial string Body { get; set; } = string.Empty;
+
         #endregion
 
         #region Non-Observable Note Properties
+        public bool IsDirty { get => (string.Compare(Body, _loadedBody, StringComparison.Ordinal) != 0) || (string.Compare(Title, _loadedTitle, StringComparison.Ordinal) != 0); }
         private Guid id = Guid.NewGuid();
         private DateTimeOffset createdAt = DateTimeOffset.UtcNow;
 
@@ -43,6 +46,9 @@ namespace Notes.Desktop.ViewModels
         private long? rev = null;
         private Notes.Shared.Model.NoteType noteType = Shared.Model.NoteType.Note;
         private string sourceDevice = "Desktop";
+
+        private string _loadedTitle = string.Empty;
+        private string _loadedBody = string.Empty;
         #endregion
 
         #region Relay Commands
@@ -56,7 +62,13 @@ namespace Notes.Desktop.ViewModels
         [RelayCommand]
         async Task LoadAsync(Guid noteId, CancellationToken ct)
         {
-            using(var dbContext = await _dbContextFactory.CreateDbContextAsync(ct))
+
+            if (IsDirty)
+            {
+                await SaveAsync(ct);
+                CancelPendingAutosave();
+            }
+            using (var dbContext = await _dbContextFactory.CreateDbContextAsync(ct))
             {
                 var note = await dbContext.Notes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == noteId, ct);
                 if (note == null)
@@ -64,6 +76,7 @@ namespace Notes.Desktop.ViewModels
                     throw new InvalidOperationException("Invalid note id passed to LoadAsync");
                 }
                 NoteToDraft(note);
+                SetComparisonFieldsForIsDirty();
             }
         }
 
@@ -75,8 +88,8 @@ namespace Notes.Desktop.ViewModels
         [RelayCommand]
         async Task SaveAsync(CancellationToken ct)
         {
-            if(string.IsNullOrWhiteSpace(Body)) { return; }
-            if(!IsDirty) { return; }
+            if (string.IsNullOrWhiteSpace(Body)) { return; }
+            if (!IsDirty) { return; }
             using (var dbContext = await _dbContextFactory.CreateDbContextAsync(ct))
             {
                 var note = await dbContext.Notes.FirstOrDefaultAsync(n => n.Id == id, ct);
@@ -90,8 +103,8 @@ namespace Notes.Desktop.ViewModels
                     note.Title = GetFormattedTitle();
                     note.Body = GetFormattedBodyString();
                 }
-                IsDirty = false;
                 await dbContext.SaveChangesAsync(ct);
+                SetComparisonFieldsForIsDirty();
             }
         }
         #endregion
@@ -159,7 +172,6 @@ namespace Notes.Desktop.ViewModels
         /// <param name="value">String title value. Unused</param>
         partial void OnTitleChanged(string value)
         {
-            IsDirty = true;
             Debounce();
         }
 
@@ -169,7 +181,6 @@ namespace Notes.Desktop.ViewModels
         /// <param name="value">String body value. Unused</param>
         partial void OnBodyChanged(string value)
         {
-            IsDirty = true;
             Debounce();
         }
         #endregion
@@ -182,13 +193,19 @@ namespace Notes.Desktop.ViewModels
         /// </summary>
         private void Debounce()
         {
-            _debounce?.Cancel();
-            _debounce?.Dispose();
+            CancelPendingAutosave();
 
             var cts = new CancellationTokenSource();
             _debounce = cts;
 
             _ = AutosaveAfterDelayAsync(cts.Token);
+        }
+
+        private void CancelPendingAutosave()
+        {
+            _debounce?.Cancel();
+            _debounce?.Dispose();
+            _debounce = null;
         }
 
         /// <summary>
@@ -211,6 +228,28 @@ namespace Notes.Desktop.ViewModels
             {
                 _logger.LogError(ex, "Autosave failed for note {NoteId}", id);
             }
+        }
+
+        private void SetComparisonFieldsForIsDirty()
+        {
+            _loadedBody = Body;
+            _loadedTitle = Title;
+            OnPropertyChanged(nameof(IsDirty));
+        }
+
+        public async Task<Guid> NewNote(CancellationToken ct)
+        {
+            await SaveCommand.ExecuteAsync(ct);
+            Body = string.Empty;
+            Title = string.Empty;
+            createdAt = DateTimeOffset.UtcNow;
+            id = Guid.NewGuid();
+            deleted = false;
+            rev = null;
+            noteType = NoteType.Note;
+            sourceDevice = "Desktop";
+            SetComparisonFieldsForIsDirty();
+            return id;
         }
 
         private const int AutosaveDelay = 3000;

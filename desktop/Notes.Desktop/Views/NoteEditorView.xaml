@@ -14,8 +14,12 @@
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" MinWidth="300" />
         </Grid.ColumnDefinitions>
-        <TextBox Grid.Column="0" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="false" MaxLines="1"/>
-        <TextBox Grid.Column="0"
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <TextBox Grid.Column="0" Grid.Row="0" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="false" MaxLines="1"/>
+        <TextBox Grid.Column="0" Grid.Row="1"
          Text="{Binding Body, UpdateSourceTrigger=PropertyChanged}"
          AcceptsReturn="True" TextWrapping="Wrap"
          VerticalScrollBarVisibility="Auto" />

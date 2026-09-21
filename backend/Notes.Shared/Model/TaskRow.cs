@@ -8,7 +8,7 @@ namespace Notes.Shared.Model
         /// <summary>
         /// Gets or sets the unique identifier of the note associated with this task row. This property is used to link the task row to its corresponding note in the application.
         /// </summary>
-        public Guid noteId {  get; init; }
+        public Guid noteId { get; init; }
         /// <summary>
         /// Gets or sets the position of the task row within the task list. This property is used to determine the order of tasks in the list.
         /// </summary>

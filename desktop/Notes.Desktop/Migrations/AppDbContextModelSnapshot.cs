@@ -27,8 +27,8 @@ namespace Notes.Desktop.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("Deleted")
                         .HasColumnType("INTEGER");
@@ -47,8 +47,8 @@ namespace Notes.Desktop.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -82,8 +82,8 @@ namespace Notes.Desktop.Migrations
                     b.Property<long?>("BaseRev")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset>("QueuedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<long>("QueuedAt")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("NoteId");
 

@@ -5,7 +5,7 @@ using Microsoft.Win32;
 
 namespace Notes.Desktop.Helpers
 {
-    public class RegistryAccessHelper: IRegistryAccess
+    public class RegistryAccessHelper : IRegistryAccess
     {
         /// <summary>
         /// Retrieves a string value from the Windows registry at the specified key under the BASIC_REG_PATH. If the key does not exist, it returns the provided default value.

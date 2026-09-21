@@ -110,7 +110,7 @@ namespace Notes.Shared.Tests
         public void NoteSerialization_HandlesJsonEnumAppropriatelyFromDoc()
         {
             var result = JsonSerializer.Deserialize<Note>("""{"type":"checklist", "id":"00000000-0000-0000-0000-000000000000", "userId":"user123", "title":"Sample Note", "body":"This is a sample note body.", "tags":[], "createdAt":"0001-01-01T00:00:00Z", "sourceDevice":"device123", "rev":1, "deleted":false}""", _jsonSerializerOptions);
-            if(result == null)
+            if (result == null)
             {
                 throw new InvalidOperationException("Deserialization returned null");
             }

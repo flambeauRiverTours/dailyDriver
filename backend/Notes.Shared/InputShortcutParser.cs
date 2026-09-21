@@ -24,7 +24,7 @@ namespace Notes.Shared
             {
                 return dateFromReservedWords.Value;
             }
-            
+
             return GetDateFromShortcutRegex(raw, today);
         }
 
