@@ -151,10 +151,17 @@ open_app, list_apps, open_settings,
 create_note, open_note, create_checklist, search_notes, check_item,
 add_task, list_tasks, list_completed_tasks,
 define_alias, list_aliases, list_notifications,
+web_search, export_log,
 help, unknown
 ```
 
 *Settled at T028–T035 (2026-08-22), replacing the eleven-label set this section carried since v1.* That set predated `:task`, `:tasks`, `:tasksdone` and `:notif`, leaving four of the ten reserved commands with no label. Every reserved command now maps to exactly one intent, plus `open_app` for T1's fuzzy matches, `check_item` and `define_alias` for the two actions with no command of their own, and `unknown`.
+
+**↻ `web_search` and `export_log` added 2026-09-21, on the evidence of the first T014 export.** The same gap reopened: `:google` and `:export` were registered by T140 *after* this list was settled, and arrived without labels. The note below says a new command should bring its label with it, and twice now one has not — so the check belongs in the command-registration task, not in this paragraph's good intentions.
+
+`web_search` is the more consequential of the two by a wide margin. It is the second most-used command in the first month of real logs (52 distinct inputs, 60 uses) and carries almost all of the free-form natural language in them — *`g ice price algorithm`*, *`g yahoo allow odd number of teams`* — which is precisely the input T2 exists to handle and T0/T1 cannot. Leaving it unlabelled would have trained the model to abstain on its single strongest real-usage category. It takes one slot, `query`, and that slot is the whole payload: an empty one is the command's own error case, not an intent.
+
+`export_log` is the opposite, and is included for completeness rather than value. One use in a month, no slots, and no phrasing a user would reach for T2 to express. It is listed so that the label space covers the command set exactly — a model output of `export_log` is valid — but T074 should not spend synthetic examples on it, and T077 should not expect the held-out split to measure it.
 
 Model output contract:
 

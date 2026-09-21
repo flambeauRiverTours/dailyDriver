@@ -1,20 +1,21 @@
 # Desktop client, .NET and WPF
 
-!!! warning "In progress. Notes can be written and stored. Sync and sign-in cannot."
+!!! warning "In progress. Notes can be written, stored and browsed. Sync and sign-in cannot."
 
     What runs today: the application starts on the .NET Generic Host with dependency injection,
     creates and migrates its SQLite database through EF Core, and opens a two-pane MVVM window
     whose split position is remembered between runs. The right pane is a working Markdown editor
     with a live preview and a three second autosave, and everything it writes is stored in SQLite
-    with its tags and tasks indexed. The left pane, which lists and filters notes, is still empty.
-    There is no sync and no sign-in yet. The sections below marked as planned are designed but not
-    built, and this page is rewritten as each part lands.
+    with its tags and tasks indexed. The left pane lists notes newest first, filters them by tag,
+    and opens the selected one in the editor. There is no sync and no sign-in yet. The sections
+    below marked as planned are designed but not built, and this page is rewritten as each part
+    lands.
 
 A native Windows notes client that works fully offline and syncs with the Android launcher's notes
 through the [Azure backend](backend.md).
 
 **Stack:** .NET 10, WPF, MVVM (CommunityToolkit.Mvvm), EF Core with SQLite, Markdig for Markdown.
-51 automated tests, most of them running against a real SQLite database rather than a fake one.
+84 automated tests, most of them running against a real SQLite database rather than a fake one.
 
 ---
 
@@ -69,7 +70,7 @@ the format means changing the fixture and both implementations together, which i
 
 ## Planned scope
 
-- Note list with search and tag filtering.
+- Full-text search across the note list, which currently filters by tag only.
 - Checklist checkboxes that rewrite the underlying Markdown line.
 - Light and dark themes following the system setting.
 - Outbox-based sync mirroring the Android implementation.

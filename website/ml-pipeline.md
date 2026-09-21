@@ -1,10 +1,13 @@
 # On-device ML pipeline
 
-!!! warning "Not started. Design, model shortlist and evaluation plan are complete."
+!!! warning "Not started. There is no model, no dataset and no training pipeline yet."
 
-    No training or inference code exists yet. This fills the launcher's
+    What does exist is the code that will sit around the model: the inference interface, and the
+    five-layer defence that turns whatever the model emits into validated intent JSON or refuses
+    it. Those are built and tested against deliberately malformed output. Collection of real
+    training data has also been running on the phone since August. This fills the launcher's
     [T2 tier](android.md#the-command-cascade), and the launcher runs without it today. This page
-    gets rewritten as it lands.
+    gets rewritten as the rest lands.
 
 Turning natural language typed at the prompt, like *"remind me to call the dentist tomorrow"*, into
 structured intent JSON. All of it on the phone, with no network call.
@@ -37,6 +40,15 @@ The launcher logs T0 and T1 hits, and those become training examples. That is wh
 lands before the launcher becomes a daily driver: every day of use without it throws away data the
 model needs.
 
+The first month of that log came off the phone in September: 261 distinct commands covering 1,116
+uses, across 27 days of the launcher being somebody's actual home screen. Reviewing it changed
+the plan in three ways. Two commands turned out to have no intent label, one of them the second
+most used in the log. Two labels can never be collected this way at all, because they describe
+tapping a checklist item rather than typing. And the real misses, the inputs the deterministic
+tiers could not resolve, came to three examples of one kind, so the out-of-scope set that
+abstention gets measured against has to be written rather than harvested. Finding that now is the
+reason the log was built before the launcher shipped.
+
 ---
 
 ## Structured output without grammar constraints
@@ -44,11 +56,17 @@ model needs.
 MediaPipe has no grammar-constrained decoding. Unlike llama.cpp's GBNF it cannot be forced to emit
 valid JSON, so schema adherence is probabilistic and defended in layers:
 
-1. Tight few-shot prompt with the schema inline.
-2. Low temperature, around 0.1, since this is extraction and not writing.
-3. Extract the first balanced `{...}` span from the output.
-4. Repair pass for trailing commas, unquoted keys and markdown fences.
-5. Validate against the schema. On failure or low confidence, fall through to T3.
+1. Tight few-shot prompt with the schema inline. *Planned.*
+2. Low temperature, around 0.1, since this is extraction and not writing. *Planned.*
+3. Extract the first balanced `{...}` span from the output. **Built.**
+4. Repair pass for trailing commas, unquoted keys and markdown fences. **Built.**
+5. Validate against the schema. On failure or low confidence, fall through to T3. **Built.**
+
+Layers three to five are finished and covered by 33 tests, including output carrying a markdown
+fence, surrounding prose, an unquoted key, a trailing comma and smart quotes at once. They were
+built before the model because they are what makes a bad answer safe, and because none of them
+need one to be tested. A repair pass is only allowed to fix syntax: it will not invent a missing
+confidence score, because that score is what the decision to abstain rests on.
 
 Getting step 5 to fire rarely is the whole reason to fine-tune. The fallback is what makes the
 feature safe to ship.

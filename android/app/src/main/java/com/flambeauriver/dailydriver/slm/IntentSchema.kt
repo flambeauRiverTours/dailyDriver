@@ -17,6 +17,21 @@ enum class Intent {
     CREATE_NOTE, OPEN_NOTE, CREATE_CHECKLIST, SEARCH_NOTES, CHECK_ITEM,
     ADD_TASK, LIST_TASKS, LIST_COMPLETED_TASKS,
     DEFINE_ALIAS, LIST_ALIASES, LIST_NOTIFICATIONS,
+
+    /**
+     * `:google <query>` and `:export`, added 2026-09-21 after the first T014 export showed §4.3
+     * was two labels short: both commands were registered by T140 *after* the label space settled,
+     * and neither brought a label with it — the second time that has happened.
+     *
+     * [WEB_SEARCH] matters and [EXPORT_LOG] does not. The first is the second most-used command in
+     * a month of real logs and carries nearly all of their free-form natural language, which is
+     * exactly the input T2 exists for; without a label the model would have been trained to abstain
+     * on its strongest real-usage category. Its `query` slot is the whole payload — an empty one is
+     * the command's own error case, not an intent. The second is here so the label space covers the
+     * command set exactly; §8 should not spend examples measuring it.
+     */
+    WEB_SEARCH, EXPORT_LOG,
+
     HELP,
 
     /**
