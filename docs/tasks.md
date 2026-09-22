@@ -890,10 +890,22 @@ Room schema, Markdown format, outbox from day one.
   - **An invented or explicit `unknown` intent abstains.** A model that hallucinates a label is not trusted; abstention is a first-class desirable output (§4.3), not a failure.
   - **A missing confidence fails rather than defaulting**, for the same reason the repair pass will not invent one.
   - `DEFAULT_CONFIDENCE_THRESHOLD` is provisional and named rather than inlined: §8 measures abstention quality and T083's benchmark is what sets it honestly.
+  - **↻ Demoted to the fallback path 2026-09-22** by [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md). T190 makes schema-valid output structural, so this layer stops being the thing standing between the launcher and garbage. **It is not removed**: constrained decoding is probably GPU-only, so this still runs whenever the constraint is unavailable. The threshold and the `unknown` abstention are untouched — constraining shape says nothing about correctness.
   - 27 tests covering all three layers, including realistically messy output with fences, prose, a bare key, a trailing comma and smart quotes at once.
 - [ ] **T036** — Wire T2 into the command pipeline  
   `P0` `M` · after: T035
   - SLM never on the fast path.
+- [ ] **T190** — Constrained decoding via `localagents-fc`  
+  `P0` `M` · after: T031 · blocks: T032
+  - **Added 2026-09-22 by [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md).** Makes schema-valid output structural instead of probabilistic, which reverses ADR-0003's one accepted cost and demotes T033–T035 to a fallback path.
+  - The chain, verified against published artifacts: `LlmInference.getSentencePieceProcessorHandle()` → `new FstConstraintProvider(handle)` → `.createConstraint(List<Tool>, ConstraintOptions)` → `.getConstraintHandle()` → `LlmInferenceSessionOptions.builder().setConstraintHandle(...)`.
+  - **Express §4.3's label space as `Schema.enum`** and the slots as typed parameters (`Type` covers STRING, NUMBER, INTEGER, BOOLEAN, ARRAY, OBJECT), with `ConstraintOptions.ToolCallOnly`. That is what makes a nineteenth intent unemittable rather than merely unlikely.
+  - **⚠ Do not delete a layer of T033–T035.** Constrained decoding is probably GPU-only — the native library has only `TfLiteOpenClExternalOutputHandler::UpdateConstraintMask` and an error reading `UpdateConstraintMask not implemented for this backend` — so the five-layer path still runs whenever the constraint is unavailable. This task adds a mechanism; it removes nothing.
+  - **⚠ Structural validity is not correctness.** A constrained `confidence` field is a number the model invents. T035's threshold and the `unknown` abstention stay exactly as they are.
+  - **Three costs to check while wiring it.** `localagents-fc` is **0.1.0**. It pulls **`org.json`** into production, where this project has it as a *test-only* dependency and Android ships its own in the framework — check for a duplicate-class or shadowing problem. And it moves **Guava 27.0.1-android → 33.3.1-android**.
+  - **APK cost is small and already-shaped.** Native libraries ship for **arm64-v8a and x86_64 only**, exactly the two ABIs T029's `abiFilters` already selects. `libjni_fst_constraint_android.so` is 2.67 MB plus `libjni_gemma_formatter_android.so` at 1.34 MB; exclude the Llama and Hammer formatters.
+  - **⚠ Cannot be tested on an emulator**, for the same reason as everything else in this section (T039): no OpenCL, so engine init fails before any of this runs.
+  - **Nothing here has been executed.** The whole chain is read off the AAR and the native library. Treat the first on-device run as the real verification.
 - [ ] **T037** — GO/NO-GO: LoRA viability spike on target device  
   `P0` `L` · after: T031
   - **DECISION GATE, TIMEBOXED.** Does a LoRA adapter load on the GPU backend with the chosen model? If no: fall back to few-shot and reframe the portfolio narrative. Do not start dataset work until answered.
@@ -927,6 +939,8 @@ Room schema, Markdown format, outbox from day one.
   - **⚠ Every official artifact is gated.** All `.task` files under `litert-community` return **HTTP 401** without a Hugging Face token — Gemma-2 2B, Gemma-3 1B and the 270M alike — and Kaggle's Gemma requires requesting access. Only unofficial `.bin` re-uploads are openly fetchable, and those have no redistribution standing under T094. The spike used one; T087 must not.
   - **⚠ MediaPipe's LLM stack is already LiteRT-LM underneath.** Every error path names `third_party/odml/litert_lm/runtime/...`. [ADR-0003](adr/0003-mediapipe-over-llama-cpp.md) and T091/T092 treat the v2 migration as swapping runtimes; it now looks like an API change over the same engine. Worth revisiting before budgeting it.
   - **Deliberately left open.** The remaining inputs are one on-device load and T037's actual LoRA gate. **Current lean: `gemma-1.1-2b-it-gpu-int4`**, because it is the only candidate that keeps fine-tuning *and* §2's memory target. If it fails on hardware, go to the 270M full-fine-tune line rather than back to Gemma-2 2B — the memory collision there does not go away.
+  - **✨ Reopened 2026-09-22 by [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md): LoRA is no longer a requirement.** Fine-tuning is demoted from a dependency of T2 to a measured experiment, so a candidate no longer has to support adapters. That removes the constraint this whole task was contorted around. **The 270M line is now the front-runner**: 249 MB at q4, *fully* fine-tunable on free hardware with no adapter and no GPU-only conversion path, and `FunctionGemma-270M-Mobile-Actions` is evidence the size class handles this exact task. Gemma 1.1 2B `gpu-int4` stays the fallback if a 270M proves too weak on the held-out split.
+  - Which means **T037 can no longer sink this section.** A negative LoRA result now costs a row in T083's table rather than the fine-tune itself.
   - The spike lives at `app/src/androidTest/.../slm/ModelFormatSpikeTest.kt`. It **skips unless given a `modelPath` argument**, so it is inert in CI. Delete it once this task closes.
 
 
@@ -1249,6 +1263,8 @@ Security/compliance (10–15%) + instrumentation (5–10%). Also fills a genuine
 
 The long pole. Gated on the section 06 go/no-go.
 
+**↻ Reframed 2026-09-22 by [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md).** This section is no longer what makes T2 work — T190's constrained decoding is. Fine-tuning is now a **measured experiment**: benchmarked against a constrained few-shot baseline on the frozen held-out split, with whichever wins on the numbers being what ships. That is a deliberate demotion and it makes the section *safer*, not less important. A disappointing fine-tune used to mean a launcher that emitted malformed JSON; now it means a row in T083's comparison table, which is a result worth publishing either way.
+
 - [ ] **T074** — Synthetic dataset: intent × phrasing × slot variation  
   `P0` `L` · after: T036
   - Target 800–1,500 examples total including harvested real ones.
@@ -1364,4 +1380,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**188 tasks — 98 done, 90 open** (recounted 2026-09-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**189 tasks — 98 done, 91 open** (recounted 2026-09-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
