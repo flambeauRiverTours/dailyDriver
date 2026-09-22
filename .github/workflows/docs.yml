@@ -1,6 +1,6 @@
 name: Docs
 
-# Builds the MkDocs site and publishes it to GitHub Pages.
+# Builds the MkDocs site. **Publishing is disabled** — see the `deploy` job at the bottom (T189).
 #
 # Only runs when something the site is actually made of changes. Note the path is `website/`, not
 # `docs/`: the site is built from the employer-facing pages in `website/`, while `docs/` holds the
@@ -55,8 +55,23 @@ jobs:
 
   # Publishing is a separate job so pull requests get the build check without deploying —
   # a PR from a fork must never be able to publish to the live site.
+  #
+  # ⚠ DISABLED 2026-09-22 (T189). GitHub Pages is not enabled on this repository and cannot
+  # simply be switched on: Pages for a private repo needs a paid plan, and making the repo public
+  # is not on the table (the T014 command-log export is still reachable in history at 2553b0c).
+  # This job had been failing on every push to `main` since at least 2026-09-14 with
+  # `Failed to create deployment (status: 404) ... Ensure GitHub Pages has been enabled`, while
+  # passing on every branch — because a branch only ever runs `build`.
+  #
+  # **The half that was catching anything still runs.** `mkdocs build --strict` above turns a
+  # broken internal link or a page missing from the nav into a failed check, on pull requests and
+  # on main alike. Only publishing is off, so `website/` stays verifiable even while nothing
+  # serves it. Disabling the whole workflow would have thrown that away too.
+  #
+  # Re-enable by turning Pages on in repo settings and restoring the original condition:
+  #   if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: false
     needs: build
     runs-on: ubuntu-latest
     permissions:
