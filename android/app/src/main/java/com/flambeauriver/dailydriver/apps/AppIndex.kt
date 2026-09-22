@@ -7,6 +7,10 @@ package com.flambeauriver.dailydriver.apps
  */
 class AppIndex {
 
+    // @Volatile because refreshIfStale writes this from a background dispatcher while the UI
+    // and the command matcher read it from the main thread. The list itself is immutable, so
+    // publishing the reference safely is the whole requirement.
+    @Volatile
     private var entries: List<AppEntry> = emptyList()
 
     val apps: List<AppEntry> get() = entries
