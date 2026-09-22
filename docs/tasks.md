@@ -1158,6 +1158,26 @@ Deliberately **after** there is code to build. Work through it alongside AZ-400 
   `P1` `M` · after: T116
   - Cache NuGet and Gradle. If you blow the budget, move Android to GitHub Actions (2,000 free min/month) and keep .NET on Azure Pipelines.
 
+- [ ] **T188** — Instrumented-test job fails about half the time on an emulator that never boots  
+  `P1` `M` · after: T158 · blocks: T123
+  - **Found 2026-09-22 while checking T029's CI run.** Three of the last five occasions failed, each with `##[error]Timeout waiting for emulator to boot.` at the 600-second limit. `adb -s emulator-5554` reports `device 'emulator-5554' not found` for the entire window, so the APK is never installed and **not one test runs** — this is not a failing test, it is a job that never started.
+  - **Not caused by any particular change.** The identical error hit `588269a` on 2026-09-21, which was a **docs-only** commit that cannot break an emulator boot. T029 then hit it on both its branch and its merge commit, which is what prompted the look.
+  - **Not an emulator-version regression either.** The same build, `37.1.11.0`, booted successfully at 08:20 on 2026-09-22 (`795fbab`) and failed at 12:53 the same day. Verified by reading the version banner out of both logs rather than assuming.
+  - **KVM is not the missing piece** — T158 already installs the udev rule, and it is present in the failing runs. The emulator prints its version banner and then emits nothing at all for ten minutes, so it dies or hangs immediately after start rather than failing to find acceleration.
+  - **Two suspects, neither confirmed.** `aosp_atd` is a stripped-down image chosen at T158 for boot speed and is the less-travelled path; and `reactivecircus/android-emulator-runner` runs `sdkmanager --install emulator --channel=0` on every job, so the emulator binary is **whatever is newest that day** — an unpinned dependency inside a pinned-looking workflow.
+  - **Why this is worth fixing rather than re-running.** T158's own record says the instrumented suite is the only thing that has ever caught a bug in the database layer, and that it has done so three times (T018's outbox cascade, T151's serialization conflict, T157's index). A check that fails at random gets ignored, and the next bug of that class rides through a red X nobody reads any more.
+  - **It also blocks T123.** That task wires required status checks to branch protection, and `main` cannot be gated on a check that fails half the time for reasons unrelated to the code.
+  - Try in this order, cheapest first: **pin the emulator version** so the variable stops moving; swap `aosp_atd` for `default` or `google_apis` and measure what it costs in boot time; add the action's AVD snapshot cache so boot is restored rather than cold. **Add a retry last, if at all** — a retry around a job that fails half the time makes the symptom go away while destroying the evidence, and T158 exists because CI problems here were only ever solved by reading the actual failure.
+- [ ] **T189** — The website builds on every merge and nothing serves it  
+  `P1` `S` · after: T158
+  - **Found 2026-09-22 while checking T029's CI run.** The Docs workflow succeeds on every branch and fails on every push to `main`, going back to at least 2026-09-14. The build is fine; `actions/deploy-pages@v4` returns `Failed to create deployment (status: 404) ... Ensure GitHub Pages has been enabled`. `gh api repos/flambeauRiverTours/dailyDriver/pages` also 404s: **Pages has never been enabled on this repository.**
+  - So `https://flambeauRiverTours.github.io/dailyDriver/` (the `site_url` in `mkdocs.yml`) serves nothing, and every accuracy pass on `website/` has been landing in an artifact that is built and then discarded.
+  - **Cannot simply be turned on** (user's call, 2026-09-22): Pages on a private repository requires a paid plan.
+  - **⚠ And "just make the repo public" is worse than it sounds.** The first T014 command-log export was committed in `2553b0c` and is **still reachable in history** — `git cat-file -s` confirms the 34 KB blob. Removing it from the working tree and gitignoring it (T014's follow-up) did not remove it from the repository. Making this repo public would publish a month of everything typed at the home screen, including full `:google` queries, and T075's redaction pass has not happened. Any route that goes through making the repo public needs history rewritten first.
+  - **`deploy` is disabled with `if: false` rather than the workflow deleted**, so `mkdocs build --strict` still runs on pull requests and on main. A broken internal link or a page missing from the nav still fails a check. Only publishing is off.
+  - **This does not relax the root `CLAUDE.md` rule.** "Keep the site current" exists because `website/` is a portfolio surface, and the surface has to be accurate by the time anyone is pointed at it — a site that is wrong on the day it first goes live is exactly what that rule is written against.
+  - Resolve by choosing one: a paid plan that allows private-repo Pages; a separate public repository holding only the built site; or another host for the artifact. Whichever it is, **re-enable the `deploy` job in the same change** so the fix is not "it works now" with the publish still switched off.
+
 
 ## 11 · Security & observability (AZ-400)
 
@@ -1320,4 +1340,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**186 tasks — 98 done, 88 open** (recounted 2026-09-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**188 tasks — 98 done, 90 open** (recounted 2026-09-22). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
