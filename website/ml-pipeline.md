@@ -13,8 +13,15 @@
 Turning natural language typed at the prompt, like *"remind me to call the dentist tomorrow"*, into
 structured intent JSON. All of it on the phone, with no network call.
 
-**Planned:** Gemma-2 2B or Gemma-3 1B, PEFT LoRA, MediaPipe converter, MediaPipe LLM Inference on
-the GPU backend.
+**Planned:** a Gemma model in the 270M to 2B range, PEFT LoRA or a full fine-tune depending on
+which model wins, MediaPipe converter, MediaPipe LLM Inference on the GPU backend.
+
+Model selection is still open and is being decided on measurement rather than on preference. The
+project sets itself a budget of under 1.5 GB resident during inference, and that budget is what
+narrowed the field: the largest candidate is published only at 8-bit and would need close to twice
+that. Smaller models fit easily but most of them cannot take a LoRA adapter under this runtime, so
+the real question is what accuracy a smaller model reaches on a closed set of eighteen intents.
+The work to answer that is scheduled before any training starts.
 
 ---
 

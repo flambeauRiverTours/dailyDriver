@@ -196,12 +196,28 @@ Key config is split across two objects:
 
 **LoRA constraints that shape model choice:** MediaPipe LoRA inference requires `backend = 'gpu'`, applies to attention layers only, and is documented as experimental. Compatible models are Gemma variants and Phi-2 (the Android guide names Gemma-2 2B, Gemma 2B, and Phi-2 explicitly). Adapters are trained with PEFT (`target_modules = ["q_proj","v_proj","k_proj","o_proj"]`) and converted with MediaPipe's `converter.ConversionConfig()`.
 
-**Model selection:** validate LoRA on the target device *before* committing. Two candidates:
+**Model selection:** validate LoRA on the target device *before* committing. **Four candidates, not two** (T039, 2026-09-22):
 
-- **Gemma-2 2B** — LoRA supported. **2.71 GB** (q8 `.task`).
-- **Gemma-3 1B (4-bit)** — **555–722 MB**, roughly a quarter the size, but **LoRA is not supported**.
+| Candidate | Smallest artifact | LoRA | Fits §2's < 1.5 GB |
+|---|---|---|---|
+| **Gemma-2 2B** | **2.63 GB** — q8 only, no int4 published | Yes | **No** |
+| **Gemma 2B / Gemma 1.1 2B** | **1.35 GB** (`gpu-int4`, Kaggle) | Yes | **Yes** |
+| **Gemma-3 1B** | 555 MB (q4) · 1.02 GB (q8) | No | Yes |
+| **Gemma-3 270M** | 249 MB (q4) · 276 MB (q8) | No | Yes |
 
-*Updated 2026-08-22 (T095 research).* The documentation is no longer ambiguous: the LLM Inference API supports LoRA on attention layers for **Gemma-2 2B, Gemma 2B and Phi-2**, and Gemma-3 1B is not among them. So this is not a choice between two fine-tunable models — it is a choice between fine-tuning at 2.71 GB and giving up fine-tuning for a quarter of the footprint.
+*Updated 2026-08-22 (T095 research).* The documentation is no longer ambiguous: the LLM Inference API supports LoRA on attention layers for **Gemma-2 2B, Gemma 2B and Phi-2**, and Gemma-3 1B is not among them.
+
+*Updated 2026-09-22 (T039 research).* Two facts reshape the choice, both checked against artifacts rather than documentation.
+
+**Gemma-2 2B breaches §2's own memory target.** Every artifact `litert-community` publishes for it is 8-bit, 2.63–2.71 GB; there is no int4. §2 sets "Model resident memory < 1.5 GB during inference", so the plan of record misses it by ~1.8x on weights alone, before KV cache and activations — on the process that *is* the home screen. The obvious escape is closed: self-converting an int4 means the Torch Generative converter, which MediaPipe documents as **CPU-only**, and LoRA is **GPU-only**. You cannot have both.
+
+**Gemma 2B (the original) was never evaluated and is the only candidate that satisfies both constraints.** Kaggle publishes `gemma-2b-it-gpu-int4` and `gemma-1.1-2b-it-gpu-int4` at **1.35 GB**, it is on the LoRA list, and T039's spike confirmed MediaPipe 0.10.35 still parses the pre-`.task` `.bin` format it ships in. Its cost is age: February 2024, and weaker than Gemma-2 2B on every published benchmark. Prefer the 1.1 instruction tune.
+
+**Below 1B, LoRA stops being necessary.** A 270M model can be *fully* fine-tuned on free hardware, merged, and converted — which is a stronger portfolio artifact than an adapter, not a weaker one, and it sidesteps the GPU-only LoRA constraint. MediaPipe 0.10.35 carries `LLM_MODEL_TYPE_GEMMA3_300M` and `LLM_MODEL_TYPE_FUNCTIONGEMMA3_300M` as first-class model types, and Google publishes `FunctionGemma-270M-Mobile-Actions` — a Gemma fine-tuned for mobile action extraction, which is this project's task. The unproven step is converting a fine-tuned Gemma-3 checkpoint into something MediaPipe loads.
+
+**⚠ Supply chain:** every `.task` under `litert-community` is **gated** (HTTP 401 without a Hugging Face token), for Gemma-2 2B, Gemma-3 1B and the 270M alike. Kaggle's Gemma artifacts are gated too. Only unofficial community re-uploads of the old `.bin` files are openly fetchable, and those carry no redistribution standing under T094. §4.5 already anticipated this: first-run has to hand off to the user rather than fetch silently.
+
+**⚠ The runtime is already LiteRT-LM.** Every error path inside `libllm_inference_engine_jni.so` names `third_party/odml/litert_lm/runtime/...`. The v2 migration (T091/T092) is therefore likely an API change over the same engine rather than a change of engine, which makes it cheaper than the risk note above assumes and worth revisiting sooner.
 
 Spike this in Phase 2 and let the measurement decide. If LoRA proves unworkable, the fallback is few-shot prompting + a stricter repair pass, and the portfolio narrative shifts from "fine-tuned" to "evaluated fine-tuning and shipped the alternative, with numbers" — still a legitimate result, but decide it on evidence rather than at the first error.
 
