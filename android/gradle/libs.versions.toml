@@ -18,6 +18,11 @@ orgJson = "20250107"
 # Must match what room-migration 2.8.4 compiled its schema-bundle serializers against — see the
 # kotlinx-serialization-core note in app/build.gradle.kts (T023).
 kotlinxSerialization = "1.8.1"
+# MediaPipe LLM Inference, the T2 tier's runtime (T029, ADR-0003). 0.10.35 is the latest published
+# release and it landed 2026-04-27; the Android guide still shows 0.10.27. That gap is what §4.4's
+# "maintenance-only mode" looks like from the outside, and it is the reason every call sits behind
+# `InferenceEngine` rather than being reached directly.
+mediapipeTasksGenai = "0.10.35"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,6 +52,9 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+# Brings guava 27.0.1-android and protobuf-javalite 4.26.1 transitively, plus a ~27 MB native
+# library per ABI — see the abiFilters note in app/build.gradle.kts before adding an ABI.
+mediapipe-tasks-genai = { group = "com.google.mediapipe", name = "tasks-genai", version.ref = "mediapipeTasksGenai" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

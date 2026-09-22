@@ -95,8 +95,34 @@ android {
         }
     }
 
+    // ABI filtering, required by MediaPipe rather than chosen for tidiness (T029).
+    //
+    // `tasks-genai` ships `libllm_inference_engine_jni.so` for four ABIs, and native libraries are
+    // stored *uncompressed* in the APK (`useLegacyPackaging` has defaulted to false since AGP 4.2),
+    // so each one costs its full size: arm64-v8a 26.6 MB, armeabi-v7a 19.2 MB, x86 32.7 MB,
+    // x86_64 30.2 MB. Shipping all four takes a 22 MB release APK past 130 MB to carry three
+    // copies the target device (SM-G781V, arm64-v8a) can never execute.
+    //
+    // **Debug keeps x86_64, and that is not symmetry for its own sake.** CI runs the instrumented
+    // suite on an API 33 x86_64 emulator (`.github/workflows/android.yml`), and an APK containing
+    // native libraries with none matching the device ABI is rejected at install with
+    // `INSTALL_FAILED_NO_MATCHING_ABIS`. Filtering debug down to arm64 alone would break
+    // `connectedDebugAndroidTest` — which android/CLAUDE.md calls the only thing that has ever
+    // caught a bug in the Room layer — with an error that reads like a broken emulator rather than
+    // like a build setting. The emulator still cannot run *inference*: it is
+    // `-gpu swiftshader_indirect`, and Google's guide says the API "does not reliably support
+    // device emulators". It only has to install and let the Room tests run.
     buildTypes {
+        debug {
+            ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        }
         release {
+            // ChromeOsAbiSupport wants x86_64 kept so the APK runs on a Chromebook. It is
+            // correct about the consequence and wrong about the goal: this is a HOME launcher
+            // pinned to one phone (android/CLAUDE.md, T001), and 30 MB of native library for a
+            // platform that is not a target is a worse answer than the warning.
+            //noinspection ChromeOsAbiSupport
+            ndk { abiFilters += listOf("arm64-v8a") }
             // Null when unconfigured, which leaves the APK unsigned rather than failing.
             signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
@@ -155,6 +181,9 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    // T2's inference runtime (T029). Nothing outside `slm/` may import this — the whole point of
+    // `InferenceEngine` is that the command pipeline never names MediaPipe.
+    implementation(libs.mediapipe.tasks.genai)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)

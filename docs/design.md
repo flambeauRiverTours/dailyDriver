@@ -181,9 +181,16 @@ Model output contract:
 
 ### 4.4 On-device inference
 
-**Runtime:** MediaPipe LLM Inference API (`LlmInference` / `LlmInferenceOptions`), GPU backend.
+**Runtime:** MediaPipe LLM Inference API (`LlmInference` / `LlmInferenceOptions`), GPU backend. Pinned at **`com.google.mediapipe:tasks-genai:0.10.35`** (T029).
 
-Key config: `modelPath`, `maxTokens` (512 default is ample — commands are short), `temperature` set low (~0.1; this is extraction, not creative writing), `topK`, `loraPath`.
+Key config is split across two objects:
+
+- **`LlmInferenceOptions`**, per model: `modelPath`, `maxTokens` (512 is ample — commands are short), `maxTopK`, `supportedLoraRanks`, `preferredBackend`.
+- **`LlmInferenceSessionOptions`**, per generation: `temperature` set low (~0.1; this is extraction, not creative writing), `topK`, `topP`, `randomSeed`, **`loraPath`**, `promptTemplates`.
+
+> **↻ Corrected 2026-09-22 (T029), read off the 0.10.35 AAR rather than the guide.** This section listed all of the above as one flat set on `LlmInferenceOptions`, which has not been true for several versions. Two consequences carry into the spike. **Applying a LoRA adapter is two steps in two places** — the supported ranks are declared when the engine is built, before any adapter has been chosen, and the adapter path is supplied per session — so T037's gate has to exercise both halves or it proves nothing. And the **latest published release is 0.10.35, from 2026-04-27**, while the Android guide still shows 0.10.27; that gap is what maintenance-only mode looks like from outside, and it is the reason the API shape was taken from the artifact instead of the documentation.
+
+> **⚠ Open question from the same read: `LlmInferenceSessionOptions` now carries `setConstraintHandle(long)`.** That is a hook for constrained decoding — the one thing [ADR-0003](adr/0003-mediapipe-over-llama-cpp.md) accepts giving up, and the reason the five-layer defence below exists at all. Nothing in the `tasks-genai` AAR builds such a handle and `com.google.mediapipe` publishes no companion artifact that obviously would, so this is **not** a reversal. It is worth half an hour before T032 writes a prompt around the assumption that the runtime cannot constrain output. If a handle proves reachable, ADR-0003 needs a supersede note and T034 gets smaller.
 
 > **⚠ Known risk, accepted deliberately.** Google has placed the MediaPipe LLM Inference API in **maintenance-only mode** and is directing new work to **LiteRT-LM**. This design uses MediaPipe as specified, but *all* inference sits behind an `InferenceEngine` interface (`suspend fun infer(prompt: String): String`, plus lifecycle) with `MediaPipeEngine` as the first implementation. A `LiteRtLmEngine` can be swapped in without touching the command pipeline. Doing that migration and benchmarking both backends is a strong portfolio artifact in its own right — budget it as an explicit v2 milestone rather than an emergency.
 

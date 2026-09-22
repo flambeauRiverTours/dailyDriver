@@ -4,10 +4,11 @@
 
     What does exist is the code that will sit around the model: the inference interface, and the
     five-layer defence that turns whatever the model emits into validated intent JSON or refuses
-    it. Those are built and tested against deliberately malformed output. Collection of real
-    training data has also been running on the phone since August. This fills the launcher's
-    [T2 tier](android.md#the-command-cascade), and the launcher runs without it today. This page
-    gets rewritten as the rest lands.
+    it. Those are built and tested against deliberately malformed output. The MediaPipe runtime
+    is in the app now, along with the class that will drive it, although nothing calls that class
+    yet. Collection of real training data has also been running on the phone since August. This
+    fills the launcher's [T2 tier](android.md#the-command-cascade), and the launcher runs
+    without it today. This page gets rewritten as the rest lands.
 
 Turning natural language typed at the prompt, like *"remind me to call the dentist tomorrow"*, into
 structured intent JSON. All of it on the phone, with no network call.
@@ -53,8 +54,9 @@ reason the log was built before the launcher shipped.
 
 ## Structured output without grammar constraints
 
-MediaPipe has no grammar-constrained decoding. Unlike llama.cpp's GBNF it cannot be forced to emit
-valid JSON, so schema adherence is probabilistic and defended in layers:
+MediaPipe offers no grammar-constrained decoding through its public Android API. Unlike
+llama.cpp's GBNF it cannot be forced to emit valid JSON, so schema adherence is probabilistic and
+defended in layers:
 
 1. Tight few-shot prompt with the schema inline. *Planned.*
 2. Low temperature, around 0.1, since this is extraction and not writing. *Planned.*
@@ -70,6 +72,10 @@ confidence score, because that score is what the decision to abstain rests on.
 
 Getting step 5 to fire rarely is the whole reason to fine-tune. The fallback is what makes the
 feature safe to ship.
+
+Adding the library to the app turned up a hook for constrained decoding in the current release,
+with no public way to build the value it takes. That is being checked before the prompt work
+starts. If it can be reached, the first two layers change and the last three stay as they are.
 
 ---
 
