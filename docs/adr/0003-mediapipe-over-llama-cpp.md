@@ -1,6 +1,18 @@
 # 0003. MediaPipe LLM Inference API over llama.cpp for on-device inference
 
-Status: Accepted
+Status: **Accepted.** One consequence reversed by [0011](0011-constrained-decoding-and-fine-tuning-as-experiment.md) (2026-09-22).
+
+> **The decision stands and is vindicated; its one significant cost turned out to be temporary.**
+> This ADR accepted a single real loss — that MediaPipe could not force valid JSON where
+> llama.cpp could through GBNF — and the five-layer defence in §4.4 exists to pay for it. That
+> cost is gone. MediaPipe does have constrained decoding: the runtime carries a full
+> implementation and the builder ships in `com.google.ai.edge.localagents:localagents-fc`, which
+> depends on `tasks-genai` itself. See [0011](0011-constrained-decoding-and-fine-tuning-as-experiment.md).
+>
+> Nothing below is struck through, because nothing below was wrong when it was written, and the
+> alternatives analysis still holds — llama.cpp's advantage was real, it simply stopped being an
+> advantage. The paragraph beginning "The real cost is that MediaPipe can't force the model's
+> output to be valid JSON" should now be read as historical.
 
 ## Context
 

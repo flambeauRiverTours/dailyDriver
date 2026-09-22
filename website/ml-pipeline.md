@@ -19,9 +19,10 @@ which model wins, MediaPipe converter, MediaPipe LLM Inference on the GPU backen
 Model selection is still open and is being decided on measurement rather than on preference. The
 project sets itself a budget of under 1.5 GB resident during inference, and that budget is what
 narrowed the field: the largest candidate is published only at 8-bit and would need close to twice
-that. Smaller models fit easily but most of them cannot take a LoRA adapter under this runtime, so
-the real question is what accuracy a smaller model reaches on a closed set of eighteen intents.
-The work to answer that is scheduled before any training starts.
+that. Smaller models fit easily but most of them cannot take a LoRA adapter under this runtime.
+That used to rule them out. It no longer does, because the tuned model is no longer what
+guarantees valid output, so the remaining question is what accuracy a small model reaches on a
+closed set of eighteen intents. The work to answer that is scheduled before any training starts.
 
 ---
 
@@ -59,11 +60,17 @@ reason the log was built before the launcher shipped.
 
 ---
 
-## Structured output without grammar constraints
+## Structured output
 
-MediaPipe offers no grammar-constrained decoding through its public Android API. Unlike
-llama.cpp's GBNF it cannot be forced to emit valid JSON, so schema adherence is probabilistic and
-defended in layers:
+The runtime can be told to emit only output that fits a given shape. The list of eighteen commands
+would become a fixed set of allowed values, so the model could not name a nineteenth one, and the
+fields carrying the details would be typed. That turns malformed output from unlikely into
+impossible. *Planned, and not yet built.*
+
+This was not the original plan, and this page said the opposite until September 2026. The capability
+turned out to exist in a companion library rather than the main one, which took a read of the
+shipped code to find. The five layers below were built to survive output that could not be trusted,
+and they are kept as the fallback for the cases where the constraint cannot be applied:
 
 1. Tight few-shot prompt with the schema inline. *Planned.*
 2. Low temperature, around 0.1, since this is extraction and not writing. *Planned.*
@@ -77,12 +84,13 @@ built before the model because they are what makes a bad answer safe, and becaus
 need one to be tested. A repair pass is only allowed to fix syntax: it will not invent a missing
 confidence score, because that score is what the decision to abstain rests on.
 
-Getting step 5 to fire rarely is the whole reason to fine-tune. The fallback is what makes the
-feature safe to ship.
+The fallback is what makes the feature safe to ship.
 
-Adding the library to the app turned up a hook for constrained decoding in the current release,
-with no public way to build the value it takes. That is being checked before the prompt work
-starts. If it can be reached, the first two layers change and the last three stay as they are.
+This page used to say that getting step 5 to fire rarely was the whole reason to fine-tune. With a
+constrained decoder that step cannot fire at all, so the reason has been restated. Fine-tuning is
+now measured rather than assumed: the tuned model is compared against an untuned one running under
+the same constraint, on a held-out set frozen before any training, and the one that scores better
+is the one that ships. Both numbers get published either way.
 
 ---
 

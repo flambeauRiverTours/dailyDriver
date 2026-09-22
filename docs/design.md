@@ -221,7 +221,21 @@ Key config is split across two objects:
 
 Spike this in Phase 2 and let the measurement decide. If LoRA proves unworkable, the fallback is few-shot prompting + a stricter repair pass, and the portfolio narrative shifts from "fine-tuned" to "evaluated fine-tuning and shipped the alternative, with numbers" — still a legitimate result, but decide it on evidence rather than at the first error.
 
-**Structured output.** MediaPipe has no grammar-constrained decoding (unlike llama.cpp's GBNF), so schema adherence is probabilistic and must be defended in layers:
+**Structured output.** **↻ Rewritten 2026-09-22 — see [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md).** This section used to open "MediaPipe has no grammar-constrained decoding (unlike llama.cpp's GBNF), so schema adherence is probabilistic". That is false. MediaPipe does have it; the builder simply ships in a companion artifact, **`com.google.ai.edge.localagents:localagents-fc`**, which depends on `tasks-genai` itself:
+
+```
+LlmInference.getSentencePieceProcessorHandle(): long
+  → FstConstraintProvider(long)
+  → .createConstraint(List<Tool>, ConstraintOptions): Constraint
+  → .getConstraintHandle(): long
+  → LlmInferenceSessionOptions.builder().setConstraintHandle(...)
+```
+
+`Schema` carries an `enum` list and `ConstraintOptions` carries `ToolCallOnly`, so §4.3's closed-world label space is expressible as a hard constraint: **the model cannot emit a nineteenth intent.** Primary mechanism (T190):
+
+0. **Constrained decoding.** The intent is an `enum`-constrained field and the slots are typed parameters, so malformed output is structurally impossible rather than merely unlikely.
+
+The five layers below are **retained as the fallback** for when the constraint path is unavailable — a backend that does not implement it (the native library has `UpdateConstraintMask not implemented for this backend`, with only an OpenCL implementation present), a model without a matching formatter, or a constraint that fails to build. They are no longer the primary defence, and T034's repair pass is no longer load-bearing:
 
 1. Tight few-shot prompt with the schema inline.
 2. Low temperature.
@@ -229,7 +243,9 @@ Spike this in Phase 2 and let the measurement decide. If LoRA proves unworkable,
 4. Repair pass: trailing commas, unquoted keys, markdown fences.
 5. Validate against the schema; on failure or `confidence < τ`, drop to T3.
 
-Making step 5 fire rarely is the primary justification for fine-tuning at all.
+**⚠ Constraining the shape of an answer says nothing about whether it is right.** A constrained `confidence` is still a number the model invents, so T035's threshold, the abstention path and §4.3's `unknown` intent all stand unchanged. Structural validity is not correctness.
+
+**Fine-tuning's justification is restated.** This section used to close: *"Making step 5 fire rarely is the primary justification for fine-tuning at all."* With step 5 structurally unable to fire on the constraint path, that justification no longer holds, and fine-tuning is **not a dependency of T2**. It remains a first-class goal of the project, measured rather than assumed: the fine-tune is benchmarked against a constrained few-shot baseline on the frozen held-out split (§8, T083), and whichever wins on the numbers is what ships. **LoRA is therefore no longer a requirement**, which reopens T039 to models that do not support adapters at all.
 
 ### 4.5 Model lifecycle
 
