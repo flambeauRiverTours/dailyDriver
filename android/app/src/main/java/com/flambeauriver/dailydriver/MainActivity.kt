@@ -240,6 +240,11 @@ class MainActivity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             enterImmersiveMode()
+            // Also the backstop for a wrong app index (2026-09-22). Package broadcasts catch
+            // every real install and uninstall, but they cannot catch a query that came back
+            // short — which happened on the daily-driven device, and stuck, because nothing ever
+            // asked again. RefreshGate keeps this from costing anything on a typical HOME press.
+            lifecycleScope.launch { appIndexRepository.refreshIfStale() }
             // T015: HOME re-focuses the input. Regaining window focus is the general form of
             // "back at the launcher" — the HOME button/gesture chief among them, but also BACK
             // from an app with an empty back stack, or dismissing the shade — so one signal here

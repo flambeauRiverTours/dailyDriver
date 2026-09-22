@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Required for AppIndexRepository's queryIntentActivities(ACTION_MAIN + CATEGORY_LAUNCHER)
          to see other apps' packages at all on API 30+ — there is NO automatic package-visibility
@@ -12,6 +13,37 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
+
+    <!-- The <queries> block above is the correct, minimal declaration and is kept as the
+         statement of intent. This permission is the belt to its braces, added 2026-09-22 after
+         the launcher spent a day showing only system apps on the daily-driven S20 FE.
+
+         What was observed: after a reboot, the app could see exactly the platform's
+         forceQueryable set and nothing else — Gaming Hub, Gallery, Clock, Play Store — while
+         Gmail, Spotify and Firefox were invisible. The APK was verified with aapt2 to contain
+         this <queries> element, and its manifest is identical to the previous release that had
+         worked for a month, so the declaration was present and correct and still granted
+         nothing. Reinstalling the same APK restored every app immediately, which puts the fault
+         in device-side visibility state that a reboot loses and an install rebuilds.
+
+         An app cannot repair that from inside, and an index that silently drops nine tenths of
+         its content is the worst kind of failure: the launcher still works, still matches, still
+         launches something — just the wrong app, with no error anywhere. QUERY_ALL_PACKAGES is a
+         normal permission granted at install and persisted like any other, rather than a filter
+         grant derived at runtime, so it does not depend on the mechanism that failed.
+
+         Play Console restricts this permission, and a launcher is one of its explicitly permitted
+         uses. This app is sideloaded from a GitHub Release and is not distributed through Play at
+         all, so the policy question does not arise either way.
+
+         Suppressed rather than configured away in lint.xml, and scoped to this one element, so the
+         suppression cannot outlive the permission or quietly cover a second use. The check is a
+         Play Console compliance rule ("most apps on Google Play are not allowed to have this
+         permission"), and it is right for almost every app — which is why the reasoning above is
+         written out here rather than the check simply being switched off. -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
 
     <application
         android:allowBackup="true"
