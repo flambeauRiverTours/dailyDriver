@@ -962,10 +962,34 @@ Room schema, Markdown format, outbox from day one.
   - **⚠ Answer the memory question first — it is cheaper and it can eliminate a candidate outright** (T039, 2026-09-22). Gemma-2 2B publishes only q8 at 2.63 GB against §2's "< 1.5 GB resident", so a plain load plus `dumpsys meminfo` decides it with no adapter and no training. Spending the timebox proving LoRA on a model that cannot fit would answer the wrong question.
   - **⚠ This cannot be done on an emulator, demonstrated at T039.** The AVD has no OpenCL, so every load fails at engine init regardless of the file. The S20 FE is the only device that can answer this, which makes adb reachability a prerequisite rather than a convenience.
   - **Exercise both halves of LoRA.** `setSupportedLoraRanks` is declared on `LlmInferenceOptions` when the engine is built; `setLoraPath` is supplied per session. The runtime also requires the rank to be a multiple of 4 and the adapter metadata to carry `lora_rank` — both are `RET_CHECK` failures inside `libllm_inference_engine_jni.so`, so get them right before concluding anything about viability.
-- [ ] **T038** — Baseline latency + peak memory measurement  
+- [x] **T038** — Baseline latency + peak memory measurement  
   `P0` `M` · after: T031
-- [ ] **T039** — DECISION: Gemma-2 2B vs Gemma-3 1B — record rationale  
+  - **✅ Measured 2026-09-23 on the S20 FE**, both candidates, warm, through `MediaPipeEngine` and T032's prompt.
+
+    | | **Gemma-3 270M q4** | **Gemma 1.1 2B int4** |
+    |---|---|---|
+    | File | 249 MB | 1.35 GB |
+    | Load | 7.9 s | 10.3–11.0 s |
+    | Infer, warm | 3568 / 3425 ms | 3936 / 4175 ms |
+    | Generated | 554 chars (runs on) | **107 chars (stops cleanly)** |
+    | PSS after load | **430 MB** | **1663–1683 MB** |
+    | PSS after inference | 462 MB | 1666–1671 MB |
+    | §2 budget, < 1.5 GB | ✅ 3x headroom | ❌ **over by ~11%** |
+    | Answer | correct | correct |
+
+  - **⚠ The 2B does not fit the device, not merely the budget.** `MemAvailable` at the time was **1,638 MB** and its PSS was **1,663–1,683 MB**. It loaded because the kernel reclaimed from elsewhere, which on the process that *is* the home screen means either the launcher gets killed or everything around it does. §2's number turns out to be generous rather than arbitrary.
+  - **⚠ These are floors, not ceilings.** `summary.graphics` reported **0** on both runs, which is implausible for a GPU backend and means GPU-side allocation is probably not included in `totalPss`. Treat every number above as a lower bound; it makes the 2B's breach worse and never better.
+  - **The 2B is ~5x slower per token, exactly as its parameter count predicts.** 107 chars in ~3.9 s against 554 chars in ~3.5 s. Its apparent parity on wall-clock is entirely because it wastes fewer tokens, not because it is fast.
+  - **✨ And it stops.** The 2B emits one clean JSON object and ends; the 270M runs on with fabricated exchanges (T032). That is a real quality edge, and it is the one thing the smaller model is worse at.
+- [x] **T039** — DECISION: Gemma-2 2B vs Gemma-3 1B — record rationale  
   `P0` `S` · after: T037
+  - **✅ DECIDED 2026-09-23: Gemma-3 270M.** T038's measurements settle it, and the task's own title is now doubly stale — the winner was never one of the two models it names.
+  - **Gemma 1.1 2B is eliminated on memory, which is structural.** 1,663–1,683 MB PSS against §2's 1.5 GB budget *and* against the 1,638 MB the device actually had free. There is no quantization below int4 published for it, T039 already established the Torch converter is CPU-only so we cannot make one without losing the GPU, and no prompt change moves a weights footprint. On the process that is the home screen this is not a tuning problem.
+  - **The 270M's weakness is fixable and its rival's is not.** It runs on for ~450 wasted characters, which T033 already discards with correctness intact and which costs latency rather than accuracy. Fix the stopping and it projects to **~0.7 s**, inside §2's 1.5 s target; the 2B sits at 3.9 s *after* stopping cleanly, because it is five times the model.
+  - **It also unlocks the better fine-tuning story** ([ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md)). At 270M a *full* fine-tune runs on free hardware with no adapter, so LoRA, the GPU-only conversion path and T037's whole gate stop being on the critical path. That was the point of demoting fine-tuning from dependency to experiment.
+  - **Keep Gemma 1.1 2B as the LoRA experiment**, not as a shipping candidate. It is the only model here on MediaPipe's LoRA list, so if T037 ever runs it is the subject — and its result becomes a row in T083's table rather than something the launcher depends on.
+  - **⚠ Do not read this as "bigger did not help".** The 2B answered correctly *and* stopped cleanly, which the 270M does not. It lost on a device constraint, and on a different phone it might well win. Record the constraint, not a general claim.
+  - **What closes the remaining latency gap** is the stopping problem, which is T190's constrained decoder (parked on vocabulary support) or a cheaper bound on generation. Nothing about it depends on the model choice.
   - Gemma-3 1B LoRA support is not clearly documented; Gemma-2 2B is. Let measurement decide, then write it down.
   - **🔎 Narrowed 2026-08-22 while answering T095.** The MediaPipe docs are no longer ambiguous: *"The LLM Inference API only supports LoRA on attention layers"* for **Gemma-2 2B, Gemma 2B and Phi-2**. Gemma-3 1B is not on that list. So this is no longer "let measurement decide" between two LoRA-capable models — **if LoRA is required, Gemma-2 2B is the only Gemma option**, and Gemma-3 1B is a choice to *give up* fine-tuning in exchange for being roughly a quarter of the size (555–722 MB q4 against 2.71 GB q8).
   - That reframes T037's gate: it is no longer only "does LoRA work on this device", it is "does LoRA work on Gemma-2 2B on this device", with the fallback being either few-shot on the same model or a switch to the much smaller Gemma-3 1B.
@@ -1430,4 +1454,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**189 tasks — 101 done, 88 open** (recounted 2026-09-23). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**189 tasks — 103 done, 86 open** (recounted 2026-09-23). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
