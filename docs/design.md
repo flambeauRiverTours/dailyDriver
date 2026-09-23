@@ -251,6 +251,8 @@ The five layers below are **retained as the fallback** for when the constraint p
 
 Model weights are too large to bundle in an APK — they must be downloaded at runtime.
 
+> **⚠ The file extension selects the loader** (T031, 2026-09-23, found on-device). MediaPipe dispatches on it: `.task` takes the zip-bundle path, anything else takes the flat-flatbuffer path. The same 249,233,408-byte Gemma-3 270M artifact was rejected as `model.task` with `UNKNOWN: Unable to open zip archive` and loaded on both GPU and CPU as `model.bin`. The artifacts obtainable today — Kaggle's `gemma-2b-it-gpu-int4.bin` and `litert-community`'s `-web` variants — are flat flatbuffers beginning `1c 00 00 00 TFL3`, not zips, so **whatever T087 writes to disk must not be named `.task` unless it really is a bundle.** Storing a file under the name it was published with is the failure mode here.
+
 - First run: prompt the user, download over unmetered network via `WorkManager`, verify SHA-256, store in app-private storage.
 - The LoRA adapter is small (single-digit MB) and may be bundled or shipped alongside.
 - The launcher is **fully functional at T0/T1/T3 before the model exists**. SLM features degrade gracefully and announce themselves when ready.

@@ -1,14 +1,14 @@
 # On-device ML pipeline
 
-!!! warning "Not started. There is no model, no dataset and no training pipeline yet."
+!!! warning "In progress. A model runs on the phone. There is no dataset and no training yet."
 
-    What does exist is the code that will sit around the model: the inference interface, and the
-    five-layer defence that turns whatever the model emits into validated intent JSON or refuses
-    it. Those are built and tested against deliberately malformed output. The MediaPipe runtime
-    is in the app now, along with the class that will drive it, although nothing calls that class
-    yet. Collection of real training data has also been running on the phone since August. This
-    fills the launcher's [T2 tier](android.md#the-command-cascade), and the launcher runs
-    without it today. This page gets rewritten as the rest lands.
+    A small language model now loads and answers on the target phone, through the same class the
+    launcher will use, although the launcher does not call it yet. Around it sits the code that
+    was built first: the inference interface, and the five layers that turn whatever the model
+    emits into validated intent JSON or refuse it, tested against deliberately malformed output.
+    Collection of real training data has been running on the phone since August. This fills the
+    launcher's [T2 tier](android.md#the-command-cascade), and the launcher runs without it
+    today. This page gets rewritten as the rest lands.
 
 Turning natural language typed at the prompt, like *"remind me to call the dentist tomorrow"*, into
 structured intent JSON. All of it on the phone, with no network call.
@@ -85,6 +85,24 @@ need one to be tested. A repair pass is only allowed to fix syntax: it will not 
 confidence score, because that score is what the decision to abstain rests on.
 
 The fallback is what makes the feature safe to ship.
+
+The first run on the phone made the case for constraining output better than the argument did. A
+270 million parameter model was asked for intent JSON and returned this:
+
+```json
+{"intent": "...", "slots": {}, "confidence": 0.0}
+```
+
+It copied the placeholder out of the prompt instead of filling it in. The shape is right and the
+content is worthless, which is the exact case the validation layer exists to catch, and it would
+catch it, because three dots is not one of the eighteen allowed commands. Under a constrained
+decoder it could not have been produced at all.
+
+The same run measured latency at about seven seconds, which looks far outside the 1.5 second
+budget until you count what was generated: roughly 300 tokens where about 20 were wanted, because
+nothing told the model to stop. That works out to a healthy rate for a model this size on this
+hardware, and the answer that was actually needed projects to under half a second. The number to
+fix is the token count, not the model.
 
 This page used to say that getting step 5 to fire rarely was the whole reason to fine-tune. With a
 constrained decoder that step cannot fire at all, so the reason has been restated. Fine-tuning is

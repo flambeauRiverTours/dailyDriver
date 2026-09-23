@@ -115,6 +115,23 @@ android {
     buildTypes {
         debug {
             ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+
+            // **A separate package, so the daily driver is never the thing under test** (T030).
+            //
+            // The phone runs a signed release build and *is* the author's home screen, holding a
+            // Room database of notes and the T014 command log, neither of which syncs anywhere.
+            // Installing a debug build over it means either a version-code fight or, if the keys
+            // ever diverge, an uninstall — and an uninstall there is real data loss.
+            //
+            // With a suffix the two coexist: `…dailydriver` stays the launcher you use, and
+            // `…dailydriver.debug` is a throwaway that instrumented tests and model spikes can
+            // install, fill and delete freely. Remove it with:
+            //   adb uninstall com.flambeauriver.dailydriver.debug
+            //
+            // Safe for the Room schema directory, which is named from the *namespace* (the
+            // database class's FQN) rather than from applicationId — see the rename warning in
+            // android/CLAUDE.md, which is about `namespace` and does not apply here.
+            applicationIdSuffix = ".debug"
         }
         release {
             // ChromeOsAbiSupport wants x86_64 kept so the APK runs on a Chromebook. It is

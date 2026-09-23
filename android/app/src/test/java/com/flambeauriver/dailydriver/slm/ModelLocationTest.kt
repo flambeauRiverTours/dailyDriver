@@ -76,6 +76,17 @@ class ModelLocationTest {
     }
 
     @Test
+    fun `the default file name is not dot-task, because MediaPipe dispatches on the extension`() {
+        // Found on-device at T031: the same Gemma-3 270M artifact is rejected with "Unable to open
+        // zip archive" as `model.task` and loads as `model.bin`, because `.task` selects the
+        // zip-bundle loader and every artifact this project can obtain is a flat flatbuffer.
+        // Pinned as a test rather than left as a comment, because it is invisible in code review
+        // and only fails on a device with a real model present.
+        assertFalse(ModelLocation.DEFAULT_FILE_NAME.endsWith(".task"))
+        assertEquals("model.bin", ModelLocation.DEFAULT_FILE_NAME)
+    }
+
+    @Test
     fun `the file name is configurable so two models can sit side by side`() {
         // T039 decides between Gemma-2 2B and Gemma-3 1B, and T038 measures both. Having them
         // coexist on the device is what makes that a measurement rather than two install cycles.

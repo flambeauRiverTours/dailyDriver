@@ -20,14 +20,14 @@ through fine-tuning, quantization, deployment and benchmarks.
 | **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 870 automated tests. |
 | **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | Application shell on the .NET Generic Host with dependency injection, an EF Core and SQLite store with migrations, the MVVM two-pane layout, a working Markdown editor with live preview and autosave, and a note list with tag filtering. 84 automated tests. No sync or sign-in yet. |
 | **[Azure backend](backend.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design and data model complete. |
-| **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-outline:{ .status-todo } Not started | No model and no training yet. The inference runtime is now part of the app, the code that will consume a model is built and tested, and a month of real usage has been logged on the phone to seed the dataset. |
+| **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | A small language model now loads and answers on the phone, through the same code the launcher will use. No training yet. A month of real usage has been logged on the phone to seed the dataset. |
 
 The Android launcher is finished to its first milestone and in daily use as a real home screen,
 installed from a signed release built by CI. The desktop client can write, store, list and filter
 notes, and is being worked on now. The backend has a finished design and an empty project
-scaffold. The ML pipeline has a finished design, the inference runtime in the app, the parsing
-and validation layers that will sit around the model, and its first month of collected training
-data. Every page says which it is at
+scaffold. The ML pipeline has a finished design, a model that loads and answers on the phone, the
+parsing and validation layers that sit around it, and its first month of collected training data.
+Training has not started. Every page says which it is at
 the top.
 
 ---
@@ -105,6 +105,6 @@ was decided and what broke while building each feature, and ten
 [architecture decision records](https://github.com/flambeauRiverTours/dailyDriver/tree/main/docs/adr).
 This site is the overview and links to them.
 
-!!! info "Last updated: 22 September 2026"
+!!! info "Last updated: 23 September 2026"
 
     Reflects the state of `main` on that date.
