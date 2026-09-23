@@ -201,6 +201,21 @@ dependencies {
     // T2's inference runtime (T029). Nothing outside `slm/` may import this — the whole point of
     // `InferenceEngine` is that the command pipeline never names MediaPipe.
     implementation(libs.mediapipe.tasks.genai)
+    // Constrained decoding (T190, ADR-0011).
+    //
+    // **`org.json` is excluded because Android already ships it in the framework.** It sits on
+    // the bootclasspath, so the framework classes win at runtime whatever the APK contains and
+    // the bundled jar is dead weight that only makes "which JSONObject is this?" a question
+    // somebody has to answer later. `IntentSchema.kt` has used the framework one since T035 and
+    // keeps doing so. The version catalog still declares `org-json` for *unit tests*, where there
+    // is no framework to provide it (T019) — that entry is unrelated and must stay.
+    //
+    // Guava also resolves upward here, 27.0.1-android → 33.3.1-android, because this dependency
+    // asks for the newer one. Nothing in this app calls Guava directly; it arrives under
+    // `LlmInference.generateResponseAsync`, which we do not use.
+    implementation(libs.localagents.fc) {
+        exclude(group = "org.json", module = "json")
+    }
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)
