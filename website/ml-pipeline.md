@@ -16,13 +16,18 @@ structured intent JSON. All of it on the phone, with no network call.
 **Planned:** a Gemma model in the 270M to 2B range, PEFT LoRA or a full fine-tune depending on
 which model wins, MediaPipe converter, MediaPipe LLM Inference on the GPU backend.
 
-Model selection is still open and is being decided on measurement rather than on preference. The
-project sets itself a budget of under 1.5 GB resident during inference, and that budget is what
-narrowed the field: the largest candidate is published only at 8-bit and would need close to twice
-that. Smaller models fit easily but most of them cannot take a LoRA adapter under this runtime.
-That used to rule them out. It no longer does, because the tuned model is no longer what
-guarantees valid output, so the remaining question is what accuracy a small model reaches on a
-closed set of eighteen intents. The work to answer that is scheduled before any training starts.
+The model is now chosen, on measurement rather than preference: a 270 million parameter Gemma.
+The project sets itself a budget of under 1.5 GB resident during inference, and that budget is
+what decided it. Both remaining candidates were run on the target phone. The small one holds at
+462 MB and answers correctly. The two billion parameter one reaches about 1.67 GB, which is over
+the budget and also over the memory the phone actually had free at the time, on the process that
+is the home screen. No quantization below four bits is published for it and converting one
+ourselves would forfeit the GPU, so that is a limit rather than something to tune around.
+
+The larger model was better in one respect, and the record says so: it answered correctly and
+stopped cleanly, where the small one runs on past its answer and has to be trimmed. It lost on a
+device constraint, not on quality. The remaining question is what accuracy the small model reaches
+on a closed set of eighteen intents, which is what the training work is for.
 
 ---
 

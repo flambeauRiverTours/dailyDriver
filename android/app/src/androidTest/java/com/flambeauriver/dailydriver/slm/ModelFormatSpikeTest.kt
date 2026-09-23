@@ -1,5 +1,6 @@
 package com.flambeauriver.dailydriver.slm
 
+import android.os.Debug
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
@@ -57,8 +58,10 @@ class ModelFormatSpikeTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val engine = MediaPipeEngine(context, ModelLocation(file.parentFile, file.name))
 
+        val before = pss()
         val loadMs = measureTimeMillis { runBlocking { engine.load() } }
         val state = engine.state
+        val afterLoad = pss()
 
         val prompt = PromptTemplate.forCommand("remind me to call the dentist tomorrow")
 
@@ -69,10 +72,12 @@ class ModelFormatSpikeTest {
         repeat(3) {
             timings += measureTimeMillis { raw = runBlocking { engine.infer(prompt) } }
         }
+        val afterInfer = pss()
         engine.close()
 
         throw AssertionError(
             "state=$state loadMs=$loadMs inferMs=$timings rawChars=${raw?.length} " +
+                "pssMB before=$before afterLoad=$afterLoad afterInfer=$afterInfer " +
                 "RAW>>>${raw?.take(600)}<<<END"
         )
     }
@@ -109,5 +114,21 @@ class ModelFormatSpikeTest {
                     "This is the result we wanted; the throw is how the spike reports it.",
             )
         }
+    }
+
+    /**
+     * Total PSS in MB, which is the number §2's "< 1.5 GB resident" budget has to be judged
+     * against.
+     *
+     * **`getTotalPss` rather than the Java heap**, because almost none of a loaded model is on
+     * the Java heap: the weights are native and, on the GPU backend, a large share is graphics
+     * memory. `summary.graphics` is reported separately for the same reason — a number that
+     * omitted it would look comfortably inside budget and be wrong.
+     */
+    private fun pss(): String {
+        val info = Debug.MemoryInfo()
+        Debug.getMemoryInfo(info)
+        val graphics = info.getMemoryStat("summary.graphics")?.toIntOrNull() ?: 0
+        return "${info.totalPss / 1024}(gfx ${graphics / 1024})"
     }
 }

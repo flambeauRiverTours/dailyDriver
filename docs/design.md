@@ -201,9 +201,11 @@ Key config is split across two objects:
 | Candidate | Smallest artifact | LoRA | Fits §2's < 1.5 GB |
 |---|---|---|---|
 | **Gemma-2 2B** | **2.63 GB** — q8 only, no int4 published | Yes | **No** |
-| **Gemma 2B / Gemma 1.1 2B** | **1.35 GB** (`gpu-int4`, Kaggle) | Yes | **Yes** |
+| **Gemma 2B / Gemma 1.1 2B** | **1.35 GB** (`gpu-int4`, Kaggle) | Yes | **No — 1,663 MB measured** |
 | **Gemma-3 1B** | 555 MB (q4) · 1.02 GB (q8) | No | Yes |
-| **Gemma-3 270M** | 249 MB (q4) · 276 MB (q8) | No | Yes |
+| **Gemma-3 270M** ✅ **chosen** | 249 MB (q4) · 276 MB (q8) | No, and does not need it | Yes — **462 MB measured** |
+
+**✅ Decided 2026-09-23 (T039), on measurement rather than on argument: Gemma-3 270M.** T038 measured both remaining candidates on the S20 FE. The 270M sits at **462 MB PSS** with correct answers; **Gemma 1.1 2B reaches 1,663–1,683 MB**, which is over §2's 1.5 GB budget *and* over the 1,638 MB the device actually had free, on the process that is the home screen. That is structural: no quantization below int4 is published for it, the Torch converter is CPU-only so we cannot make one without losing the GPU, and no prompt change moves a weights footprint. The 2B stays as the LoRA experiment subject, never as a shipping candidate. **⚠ Not a claim that bigger did not help** — the 2B answered correctly *and* stopped cleanly at 107 characters where the 270M runs on to 554. It lost on a device constraint. **⚠ And the memory numbers are floors**: `summary.graphics` reported 0 on both runs, which is implausible on a GPU backend, so GPU-side allocation is probably outside `totalPss`.
 
 *Updated 2026-08-22 (T095 research).* The documentation is no longer ambiguous: the LLM Inference API supports LoRA on attention layers for **Gemma-2 2B, Gemma 2B and Phi-2**, and Gemma-3 1B is not among them.
 
