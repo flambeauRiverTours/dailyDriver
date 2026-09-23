@@ -17,7 +17,7 @@ through fine-tuning, quantization, deployment and benchmarks.
 
 | Area | Status | What exists |
 |---|---|---|
-| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 870 automated tests. |
+| **[Android launcher](android.md)** | :material-check-circle:{ .status-done } **Shipped** | CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes, checklist and task system on Room. 899 automated tests. |
 | **[Desktop client (.NET/WPF)](desktop.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | Application shell on the .NET Generic Host with dependency injection, an EF Core and SQLite store with migrations, the MVVM two-pane layout, a working Markdown editor with live preview and autosave, and a note list with tag filtering. 84 automated tests. No sync or sign-in yet. |
 | **[Azure backend](backend.md)** | :material-circle-outline:{ .status-todo } Not started | Project scaffold. Design and data model complete. |
 | **[On-device ML pipeline](ml-pipeline.md)** | :material-circle-slice-4:{ .status-wip } **In progress** | A small language model is chosen, measured on the phone, and answers correctly through the same code the launcher will use. No training yet. A month of real usage has been logged on the phone to seed the dataset. |

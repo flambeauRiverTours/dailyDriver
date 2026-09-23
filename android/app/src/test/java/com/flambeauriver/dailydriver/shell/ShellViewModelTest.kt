@@ -489,7 +489,7 @@ class ShellViewModelTest {
         viewModel.onSubmit()
 
         assertEquals(
-            "natural language needs the SLM (not built yet) — type :help or ? for commands",
+            "couldn't turn that into a command — type :help or ? for commands",
             viewModel.transcript.entries[1].text,
         )
     }

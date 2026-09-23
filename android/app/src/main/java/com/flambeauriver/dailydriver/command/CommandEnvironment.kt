@@ -34,6 +34,19 @@ interface CommandEnvironment {
     /** True once notification access has been granted; `:notif` behaves differently without it. */
     val hasNotificationAccess: Boolean
 
+    /**
+     * The T2 tier's model (T036).
+     *
+     * **Arrives through this interface rather than being reached directly**, for the reason every
+     * other capability does: dispatch stays unit-testable because a fake can supply
+     * [com.flambeauriver.dailydriver.slm.NoInferenceEngine] or a canned one.
+     *
+     * **It is [com.flambeauriver.dailydriver.slm.NoInferenceEngine] in production today**, which
+     * is not a placeholder — it is what runs until T087 downloads weights, and on any device
+     * where that has not happened. Wiring T2 in does not put a model on anyone's phone.
+     */
+    val inferenceEngine: com.flambeauriver.dailydriver.slm.InferenceEngine
+
     fun launchApp(packageName: String): Boolean
 
     fun openSettings(): Boolean

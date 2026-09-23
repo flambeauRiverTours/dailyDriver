@@ -27,8 +27,11 @@ class UnmatchedResponseTest {
         // what happened. The tier distinction T009 established is what makes this possible.
         val response = unmatchedResponse("call mom tonight", EscalationTier.T2)
 
-        assertTrue(response.contains("natural language"))
-        assertTrue(response.contains("not built yet"))
+        // Asserted as an absence, because that is the actual invariant: whatever the wording
+        // says, it must not call prose a failed app-name match. The message text itself changed
+        // at T036 when the SLM stopped being "not built yet".
+        assertFalse(response.contains("no match"))
+        assertTrue(response.contains("couldn't turn that into a command"))
     }
 
     @Test

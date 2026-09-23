@@ -3,7 +3,7 @@
 !!! warning "In progress. A model runs on the phone. There is no dataset and no training yet."
 
     A small language model now loads and answers on the target phone, through the same class the
-    launcher will use, although the launcher does not call it yet. Around it sits the code that
+    launcher will use, and the launcher now calls it, as the last stage before giving up. Around it sits the code that
     was built first: the inference interface, and the five layers that turn whatever the model
     emits into validated intent JSON or refuse it, tested against deliberately malformed output.
     Collection of real training data has been running on the phone since August. This fills the

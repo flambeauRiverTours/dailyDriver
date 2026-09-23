@@ -33,6 +33,8 @@ import com.flambeauriver.dailydriver.shell.ShellScreen
 import com.flambeauriver.dailydriver.shell.ShellViewModel
 import androidx.compose.runtime.remember
 import com.flambeauriver.dailydriver.command.CommandEnvironment
+import com.flambeauriver.dailydriver.slm.InferenceEngine
+import com.flambeauriver.dailydriver.slm.NoInferenceEngine
 import com.flambeauriver.dailydriver.command.CommandUsageDao
 import com.flambeauriver.dailydriver.data.DatabaseProvider
 import com.flambeauriver.dailydriver.command.CommandResolution
@@ -170,6 +172,13 @@ class MainActivity : AppCompatActivity() {
         override val aliases get() = aliasRepository.aliases
 
         override val hasNotificationAccess get() = notificationRepository.hasAccess()
+
+        /**
+         * T2’s engine (T036). [NoInferenceEngine] until T087 downloads weights, which means
+         * wiring T2 in changes nothing on a device that has no model — `resolveIntent` sees a
+         * state other than `Loaded` and returns null, and dispatch falls to T3 exactly as before.
+         */
+        override val inferenceEngine: InferenceEngine = NoInferenceEngine
 
         override fun launchApp(packageName: String) = launcher.launchApp(packageName)
 

@@ -14,6 +14,8 @@ import com.flambeauriver.dailydriver.notes.soleAutoOpenTarget
 import com.flambeauriver.dailydriver.search.googleSearchUrl
 import com.flambeauriver.dailydriver.search.searchedText
 import com.flambeauriver.dailydriver.shell.shortDate
+import com.flambeauriver.dailydriver.slm.commandLineFor
+import com.flambeauriver.dailydriver.slm.resolveIntent
 import java.time.LocalDate
 
 /**
@@ -63,6 +65,7 @@ suspend fun dispatchCommand(
     env: CommandEnvironment,
     today: LocalDate = LocalDate.now(),
     includeAliases: Boolean = true,
+    allowSlm: Boolean = true,
 ): CommandOutcome {
     if (input.isBlank()) return CommandOutcome.Silent
 
@@ -74,9 +77,12 @@ suspend fun dispatchCommand(
 
     val top = rankCandidates(input, buildCandidates(env.apps, env.aliases, includeAliases), env.usageCounts())
         .firstOrNull()
-    // T3. T2 is skipped while the SLM is absent — see [unmatchedResponse] for why prose degrades
-    // here rather than dead-ending.
-        ?: return CommandOutcome.say(unmatchedResponse(input, escalationTier(input)))
+    // **T2, then T3.** Reaching here means T0 and T1 both missed, which is exactly and only where
+    // the SLM is allowed to run — the root hard constraint is that it never sits on the fast path,
+    // and structurally it cannot, because the deterministic tiers have already answered or
+    // declined by this line.
+        ?: return runSlm(input, env, today, allowSlm)
+            ?: CommandOutcome.say(unmatchedResponse(input, escalationTier(input)))
 
     return when (val candidate = top.candidate) {
         // Built from the registry rather than by reassembling and re-parsing a string: the matcher
@@ -102,6 +108,36 @@ suspend fun dispatchCommand(
             CommandOutcome.Silent
         }
     }
+}
+
+/**
+ * T2: ask the model, and act on the answer by re-entering dispatch with the line it implies.
+ *
+ * **Null means "T2 had nothing", and every path that produces it is ordinary.** Single-word input
+ * never reaches the model at all (§4.2: prose is multi-word, and T1 already had its shot at a
+ * one-word app name). No model, a failed inference, output that will not validate, a label outside
+ * §4.3, or an intent with no command line — all of them fall through to T3 rather than guessing.
+ *
+ * **`allowSlm = false` on the recursion, and it is load-bearing.** The synthesised line is
+ * dispatched exactly as if it had been typed, and for `open_app` that line is a bare app name
+ * which may itself miss. Without the guard that miss would call the model again on text the model
+ * just produced, and keep doing so. Same shape as `includeAliases` above, and for the same reason:
+ * making "one substitution" structural rather than a property of the data.
+ *
+ * Aliases are left enabled on the recursion, deliberately — if the model says to open `gm` and
+ * `gm` is an alias, expanding it is what the user means.
+ */
+private suspend fun runSlm(
+    input: String,
+    env: CommandEnvironment,
+    today: LocalDate,
+    allowSlm: Boolean,
+): CommandOutcome? {
+    if (!allowSlm) return null
+    if (escalationTier(input) != EscalationTier.T2) return null
+
+    val line = resolveIntent(input, env.inferenceEngine)?.let(::commandLineFor) ?: return null
+    return dispatchCommand(line, env, today, allowSlm = false)
 }
 
 /** Re-attaches an argument to an expansion, without inventing a trailing space when there is none. */

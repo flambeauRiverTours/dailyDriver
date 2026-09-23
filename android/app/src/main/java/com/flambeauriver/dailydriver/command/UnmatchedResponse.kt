@@ -14,9 +14,12 @@ private const val HELP_HINT = "type :help or ? for commands"
  * find something T1 missed. Implemented as help only, rather than as a second search that can't
  * fire.
  *
- * **Both tiers point at [helpText], neither dead-ends.** T2 has no handler yet (the SLM lands at
- * T036), but the root hard constraint is that the launcher stays fully usable while the model is
- * absent — so prose degrades to the same actionable pointer instead of a bare "not built yet".
+ * **Both tiers point at [helpText], neither dead-ends.** Since T036 the T2 branch is what is left
+ * *after* the SLM has had its turn and declined — no model, a failed inference, output that would
+ * not validate, an abstention, or an intent with no command line all arrive here. The wording
+ * changed with it: it used to say "not built yet", which stopped being true when the tier was
+ * wired in, and a message must not name a cause it cannot distinguish between.
+ *
  * The tier stays distinguishable in the wording because "call mom tonight" isn't an app-name
  * typo, and saying "no match" about it would misdescribe what happened.
  *
@@ -26,5 +29,5 @@ private const val HELP_HINT = "type :help or ? for commands"
  */
 fun unmatchedResponse(input: String, tier: EscalationTier): String = when (tier) {
     EscalationTier.T3 -> "no match for '${input.trim()}' — $HELP_HINT"
-    EscalationTier.T2 -> "natural language needs the SLM (not built yet) — $HELP_HINT"
+    EscalationTier.T2 -> "couldn't turn that into a command — $HELP_HINT"
 }
