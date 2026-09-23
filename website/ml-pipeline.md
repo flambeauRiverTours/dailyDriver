@@ -86,23 +86,34 @@ confidence score, because that score is what the decision to abstain rests on.
 
 The fallback is what makes the feature safe to ship.
 
-The first run on the phone made the case for constraining output better than the argument did. A
-270 million parameter model was asked for intent JSON and returned this:
+The first run on the phone returned this, for the command "remind me to call the dentist
+tomorrow":
 
 ```json
 {"intent": "...", "slots": {}, "confidence": 0.0}
 ```
 
-It copied the placeholder out of the prompt instead of filling it in. The shape is right and the
-content is worthless, which is the exact case the validation layer exists to catch, and it would
-catch it, because three dots is not one of the eighteen allowed commands. Under a constrained
-decoder it could not have been produced at all.
+It had copied the placeholder out of the prompt instead of filling it in. The shape is right and
+the content is worthless, which is the case the validation layer exists to catch, and it would
+catch it, because three dots is not one of the eighteen allowed commands.
 
-The same run measured latency at about seven seconds, which looks far outside the 1.5 second
-budget until you count what was generated: roughly 300 tokens where about 20 were wanted, because
-nothing told the model to stop. That works out to a healthy rate for a model this size on this
-hardware, and the answer that was actually needed projects to under half a second. The number to
-fix is the token count, not the model.
+The cause was that the model had not been told it was in a conversation. An instruction-tuned
+model is trained with markers around each turn and emits one to signal it has finished, which is
+what the runtime watches for. Without them it treats the prompt as text to continue rather than a
+question to answer. Adding the markers, together with a proper set of worked examples, changed
+the same command to:
+
+```json
+{"intent": "add_task", "slots": {"text": "call the dentist", "due": "tomorrow"}, "confidence": 0.9}
+```
+
+Latency halved at the same time, from about seven seconds to about three. That is still over the
+1.5 second target, and the reason is now precisely known. Having answered in a hundred characters
+the model carries on inventing further questions and answering those too, until it reaches its
+token limit. Roughly four fifths of what it generates is discarded. The extraction layer throws
+the invented material away and keeps the first complete object, so the answer stays correct and
+only the time is wasted. A constrained decoder stops at the end of the object, which is the
+change that closes the remaining gap.
 
 This page used to say that getting step 5 to fire rarely was the whole reason to fine-tune. With a
 constrained decoder that step cannot fire at all, so the reason has been restated. Fine-tuning is

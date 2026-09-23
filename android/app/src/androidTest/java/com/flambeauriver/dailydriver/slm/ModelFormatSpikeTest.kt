@@ -60,16 +60,7 @@ class ModelFormatSpikeTest {
         val loadMs = measureTimeMillis { runBlocking { engine.load() } }
         val state = engine.state
 
-        val prompt = buildString {
-            append("Extract the intent and slots from the command as JSON.\n")
-            append("Allowed intents: open_app, list_apps, open_settings, create_note, open_note, ")
-            append("create_checklist, search_notes, check_item, add_task, list_tasks, ")
-            append("list_completed_tasks, define_alias, list_aliases, list_notifications, ")
-            append("web_search, export_log, help, unknown.\n")
-            append("Reply with only JSON: {\"intent\": \"...\", \"slots\": {}, \"confidence\": 0.0}\n\n")
-            append("Command: remind me to call the dentist tomorrow\n")
-            append("JSON:")
-        }
+        val prompt = PromptTemplate.forCommand("remind me to call the dentist tomorrow")
 
         // Three runs, because the first includes one-time GPU kernel compilation and quoting it
         // as the latency would overstate the steady state by several seconds.
@@ -82,7 +73,7 @@ class ModelFormatSpikeTest {
 
         throw AssertionError(
             "state=$state loadMs=$loadMs inferMs=$timings rawChars=${raw?.length} " +
-                "RAW>>>${raw?.take(200)}<<<END"
+                "RAW>>>${raw?.take(600)}<<<END"
         )
     }
 
