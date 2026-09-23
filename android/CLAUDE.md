@@ -40,6 +40,14 @@ Write the test before the implementation for anything with logic in it. This mod
   ./gradlew :app:connectedDebugAndroidTest
   ```
 
+  **⚠ Running one test class with `am instrument` is NOT running the suite.** T036 shipped two
+  instrumented regressions because the spike work drove individual classes directly and never ran
+  `connectedDebugAndroidTest` again: `ExampleInstrumentedTest` still asserted the applicationId
+  that T031's `applicationIdSuffix` had changed, and `MediaPipeEngineTest` still hardcoded
+  `"model.task"` after T031 changed `DEFAULT_FILE_NAME` to `model.bin`. Unit tests, lint and the
+  compiler were green through all of it, and CI failed three merges in a row. **Targeted runs are
+  for iterating; the full suite is what you run before committing.**
+
   **This is not optional caution — it is the only thing that has ever caught a bug in this layer.** T018 shipped a note upsert that silently cascade-deleted its own pending outbox row on every save. The unit suite (410 tests), lint, and the Kotlin compiler all passed it; a single instrumented test failed on the first run. Anything that only manifests against real SQLite is invisible to everything else we run.
 
   Operational notes, each learned the hard way at T018:

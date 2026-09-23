@@ -88,8 +88,11 @@ class MediaPipeEngineTest {
         // not exist on this device, which is worth knowing before spending a 2.7 GB push on it.
         val location = ModelLocation(baseDir = context.getExternalFilesDir(null))
 
+        // **Derived from the constant, never re-typed.** This test hardcoded "model.task" and
+        // went red the moment T031 changed the default to `model.bin` — a duplicated constant in
+        // the exact place that was meant to be the single source of truth for it.
         assertEquals(
-            File(context.getExternalFilesDir(null), "model.task").absolutePath,
+            File(context.getExternalFilesDir(null), ModelLocation.DEFAULT_FILE_NAME).absolutePath,
             location.path,
         )
     }
