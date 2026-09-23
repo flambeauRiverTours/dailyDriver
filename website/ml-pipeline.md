@@ -65,7 +65,9 @@ reason the log was built before the launcher shipped.
 The runtime can be told to emit only output that fits a given shape. The list of eighteen commands
 would become a fixed set of allowed values, so the model could not name a nineteenth one, and the
 fields carrying the details would be typed. That turns malformed output from unlikely into
-impossible. *Planned, and not yet built.*
+impossible. *Planned. Tried in September 2026 and not yet reachable: the library that builds the
+constraint does not support the vocabulary of either model available here, which was only legible
+once its own expected runtime version was matched. The layers below carry the work meanwhile.*
 
 This was not the original plan, and this page said the opposite until September 2026. The capability
 turned out to exist in a companion library rather than the main one, which took a read of the

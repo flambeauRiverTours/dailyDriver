@@ -1,6 +1,20 @@
 # 0011. Constrained decoding, and fine-tuning as an experiment rather than a dependency
 
-Status: Accepted
+Status: **Accepted.** Not yet reachable in practice — see the note below (2026-09-23).
+
+> **⚠ The mechanism exists and is still the right target; no artifact this project can obtain
+> can currently use it.** T190 measured every combination of the two available models against
+> both runtime versions. With the pairing `localagents-fc` actually declares, `tasks-genai
+> 0.10.24`, the chain works end to end and the library returns a clear refusal:
+> `Unsupported vocabulary type for Fst-Constraints library.` With 0.10.35 the handle layout
+> differs and the failures are noise (`Invalid end token: 2`, and a SIGSEGV on one artifact).
+>
+> So the decision below stands and nothing in it is withdrawn: constrained decoding is real, the
+> call chain is confirmed, and fine-tuning stays a measured experiment rather than a dependency.
+> What changed is the schedule. §4.4's five layers carry T2 in the meantime, which is what they
+> were built for, and T032 measured them absorbing exactly the failure this was meant to remove.
+> The lead worth following is the FunctionGemma family, which the library and runtime both name
+> — but it publishes no MediaPipe-loadable artifact today, so it likely arrives with T091.
 
 ## Context
 
