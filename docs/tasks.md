@@ -970,9 +970,14 @@ Room schema, Markdown format, outbox from day one.
   - **APK cost is small and already-shaped.** Native libraries ship for **arm64-v8a and x86_64 only**, exactly the two ABIs T029's `abiFilters` already selects. `libjni_fst_constraint_android.so` is 2.67 MB plus `libjni_gemma_formatter_android.so` at 1.34 MB; exclude the Llama and Hammer formatters.
   - **⚠ Cannot be tested on an emulator**, for the same reason as everything else in this section (T039): no OpenCL, so engine init fails before any of this runs.
   - **Nothing here has been executed.** The whole chain is read off the AAR and the native library. Treat the first on-device run as the real verification.
-- [ ] **T037** — GO/NO-GO: LoRA viability spike on target device  
+- [x] **T037** — GO/NO-GO: LoRA viability spike on target device  
   `P0` `L` · after: T031
   - **DECISION GATE, TIMEBOXED.** Does a LoRA adapter load on the GPU backend with the chosen model? If no: fall back to few-shot and reframe the portfolio narrative. Do not start dataset work until answered.
+  - **✅ ANSWERED 2026-09-23, from evidence rather than by running it. The gate is superseded, and the honest result is that the question no longer applies.**
+  - **The chosen model cannot take a LoRA adapter, so the gate's question has no subject.** T039 chose **Gemma-3 270M** on measurement. MediaPipe documents LoRA for **Gemma-2 2B, Gemma 2B and Phi-2** only, and the runtime's own error string pins the reason: it expects `transformer.layer_(0-34).attn.(q|k|v|attn_vec_einsum).w_prime_(left|right)`, and **`attn_vec_einsum` is Gemma 1/2 architecture naming**. LoRA here is bound to the older architecture, not merely undocumented for the newer one.
+  - **That is not a NO-GO, because [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md) already removed what this gate protected.** The gate was written when the plan assumed a 2B model whose size made an adapter the only affordable way to fine-tune. At 270M a **full** fine-tune runs on free hardware, so there is no adapter to load and nothing for a GO/NO-GO to decide. The gate's own instruction — "if no: fall back to few-shot and reframe the portfolio narrative" — was carried out in advance by that ADR.
+  - **Running it as written would have cost a training run to learn nothing.** The only LoRA-capable model this project can obtain is Gemma 1.1 2B, which T038 eliminated at 1,663–1,683 MB against §2's 1.5 GB budget. Proving an adapter loads on a model we will not ship answers no question we still have. **The timebox existed precisely to stop this**, so spending it here would have been the failure the gate was written to prevent.
+  - **⚠ The risk it was covering has moved, and is now section 12's.** What is genuinely unproven is **converting a fine-tuned Gemma-3 checkpoint into something MediaPipe loads** — §4.4 names it as the unproven step, T030's convert half was never exercised because `litert-community` publishes pre-converted artifacts, and MediaPipe documents its Torch Generative converter as **CPU-only**, which would forfeit the GPU backend the launcher uses. **Answer that before T078 trains anything**, for exactly the reason this gate existed.
   - **⚠ Answer the memory question first — it is cheaper and it can eliminate a candidate outright** (T039, 2026-09-22). Gemma-2 2B publishes only q8 at 2.63 GB against §2's "< 1.5 GB resident", so a plain load plus `dumpsys meminfo` decides it with no adapter and no training. Spending the timebox proving LoRA on a model that cannot fit would answer the wrong question.
   - **⚠ This cannot be done on an emulator, demonstrated at T039.** The AVD has no OpenCL, so every load fails at engine init regardless of the file. The S20 FE is the only device that can answer this, which makes adb reachability a prerequisite rather than a convenience.
   - **Exercise both halves of LoRA.** `setSupportedLoraRanks` is declared on `LlmInferenceOptions` when the engine is built; `setLoraPath` is supplied per session. The runtime also requires the rank to be a multiple of 4 and the adapter metadata to carry `lora_rank` — both are `RET_CHECK` failures inside `libllm_inference_engine_jni.so`, so get them right before concluding anything about viability.
@@ -1367,11 +1372,14 @@ The long pole. Gated on the section 06 go/no-go.
   - Do not skip. Do not peek. Everything downstream is meaningless if this leaks.
 - [ ] **T078** — PEFT LoRA training run (q/k/v/o_proj)  
   `P0` `L` · after: T077, T039
+  - **⚠ Assumes an adapter the chosen model cannot use** (T037, 2026-09-23). T039 chose Gemma-3 270M and MediaPipe's LoRA support is bound to Gemma 1/2 architecture naming. At 270M this becomes a **full fine-tune**, which is cheaper on free hardware and a stronger portfolio artifact than an adapter ([ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md)). Retitle when it is picked up; `q/k/v/o_proj` targeting stops applying.
   - Trained off-device.
 - [ ] **T079** — Convert adapter via MediaPipe ConversionConfig  
   `P0` `M` · after: T078
+  - **⚠ There is no adapter to convert** (T037, 2026-09-23). This becomes converting a **fully fine-tuned checkpoint**, and it is now the riskiest step in the section: §4.4 names it unproven, T030's convert half was never exercised because pre-converted artifacts exist, and MediaPipe's Torch Generative converter is documented **CPU-only** — which would forfeit the GPU backend. **Spike this before T078 spends a training run.**
 - [ ] **T080** — Deploy adapter, verify load on GPU backend  
   `P0` `M` · after: T079
+  - **⚠ Deploys a converted model, not an adapter** (T037, 2026-09-23). `setSupportedLoraRanks`/`setLoraPath` do not apply. What still applies is the on-device verification: T031's extension rule (`.task` selects the zip loader, anything else the flat one) and T038's memory budget.
   - LoRA weights apply to attention layers only; GPU backend required.
 
 
@@ -1468,4 +1476,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**189 tasks — 104 done, 85 open** (recounted 2026-09-23). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**189 tasks — 105 done, 84 open** (recounted 2026-09-23). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
