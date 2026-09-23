@@ -3,10 +3,12 @@ package com.flambeauriver.dailydriver.slm
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
+import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import kotlin.system.measureTimeMillis
 
 /**
  * **A spike, not a suite member.** Answers one question for T039: does MediaPipe 0.10.35 still
@@ -44,6 +46,45 @@ class ModelFormatSpikeTest {
 
     @Test
     fun loadsOnCpuBackend() = attemptLoad(LlmInference.Backend.CPU)
+
+    @Test
+    fun theEngineLoadsAndAnswersOnce() {
+        val path = modelPath
+        assumeTrue("no modelPath argument supplied; spike skipped", path != null)
+        val file = File(path!!)
+        assumeTrue("model not present at $path", file.isFile && file.length() > 0)
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val engine = MediaPipeEngine(context, ModelLocation(file.parentFile, file.name))
+
+        val loadMs = measureTimeMillis { runBlocking { engine.load() } }
+        val state = engine.state
+
+        val prompt = buildString {
+            append("Extract the intent and slots from the command as JSON.\n")
+            append("Allowed intents: open_app, list_apps, open_settings, create_note, open_note, ")
+            append("create_checklist, search_notes, check_item, add_task, list_tasks, ")
+            append("list_completed_tasks, define_alias, list_aliases, list_notifications, ")
+            append("web_search, export_log, help, unknown.\n")
+            append("Reply with only JSON: {\"intent\": \"...\", \"slots\": {}, \"confidence\": 0.0}\n\n")
+            append("Command: remind me to call the dentist tomorrow\n")
+            append("JSON:")
+        }
+
+        // Three runs, because the first includes one-time GPU kernel compilation and quoting it
+        // as the latency would overstate the steady state by several seconds.
+        val timings = mutableListOf<Long>()
+        var raw: String? = null
+        repeat(3) {
+            timings += measureTimeMillis { raw = runBlocking { engine.infer(prompt) } }
+        }
+        engine.close()
+
+        throw AssertionError(
+            "state=$state loadMs=$loadMs inferMs=$timings rawChars=${raw?.length} " +
+                "RAW>>>${raw?.take(200)}<<<END"
+        )
+    }
 
     private fun attemptLoad(backend: LlmInference.Backend) {
         val path = modelPath

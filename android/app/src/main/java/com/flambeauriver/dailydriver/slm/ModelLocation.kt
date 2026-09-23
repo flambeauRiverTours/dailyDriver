@@ -59,9 +59,21 @@ class ModelLocation(
 
     companion object {
         /**
-         * Deliberately generic. T039 has not decided between Gemma-2 2B and Gemma-3 1B, and a
-         * default naming one of them would read as a decision that has not been made.
+         * Deliberately generic. T039 has not settled on a model, and a default naming one of them
+         * would read as a decision that has not been made.
+         *
+         * **⚠ The extension is load-bearing, and `.task` was the wrong default** (found on-device
+         * at T031, 2026-09-23). MediaPipe dispatches on it: `.task` takes the zip-bundle path,
+         * anything else takes the flat-flatbuffer path. The *same* 249,233,408-byte Gemma-3 270M
+         * artifact was rejected with `UNKNOWN: Unable to open zip archive` when named `model.task`
+         * and loaded on both GPU and CPU when named `model.bin`. Nothing about the bytes changed.
+         *
+         * So `.bin` is the safe default, because the artifacts this project can actually obtain
+         * are flat flatbuffers: Kaggle's `gemma-2b-it-gpu-int4.bin` and the `-web` variants
+         * `litert-community` publishes, both of which begin `1c 00 00 00 TFL3` rather than `PK`.
+         * A genuine zip bundle has to opt in by passing its own name, which is the right way round
+         * — the common case should not be the one that needs remembering.
          */
-        const val DEFAULT_FILE_NAME = "model.task"
+        const val DEFAULT_FILE_NAME = "model.bin"
     }
 }
