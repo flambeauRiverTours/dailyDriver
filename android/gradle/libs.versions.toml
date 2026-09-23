@@ -23,6 +23,10 @@ kotlinxSerialization = "1.8.1"
 # "maintenance-only mode" looks like from the outside, and it is the reason every call sits behind
 # `InferenceEngine` rather than being reached directly.
 mediapipeTasksGenai = "0.10.35"
+# The constrained-decoding builder (T190, ADR-0011). Depends on tasks-genai itself, which is how
+# we know the pairing is intended rather than a workaround. Native libs ship for arm64-v8a and
+# x86_64 only, exactly the ABIs abiFilters already selects.
+localagentsFc = "0.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -55,6 +59,7 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 # Brings guava 27.0.1-android and protobuf-javalite 4.26.1 transitively, plus a ~27 MB native
 # library per ABI — see the abiFilters note in app/build.gradle.kts before adding an ABI.
 mediapipe-tasks-genai = { group = "com.google.mediapipe", name = "tasks-genai", version.ref = "mediapipeTasksGenai" }
+localagents-fc = { group = "com.google.ai.edge.localagents", name = "localagents-fc", version.ref = "localagentsFc" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
