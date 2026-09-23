@@ -3,6 +3,7 @@ package com.flambeauriver.dailydriver.slm
 import android.content.Context
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
+import com.google.mediapipe.tasks.genai.llminference.PromptTemplates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -168,6 +169,7 @@ class MediaPipeEngine(
             .setTemperature(TEMPERATURE)
             .setTopK(TOP_K)
             .setRandomSeed(RANDOM_SEED)
+            .setPromptTemplates(GEMMA_TURNS)
             .build()
 
     private fun AutoCloseable.closeQuietly() {
@@ -197,5 +199,27 @@ class MediaPipeEngine(
          * A varying seed puts noise into the one measurement the GO/NO-GO decision rests on.
          */
         private const val RANDOM_SEED = 0
+
+        /**
+         * Gemma's chat turn markers (T032).
+         *
+         * **Without these the model is not answering, it is continuing text.** An
+         * instruction-tuned Gemma is trained on `<start_of_turn>user … <end_of_turn>` and emits
+         * `<end_of_turn>` to finish, which is what the runtime watches for to stop. Hand it a bare
+         * string and it has no turn structure, never produces that token, and generates until
+         * `maxTokens` — which is exactly what T031 measured: 1,188 characters of rambling for an
+         * answer that needed about fifty, and seven seconds to produce it.
+         *
+         * **These live here rather than in [PromptTemplate] on purpose.** They describe the
+         * *model*, not the task, so the prompt stays portable across a model swap (T039 has not
+         * settled) and across the LiteRT-LM move at T091. **A non-Gemma model needs different
+         * markers** — Phi-2 is on MediaPipe's LoRA list and does not use these.
+         */
+        private val GEMMA_TURNS: PromptTemplates = PromptTemplates.builder()
+            .setUserPrefix("<start_of_turn>user\n")
+            .setUserSuffix("<end_of_turn>\n")
+            .setModelPrefix("<start_of_turn>model\n")
+            .setModelSuffix("<end_of_turn>\n")
+            .build()
     }
 }

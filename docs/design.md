@@ -237,11 +237,13 @@ LlmInference.getSentencePieceProcessorHandle(): long
 
 The five layers below are **retained as the fallback** for when the constraint path is unavailable — a backend that does not implement it (the native library has `UpdateConstraintMask not implemented for this backend`, with only an OpenCL implementation present), a model without a matching formatter, or a constraint that fails to build. They are no longer the primary defence, and T034's repair pass is no longer load-bearing:
 
-1. Tight few-shot prompt with the schema inline.
-2. Low temperature.
-3. Extract the first balanced `{...}` span from the output.
-4. Repair pass: trailing commas, unquoted keys, markdown fences.
-5. Validate against the schema; on failure or `confidence < τ`, drop to T3.
+1. Tight few-shot prompt with the schema inline. **Built (T032)** — `slm/PromptTemplate.kt`, label list derived from `Intent.entries`.
+2. Low temperature. **Built** — 0.1, with Gemma turn markers on the session, which is what actually makes the model stop.
+3. Extract the first balanced `{...}` span from the output. **Built (T033)**.
+4. Repair pass: trailing commas, unquoted keys, markdown fences. **Built (T034)**.
+5. Validate against the schema; on failure or `confidence < τ`, drop to T3. **Built (T035)**.
+
+> **✨ Layer 3 earned its keep on real hardware** (T032, 2026-09-23). After answering correctly the 270M fabricates further exchanges, replaying the few-shot examples back as new question-and-answer pairs until it hits `maxTokens`. `firstJsonObject` takes the first balanced span, so the invented continuations never reach `parseIntent`. The cost is latency rather than correctness: roughly 80% of generated tokens are waste, which is the whole remaining gap to §2's 1.5 s p50, and closing it is T190's job rather than the prompt's.
 
 **⚠ Constraining the shape of an answer says nothing about whether it is right.** A constrained `confidence` is still a number the model invents, so T035's threshold, the abstention path and §4.3's `unknown` intent all stand unchanged. Structural validity is not correctness.
 
