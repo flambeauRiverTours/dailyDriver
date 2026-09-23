@@ -5,7 +5,7 @@
     Installed on a Galaxy S20 FE from a signed release and set as the actual home screen, with a
     fallback launcher kept available. Launcher shell, command pipeline, app browser, aliases,
     notifications, notes, checklists and tasks are all built and verified on hardware.
-    **870 automated tests**: 806 unit, 64 instrumented.
+    **899 automated tests**: 835 unit, 64 instrumented.
 
     Not built yet: the on-device model itself (tier T2), which is
     [a separate workstream](ml-pipeline.md).

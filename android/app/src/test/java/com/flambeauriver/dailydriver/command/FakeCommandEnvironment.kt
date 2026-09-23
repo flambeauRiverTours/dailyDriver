@@ -4,6 +4,8 @@ import com.flambeauriver.dailydriver.alias.DefineAliasResult
 import com.flambeauriver.dailydriver.apps.AppEntry
 import com.flambeauriver.dailydriver.notes.Note
 import com.flambeauriver.dailydriver.notes.NoteQuery
+import com.flambeauriver.dailydriver.slm.InferenceEngine
+import com.flambeauriver.dailydriver.slm.NoInferenceEngine
 import java.time.LocalDate
 
 /**
@@ -17,6 +19,11 @@ class FakeCommandEnvironment(
     override var apps: List<AppEntry> = emptyList(),
     override var aliases: Map<String, String> = emptyMap(),
     override var hasNotificationAccess: Boolean = true,
+    /**
+     * T2 is absent by default, so every existing test keeps describing a device with no model,
+     * which is also production today. A test that wants the tier supplies a canned engine.
+     */
+    override var inferenceEngine: InferenceEngine = NoInferenceEngine,
     /** Notes returned by [notesMatching], regardless of the query. */
     var notes: List<Note> = emptyList(),
     /** What [openUrl] reports — false stands in for a device with no browser. */
