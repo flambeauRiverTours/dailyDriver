@@ -498,6 +498,7 @@ Tiered cascade. **The SLM is not the front door.**
 
 - [ ] **T174** — Launch app shortcuts as a second matching level  
   `P2` `L` · after: T167, T017
+  - **⚠ BLOCKED ON THE PHONE, AND PARKED (2026-09-24).** Android is otherwise complete, so this is the only remaining item that would pull a session back to device work. The AOSP emulator publishes zero shortcuts, so it can **only** be developed against the S20 FE. Pick it up when there is a reason to be on the phone anyway.
   - **`:apps Messages Laura` opens the conversation with Laura**, rather than just Messages. Raised 2026-08-22.
   - **There is no generic launch-with-arguments in Android.** `getLaunchIntentForPackage` builds a `CATEGORY_LAUNCHER` intent with no argument slot, and nothing resembling `argv` exists. Do not go looking for one.
   - **The mechanism is `LauncherApps.getShortcuts()`** — the shortcuts an app publishes, the ones you get long-pressing its icon. Google Messages publishes one per recent conversation. Verified against `android.jar`: `getShortcuts(ShortcutQuery, UserHandle)`, `startShortcut(...)`, `hasShortcutHostPermission()`, and `ShortcutInfo.getShortLabel()/getLongLabel()`.
@@ -608,6 +609,7 @@ Tiered cascade. **The SLM is not the front door.**
 
 - [ ] **T185** — SLM stage in the unified pipeline  
   `P2` `M` · after: T184, T036 · ADR-0010
+  - **⚠ BLOCKED ON T087 (2026-09-24).** T036 wired T2 into dispatch, but `NoInferenceEngine` is what ships, so there is nothing to run inside the pause window until the first-run download puts a model on the device. Starting before T087 would be building against a tier that cannot fire.
   - The third stage, behind exact and fuzzy. Runs *inside* the one-second window rather than after it, so the deterministic answer paints immediately and the model either beats the budget or does not.
   - Deferred behind T036 — there is no engine to call yet, and `NoInferenceEngine` already exercises the absent-model path.
 
@@ -929,7 +931,9 @@ Room schema, Markdown format, outbox from day one.
   - **🐛 Shipped two instrumented regressions, caught by CI after three red merges.** `ExampleInstrumentedTest` still asserted the applicationId that T031's `applicationIdSuffix = ".debug"` had changed, and `MediaPipeEngineTest` still hardcoded `"model.task"` after T031 changed `DEFAULT_FILE_NAME` to `model.bin` — a duplicated constant in the very place meant to be its single source of truth. Both now derive rather than restate: a prefix check with the suffix's reason beside it, and `ModelLocation.DEFAULT_FILE_NAME` referenced directly.
   - **The process failure, not the code failure, is the thing worth keeping.** The whole spike run drove single test classes through `am instrument` and never ran `connectedDebugAndroidTest` again. Unit tests, lint and the compiler stayed green throughout, exactly as they did for T018's outbox cascade. `android/CLAUDE.md` now says in as many words that a targeted run is for iterating and the full suite is what you run before committing. Verified after the fix: **69 instrumented tests, 0 failures, 5 skipped** (the model spikes, by design).
 - [ ] **T190** — Constrained decoding via `localagents-fc`  
-  `P0` `M` · after: T031 · blocks: T032
+  `P2` `M` · after: T031 · **parked — blocked on library support**
+  - **⚠ READ THIS FIRST, the bullets below are a trail of two wrong diagnoses before the right one.** The blocker is **vocabulary support in `localagents-fc` 0.1.0** — not the artifact format, not the version deadlock. With the runtime the library declares it answers `Unsupported vocabulary type for Fst-Constraints library`; every other failure seen was downstream of using the wrong runtime. The dependency has been removed. **Do not retry by bumping a version: every cell of the matrix below has been measured.**
+  - **↻ `blocks: T032` removed** — T032 shipped on 2026-09-23 without it, and demoting this from `P0` to `P2` follows from that: the prompt and the five layers carry T2 today, and this is a latency optimisation rather than a dependency.
   - **Added 2026-09-22 by [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md).** Makes schema-valid output structural instead of probabilistic, which reverses ADR-0003's one accepted cost and demotes T033–T035 to a fallback path.
   - **⚠ Partially done 2026-09-23, and blocked on the artifact rather than on the approach.** The dependency is in, the three costs are resolved, and the chain is verified as far as `createConstraint`. **`createConstraint` then throws `java.lang.IllegalStateException: Invalid end token: 2`** — identically for `ToolCallOnly` **and** for `TextUntil`, so the blocker is the FST provider's tokenizer handling and not the constraint mode. `FstConstraintProvider(handle)` itself constructs without complaint.
   - **❌ That first diagnosis was wrong, and the real one is worse.** The guess was that the flat `-web` artifact lacked tokenizer metadata. The proper bundle (`gemma3-270m-it-q8.task`, 304 MB, verified to contain `TF_LITE_PREFILL_DECODE`, **`TOKENIZER_MODEL`** and `METADATA`) does not fix it — it fails **earlier and harder**, with a native `SIGSEGV` inside `Java_com_google_ai_edge_localagents_fc_FstConstraintProvider_nativeCreateFstConstraintProvider`. The constructor itself, before any constraint is described.
@@ -955,6 +959,8 @@ Room schema, Markdown format, outbox from day one.
   - **So the real blocker is vocabulary support in `localagents-fc` 0.1.0, not versions and not artifacts.** With the correct pairing the mechanism works end to end and reaches a genuine decision; that decision is "this model's vocabulary is not one I handle". Two of the three failures were downstream of using the wrong runtime, and only matching versions made the actual answer legible.
   - **Where that points: the FunctionGemma family.** The library ships `GemmaFormatter`, `LlamaFormatter` and **`HammerFormatter`**, all function-calling model families, and the 0.10.35 runtime carries `LLM_MODEL_TYPE_FUNCTIONGEMMA3_300M` as a first-class type. T039 already flagged `FunctionGemma-270M-Mobile-Actions` as on-point for this exact task. **⚠ But neither FunctionGemma repo publishes a MediaPipe-loadable artifact**: `functiongemma-270m-ft-mobile-actions` is `.litertlm` only (LiteRT-LM, not MediaPipe) and `FunctionGemma_270M_Mobile_Actions` is raw `model.safetensors`. Reaching it means either the LiteRT-LM runtime or a conversion, so this is a real lead and not a quick retry.
   - **Recommendation: stop spending on T190 for now and let §4.4's five layers carry T2.** They already absorb the failure mode this was meant to remove — T032 measured `firstJsonObject` discarding the model's invented continuations with correctness intact — and the cost is latency rather than wrongness. Revisit when `localagents-fc` has a release built against a current runtime, or when T091's LiteRT-LM move makes the `.litertlm` FunctionGemma artifacts reachable. **Do not retry by bumping a version**: every cell of that matrix has now been measured.
+  - **↻ The dependency was removed 2026-09-23 and the task left open.** Carrying `localagents-fc` cost **6.7 MB of native libraries** on a phone that is somebody's home screen, for a capability measured as non-functional, plus a Guava major bump — and two of those libraries were formatters for **Llama and Hammer** models this project will never use. The release APK went **58.3 MB → 51.2 MB**. `ConstraintSpikeTest` went with it, so the reproduction now lives in the matrix above rather than in code.
+  - **Re-adding is one line**, and the order to work in is: check whether a `localagents-fc` newer than 0.1.0 exists and what runtime it declares; if so re-add and run the matrix again before writing anything else. **Do not re-add it speculatively** — it ships native code to a daily driver and earns nothing until a model's vocabulary is supported.
   - **This does not reopen ADR-0011.** The decision was that constrained decoding is the reliability mechanism and fine-tuning is a measured experiment. What is unproven is whether *this artifact* supports it, not whether the mechanism exists — the API surface, the dependency graph and the call chain are all confirmed. If the non-`-web` bundle also fails, the fallback is bounding generation by other means and §4.4's five layers carry on as they already do.
   - **Costs measured rather than estimated.** Debug APK 90.4 MB → **104.4 MB** with both ABIs; release ships arm64-v8a alone so its share is roughly 4–7 MB. `localagents-fc:0.1.0` draws no `GradleDependency` staleness warning, so 0.1.0 is current.
   - **⚠ `org.json` is excluded from the production classpath** and that exclusion is load-bearing. Android ships `org.json` on the bootclasspath, so the bundled jar can never win at runtime and only makes "which `JSONObject` is this?" a question somebody has to answer later. `IntentSchema.kt` has used the framework one since T035. **The version catalog's `org-json` entry is for unit tests and must stay** — there is no framework there (T019), and the unit-test classpath was checked separately to confirm it still resolves.
@@ -968,9 +974,14 @@ Room schema, Markdown format, outbox from day one.
   - **APK cost is small and already-shaped.** Native libraries ship for **arm64-v8a and x86_64 only**, exactly the two ABIs T029's `abiFilters` already selects. `libjni_fst_constraint_android.so` is 2.67 MB plus `libjni_gemma_formatter_android.so` at 1.34 MB; exclude the Llama and Hammer formatters.
   - **⚠ Cannot be tested on an emulator**, for the same reason as everything else in this section (T039): no OpenCL, so engine init fails before any of this runs.
   - **Nothing here has been executed.** The whole chain is read off the AAR and the native library. Treat the first on-device run as the real verification.
-- [ ] **T037** — GO/NO-GO: LoRA viability spike on target device  
+- [x] **T037** — GO/NO-GO: LoRA viability spike on target device  
   `P0` `L` · after: T031
   - **DECISION GATE, TIMEBOXED.** Does a LoRA adapter load on the GPU backend with the chosen model? If no: fall back to few-shot and reframe the portfolio narrative. Do not start dataset work until answered.
+  - **✅ ANSWERED 2026-09-23, from evidence rather than by running it. The gate is superseded, and the honest result is that the question no longer applies.**
+  - **The chosen model cannot take a LoRA adapter, so the gate's question has no subject.** T039 chose **Gemma-3 270M** on measurement. MediaPipe documents LoRA for **Gemma-2 2B, Gemma 2B and Phi-2** only, and the runtime's own error string pins the reason: it expects `transformer.layer_(0-34).attn.(q|k|v|attn_vec_einsum).w_prime_(left|right)`, and **`attn_vec_einsum` is Gemma 1/2 architecture naming**. LoRA here is bound to the older architecture, not merely undocumented for the newer one.
+  - **That is not a NO-GO, because [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md) already removed what this gate protected.** The gate was written when the plan assumed a 2B model whose size made an adapter the only affordable way to fine-tune. At 270M a **full** fine-tune runs on free hardware, so there is no adapter to load and nothing for a GO/NO-GO to decide. The gate's own instruction — "if no: fall back to few-shot and reframe the portfolio narrative" — was carried out in advance by that ADR.
+  - **Running it as written would have cost a training run to learn nothing.** The only LoRA-capable model this project can obtain is Gemma 1.1 2B, which T038 eliminated at 1,663–1,683 MB against §2's 1.5 GB budget. Proving an adapter loads on a model we will not ship answers no question we still have. **The timebox existed precisely to stop this**, so spending it here would have been the failure the gate was written to prevent.
+  - **⚠ The risk it was covering has moved, and is now section 12's.** What is genuinely unproven is **converting a fine-tuned Gemma-3 checkpoint into something MediaPipe loads** — §4.4 names it as the unproven step, T030's convert half was never exercised because `litert-community` publishes pre-converted artifacts, and MediaPipe documents its Torch Generative converter as **CPU-only**, which would forfeit the GPU backend the launcher uses. **Answer that before T078 trains anything**, for exactly the reason this gate existed.
   - **⚠ Answer the memory question first — it is cheaper and it can eliminate a candidate outright** (T039, 2026-09-22). Gemma-2 2B publishes only q8 at 2.63 GB against §2's "< 1.5 GB resident", so a plain load plus `dumpsys meminfo` decides it with no adapter and no training. Spending the timebox proving LoRA on a model that cannot fit would answer the wrong question.
   - **⚠ This cannot be done on an emulator, demonstrated at T039.** The AVD has no OpenCL, so every load fails at engine init regardless of the file. The S20 FE is the only device that can answer this, which makes adb reachability a prerequisite rather than a convenience.
   - **Exercise both halves of LoRA.** `setSupportedLoraRanks` is declared on `LlmInferenceOptions` when the engine is built; `setLoraPath` is supplied per session. The runtime also requires the rank to be a multiple of 4 and the adapter metadata to carry `lora_rank` — both are `RET_CHECK` failures inside `libllm_inference_engine_jni.so`, so get them right before concluding anything about viability.
@@ -1263,9 +1274,9 @@ Deliberately **after** there is code to build. Work through it alongside AZ-400 
 - [ ] **T119** — Azure Artifacts feed: publish Notes.Shared as a versioned NuGet package  
   `P1` `M` · after: T116, T042
   - *AZ-400 D3 package management.* Forces real thinking about contract versioning between client and server.
-- [ ] **T120** — Consume Notes.Shared from the feed in Desktop + Functions  
-  `P2` `M` · after: T119
-  - Optional — project references are simpler for a solo monorepo. Do it for the exam practice, then note in an ADR that you'd keep project references at this size.
+- ~~**T120** — Consume Notes.Shared from the feed in Desktop + Functions~~ **CUT 2026-09-24.**
+  - Its own description argued against it: *"Optional: project references are simpler for a solo monorepo. Do this only for the exam practice, and note in an ADR that you would keep project references for a project this size."* A task that tells you not to do it is not a task. T119 still publishes the package, which is the AZ-400 objective; consuming it from the feed adds ceremony and nothing else.
+  - Left struck through rather than deleted so the ID is never silently reused and the reasoning survives.
 - [ ] **T121** — Environments (dev/prod) with approval gates  
   `P0` `M` · after: T116
   - Approving your own deploy feels silly solo — do it anyway, the mechanics are the exam content.
@@ -1333,6 +1344,7 @@ Security/compliance (10–15%) + instrumentation (5–10%). Also fills a genuine
   - Conflict rate tells you empirically whether the conflict-copy policy was the right call.
 - [ ] **T134** — Android SLM telemetry (local-only, privacy-preserving)  
   `P2` `M` · after: T036
+  - **⚠ BLOCKED ON T087 (2026-09-24).** Latency, tier-hit distribution and abstention rate are all constant while `NoInferenceEngine` ships, so there is nothing to measure until a model reaches the device.
   - Latency, tier-hit distribution, abstention rate. **Metrics only — never note or command content.** On-device or explicitly opt-in.
 - [ ] **T135** — KQL queries + Azure dashboard  
   `P1` `M` · after: T132, T133
@@ -1365,11 +1377,14 @@ The long pole. Gated on the section 06 go/no-go.
   - Do not skip. Do not peek. Everything downstream is meaningless if this leaks.
 - [ ] **T078** — PEFT LoRA training run (q/k/v/o_proj)  
   `P0` `L` · after: T077, T039
+  - **⚠ Assumes an adapter the chosen model cannot use** (T037, 2026-09-23). T039 chose Gemma-3 270M and MediaPipe's LoRA support is bound to Gemma 1/2 architecture naming. At 270M this becomes a **full fine-tune**, which is cheaper on free hardware and a stronger portfolio artifact than an adapter ([ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md)). Retitle when it is picked up; `q/k/v/o_proj` targeting stops applying.
   - Trained off-device.
 - [ ] **T079** — Convert adapter via MediaPipe ConversionConfig  
   `P0` `M` · after: T078
+  - **⚠ There is no adapter to convert** (T037, 2026-09-23). This becomes converting a **fully fine-tuned checkpoint**, and it is now the riskiest step in the section: §4.4 names it unproven, T030's convert half was never exercised because pre-converted artifacts exist, and MediaPipe's Torch Generative converter is documented **CPU-only** — which would forfeit the GPU backend. **Spike this before T078 spends a training run.**
 - [ ] **T080** — Deploy adapter, verify load on GPU backend  
   `P0` `M` · after: T079
+  - **⚠ Deploys a converted model, not an adapter** (T037, 2026-09-23). `setSupportedLoraRanks`/`setLoraPath` do not apply. What still applies is the on-device verification: T031's extension rule (`.task` selects the zip loader, anything else the flat one) and T038's memory budget.
   - LoRA weights apply to attention layers only; GPU backend required.
 
 
@@ -1432,6 +1447,7 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 - [ ] **T091** — Implement LiteRtLmEngine behind InferenceEngine  
   `P2` `L` · after: T028
+  - **Explicitly v2, not blocked — deliberately deferred.** Two findings from 2026-09 make it cheaper and more attractive than it looked: MediaPipe's LLM stack is **already LiteRT-LM underneath** (every error path in the native library names `third_party/odml/litert_lm/runtime`), so this is likely an API change over the same engine rather than a change of engine; and `litertlm-android` is actively released at 0.17.1 while `tasks-genai` has not moved since 0.10.35 in April. It is also the likely route to **T190's constrained decoding** and to the FunctionGemma artifacts, which publish as `.litertlm` rather than `.task`.
 - [ ] **T092** — Benchmark MediaPipe vs LiteRT-LM backends  
   `P2` `M` · after: T091
   - Strong portfolio artifact in its own right.
@@ -1466,4 +1482,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**189 tasks — 104 done, 85 open** (recounted 2026-09-23). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**188 tasks — 105 done, 83 open** (recounted 2026-09-24, after cutting T120). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
