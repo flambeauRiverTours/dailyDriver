@@ -498,6 +498,7 @@ Tiered cascade. **The SLM is not the front door.**
 
 - [ ] **T174** — Launch app shortcuts as a second matching level  
   `P2` `L` · after: T167, T017
+  - **⚠ BLOCKED ON THE PHONE, AND PARKED (2026-09-24).** Android is otherwise complete, so this is the only remaining item that would pull a session back to device work. The AOSP emulator publishes zero shortcuts, so it can **only** be developed against the S20 FE. Pick it up when there is a reason to be on the phone anyway.
   - **`:apps Messages Laura` opens the conversation with Laura**, rather than just Messages. Raised 2026-08-22.
   - **There is no generic launch-with-arguments in Android.** `getLaunchIntentForPackage` builds a `CATEGORY_LAUNCHER` intent with no argument slot, and nothing resembling `argv` exists. Do not go looking for one.
   - **The mechanism is `LauncherApps.getShortcuts()`** — the shortcuts an app publishes, the ones you get long-pressing its icon. Google Messages publishes one per recent conversation. Verified against `android.jar`: `getShortcuts(ShortcutQuery, UserHandle)`, `startShortcut(...)`, `hasShortcutHostPermission()`, and `ShortcutInfo.getShortLabel()/getLongLabel()`.
@@ -608,6 +609,7 @@ Tiered cascade. **The SLM is not the front door.**
 
 - [ ] **T185** — SLM stage in the unified pipeline  
   `P2` `M` · after: T184, T036 · ADR-0010
+  - **⚠ BLOCKED ON T087 (2026-09-24).** T036 wired T2 into dispatch, but `NoInferenceEngine` is what ships, so there is nothing to run inside the pause window until the first-run download puts a model on the device. Starting before T087 would be building against a tier that cannot fire.
   - The third stage, behind exact and fuzzy. Runs *inside* the one-second window rather than after it, so the deterministic answer paints immediately and the model either beats the budget or does not.
   - Deferred behind T036 — there is no engine to call yet, and `NoInferenceEngine` already exercises the absent-model path.
 
@@ -929,7 +931,9 @@ Room schema, Markdown format, outbox from day one.
   - **🐛 Shipped two instrumented regressions, caught by CI after three red merges.** `ExampleInstrumentedTest` still asserted the applicationId that T031's `applicationIdSuffix = ".debug"` had changed, and `MediaPipeEngineTest` still hardcoded `"model.task"` after T031 changed `DEFAULT_FILE_NAME` to `model.bin` — a duplicated constant in the very place meant to be its single source of truth. Both now derive rather than restate: a prefix check with the suffix's reason beside it, and `ModelLocation.DEFAULT_FILE_NAME` referenced directly.
   - **The process failure, not the code failure, is the thing worth keeping.** The whole spike run drove single test classes through `am instrument` and never ran `connectedDebugAndroidTest` again. Unit tests, lint and the compiler stayed green throughout, exactly as they did for T018's outbox cascade. `android/CLAUDE.md` now says in as many words that a targeted run is for iterating and the full suite is what you run before committing. Verified after the fix: **69 instrumented tests, 0 failures, 5 skipped** (the model spikes, by design).
 - [ ] **T190** — Constrained decoding via `localagents-fc`  
-  `P0` `M` · after: T031 · blocks: T032
+  `P2` `M` · after: T031 · **parked — blocked on library support**
+  - **⚠ READ THIS FIRST, the bullets below are a trail of two wrong diagnoses before the right one.** The blocker is **vocabulary support in `localagents-fc` 0.1.0** — not the artifact format, not the version deadlock. With the runtime the library declares it answers `Unsupported vocabulary type for Fst-Constraints library`; every other failure seen was downstream of using the wrong runtime. The dependency has been removed. **Do not retry by bumping a version: every cell of the matrix below has been measured.**
+  - **↻ `blocks: T032` removed** — T032 shipped on 2026-09-23 without it, and demoting this from `P0` to `P2` follows from that: the prompt and the five layers carry T2 today, and this is a latency optimisation rather than a dependency.
   - **Added 2026-09-22 by [ADR-0011](adr/0011-constrained-decoding-and-fine-tuning-as-experiment.md).** Makes schema-valid output structural instead of probabilistic, which reverses ADR-0003's one accepted cost and demotes T033–T035 to a fallback path.
   - **⚠ Partially done 2026-09-23, and blocked on the artifact rather than on the approach.** The dependency is in, the three costs are resolved, and the chain is verified as far as `createConstraint`. **`createConstraint` then throws `java.lang.IllegalStateException: Invalid end token: 2`** — identically for `ToolCallOnly` **and** for `TextUntil`, so the blocker is the FST provider's tokenizer handling and not the constraint mode. `FstConstraintProvider(handle)` itself constructs without complaint.
   - **❌ That first diagnosis was wrong, and the real one is worse.** The guess was that the flat `-web` artifact lacked tokenizer metadata. The proper bundle (`gemma3-270m-it-q8.task`, 304 MB, verified to contain `TF_LITE_PREFILL_DECODE`, **`TOKENIZER_MODEL`** and `METADATA`) does not fix it — it fails **earlier and harder**, with a native `SIGSEGV` inside `Java_com_google_ai_edge_localagents_fc_FstConstraintProvider_nativeCreateFstConstraintProvider`. The constructor itself, before any constraint is described.
@@ -1270,9 +1274,9 @@ Deliberately **after** there is code to build. Work through it alongside AZ-400 
 - [ ] **T119** — Azure Artifacts feed: publish Notes.Shared as a versioned NuGet package  
   `P1` `M` · after: T116, T042
   - *AZ-400 D3 package management.* Forces real thinking about contract versioning between client and server.
-- [ ] **T120** — Consume Notes.Shared from the feed in Desktop + Functions  
-  `P2` `M` · after: T119
-  - Optional — project references are simpler for a solo monorepo. Do it for the exam practice, then note in an ADR that you'd keep project references at this size.
+- ~~**T120** — Consume Notes.Shared from the feed in Desktop + Functions~~ **CUT 2026-09-24.**
+  - Its own description argued against it: *"Optional: project references are simpler for a solo monorepo. Do this only for the exam practice, and note in an ADR that you would keep project references for a project this size."* A task that tells you not to do it is not a task. T119 still publishes the package, which is the AZ-400 objective; consuming it from the feed adds ceremony and nothing else.
+  - Left struck through rather than deleted so the ID is never silently reused and the reasoning survives.
 - [ ] **T121** — Environments (dev/prod) with approval gates  
   `P0` `M` · after: T116
   - Approving your own deploy feels silly solo — do it anyway, the mechanics are the exam content.
@@ -1340,6 +1344,7 @@ Security/compliance (10–15%) + instrumentation (5–10%). Also fills a genuine
   - Conflict rate tells you empirically whether the conflict-copy policy was the right call.
 - [ ] **T134** — Android SLM telemetry (local-only, privacy-preserving)  
   `P2` `M` · after: T036
+  - **⚠ BLOCKED ON T087 (2026-09-24).** Latency, tier-hit distribution and abstention rate are all constant while `NoInferenceEngine` ships, so there is nothing to measure until a model reaches the device.
   - Latency, tier-hit distribution, abstention rate. **Metrics only — never note or command content.** On-device or explicitly opt-in.
 - [ ] **T135** — KQL queries + Azure dashboard  
   `P1` `M` · after: T132, T133
@@ -1442,6 +1447,7 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 - [ ] **T091** — Implement LiteRtLmEngine behind InferenceEngine  
   `P2` `L` · after: T028
+  - **Explicitly v2, not blocked — deliberately deferred.** Two findings from 2026-09 make it cheaper and more attractive than it looked: MediaPipe's LLM stack is **already LiteRT-LM underneath** (every error path in the native library names `third_party/odml/litert_lm/runtime`), so this is likely an API change over the same engine rather than a change of engine; and `litertlm-android` is actively released at 0.17.1 while `tasks-genai` has not moved since 0.10.35 in April. It is also the likely route to **T190's constrained decoding** and to the FunctionGemma artifacts, which publish as `.litertlm` rather than `.task`.
 - [ ] **T092** — Benchmark MediaPipe vs LiteRT-LM backends  
   `P2` `M` · after: T091
   - Strong portfolio artifact in its own right.
@@ -1476,4 +1482,4 @@ Optional. MediaPipe is in maintenance-only mode; this is a planned migration, no
 
 ---
 
-**189 tasks — 105 done, 84 open** (recounted 2026-09-23). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.
+**188 tasks — 105 done, 83 open** (recounted 2026-09-24, after cutting T120). Originally generated from the Todoist backlog; keep both in step when either changes. The count drifts as tasks are split (T006 → T140–T145) or added from use (T146–T151) — recount rather than trusting this line.

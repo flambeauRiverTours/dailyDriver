@@ -4,6 +4,28 @@ Personal-use side project: an Android CLI-style home-screen launcher backed by a
 
 ## CURRENT PHASE
 
+> ### ➤ Next: finish the desktop client to the T063 milestone.
+>
+> **Android is done.** Sections 01–06 are complete apart from items explicitly blocked on a model
+> reaching the device (T087), and each of those now says so in its own record. Everything left is
+> .NET and Azure.
+>
+> **The desktop client is the .NET job-hunt artifact** and it is 6 of 13 done. T063 — "desktop
+> usable offline as a standalone notes app" — is the nearest real milestone, depends on neither
+> the SLM nor the backend, and is the part a hiring manager actually opens. It has had one session;
+> Android has had a dozen.
+>
+> **Then 07 backend → 09 sync**, which is where the .NET depth is: isolated-worker Functions,
+> Cosmos, and an offline sync engine with conflict copies.
+>
+> **Sections 10 and 11 are AZ-400 exam surface — 29 of the 83 open tasks.** Section 10's own
+> description says to work them alongside study rather than upfront. Do that; they are the largest
+> block on the board and the least load-bearing for the portfolio.
+>
+> **⚠ Don't cut a release yet.** The APK is 51.2 MB against 22.0 MB at `android-v0.4.2`, and 26.6 MB
+> of that is a native inference library with no model to load. A release buys the device nothing
+> until T087 lands.
+
 **Phase 0 is complete (2026-08-22).** The launcher is installed on the S20 FE from a signed GitHub Release and set as the real home screen, with One UI Home kept as a fallback (T017). That was §9's exit criterion: daily-drivable on T0/T1/T3 with zero ML. Sections 01–03 are empty.
 
 **The full T0–T3 pipeline is live.** All twelve reserved commands are registered through T140's dispatcher (`:apps`, `:notes`, `:note`, `:task`, `:tasks`, `:tasksdone`, `:alias`, `:notif`, `:settings`, `:google`, `:export`, `:help`/`?`), T1 does fuzzy app-matching with best-match-wins, and T3 answers unmatched input by pointing at `:help`. **✅ T2 landed at T036 (2026-09-23), so the cascade is complete for the first time.** It runs only where T0 and T1 have both missed, which is structural rather than enforced, and **`NoInferenceEngine` is still what ships** — so a device with no model behaves exactly as before. A validated intent is mapped back to a command line and dispatched as if typed, so T2 gets no actions of its own.
