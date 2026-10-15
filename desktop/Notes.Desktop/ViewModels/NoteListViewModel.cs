@@ -141,7 +141,7 @@ namespace Notes.Desktop.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError("NoteListViewModel::RefreshComand failed with exception {exception}", ex.Message);
+                    logger.LogError(ex, "NoteListViewModel::RefreshCommand failed with exception {exception}", ex.Message);
                 }
             }
 
