@@ -2,7 +2,10 @@ site_name: dailyDriver
 site_description: >-
   A keyboard-first Android launcher with an on-device language model, a native WPF notes client,
   and a C# Azure backend — an end-to-end .NET and on-device GenAI project.
-site_url: https://flambeauRiverTours.github.io/dailyDriver/
+# The account's custom domain (set on the flambeauRiverTours.github.io user site), so project
+# pages serve under it rather than under github.io. Drives canonical links and sitemap.xml, so a
+# stale value here quietly points search engines at the wrong host.
+site_url: https://jacktreadwell.com/dailyDriver/
 repo_url: https://github.com/flambeauRiverTours/dailyDriver
 repo_name: flambeauRiverTours/dailyDriver
 copyright: Jack Treadwell

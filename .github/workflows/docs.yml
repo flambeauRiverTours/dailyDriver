@@ -56,22 +56,26 @@ jobs:
   # Publishing is a separate job so pull requests get the build check without deploying —
   # a PR from a fork must never be able to publish to the live site.
   #
-  # ⚠ DISABLED 2026-09-22 (T189). GitHub Pages is not enabled on this repository and cannot
-  # simply be switched on: Pages for a private repo needs a paid plan, and making the repo public
-  # is not on the table (the T014 command-log export is still reachable in history at 2553b0c).
-  # This job had been failing on every push to `main` since at least 2026-09-14 with
+  # ⚠ Was DISABLED 2026-09-22 (T189) and is live again as of 2026-10-15.
+  #
+  # T189 turned this off because Pages could not be enabled: it needs a paid plan on a private
+  # repository, and going public was blocked by the T014 command-log export still being reachable
+  # in history. The job had been failing on every push to `main` since 2026-09-14 with
   # `Failed to create deployment (status: 404) ... Ensure GitHub Pages has been enabled`, while
-  # passing on every branch — because a branch only ever runs `build`.
+  # passing on every branch, because a branch only ever runs `build`.
   #
-  # **The half that was catching anything still runs.** `mkdocs build --strict` above turns a
-  # broken internal link or a page missing from the nav into a failed check, on pull requests and
-  # on main alike. Only publishing is off, so `website/` stays verifiable even while nothing
-  # serves it. Disabling the whole workflow would have thrown that away too.
+  # Both halves of that are now resolved. The export was purged from history, and because the old
+  # commit stayed reachable through 17 merged pull requests' `refs/pull/N/head` — which GitHub
+  # keeps permanently and a force-push does not touch — the clean history was republished to a new
+  # repository rather than this one being flipped public. Pages is enabled there and serves under
+  # the account's custom domain.
   #
-  # Re-enable by turning Pages on in repo settings and restoring the original condition:
-  #   if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+  # What T189 got right and is worth keeping: it disabled only *publishing*, not the workflow.
+  # `mkdocs build --strict` above kept turning a broken internal link or a page missing from the
+  # nav into a failed check the whole time, so `website/` stayed verifiable while nothing served
+  # it. Disabling the workflow outright would have thrown that away for a month.
   deploy:
-    if: false
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:

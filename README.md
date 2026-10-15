@@ -4,9 +4,9 @@ A keyboard-first, CLI-style Android launcher with an on-device SLM for natural-l
 
 This is a personal side project that doubles as a portfolio piece for a .NET job search — see [`docs/design.md`](docs/design.md) for the full design and [`docs/adr/`](docs/adr/) for the reasoning behind the big calls (WPF over Avalonia, MediaPipe over llama.cpp, Markdown storage, conflict-copy sync, monorepo layout).
 
-📖 **[Browse the docs site](https://flambeauRiverTours.github.io/dailyDriver/)** — the same files, rendered and searchable.
+📖 **[Browse the docs site](https://jacktreadwell.com/dailyDriver/)** — the same files, rendered and searchable.
 
-**Status:** work in progress — see [`docs/tasks.md`](docs/tasks.md) for the current phase and task list, and the [status table on the docs site](https://flambeauRiverTours.github.io/dailyDriver/) for a per-area summary.
+**Status:** work in progress — see [`docs/tasks.md`](docs/tasks.md) for the current phase and task list, and the [status table on the docs site](https://jacktreadwell.com/dailyDriver/) for a per-area summary.
 
 - **Android launcher — working, and in daily use as the real home screen.** CLI shell, app launching, fuzzy matching, aliases, notifications, and a full notes/checklist/task system on Room. The T0–T3 command pipeline is live end to end, including the on-device model: a Gemma-3 270M loads and answers correctly on the target phone through the same code path the launcher ships.
 - **Desktop client (.NET/WPF) — in progress.** Boots on the .NET Generic Host with DI, stores notes in EF Core/SQLite behind real `dotnet ef` migrations, and has a working Markdown editor with live preview and debounced autosave. No sync or sign-in yet.
