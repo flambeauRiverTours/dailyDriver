@@ -1,6 +1,13 @@
 # CLI Launcher + Notes — High-Level Design
 
-**Status:** Draft v3
+> **⚠️ Superseded by [`design.md`](design.md). Kept for provenance, not for reference.**
+>
+> This is the original high-level design, frozen as written on 2026-08-13. `design.md` began as a
+> copy of it and is the living document: it has since absorbed every ADR and the two have diverged
+> substantially. Where they disagree, **`design.md` wins** — this file is here to show what the
+> design looked like before any of it was built, which is the more interesting comparison.
+
+**Status:** Superseded (originally Draft v3)
 **Author:** Jack
 **Date:** 2026-08-13
 **Scope:** Personal-use side project. Android CLI launcher with on-device SLM, native WPF desktop client, Azure free-tier backend.

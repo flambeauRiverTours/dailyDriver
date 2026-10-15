@@ -2,7 +2,7 @@
 
 C# Azure Functions, **isolated worker model**, .NET 10, HTTP-triggered, Cosmos DB (NoSQL, provisioned throughput, free tier) behind it. Single-user API on the public internet, authenticated via Entra ID JWTs. See root [`../CLAUDE.md`](../CLAUDE.md) for project-wide constraints (isolated worker, provisioned Cosmos, Markdown storage) and [`../docs/design.md`](../docs/design.md) §6 for the full design — this file does not repeat those, it applies them.
 
-**Current state — read before touching either .csproj.** `Notes.Functions` and `Notes.Shared` are stale placeholder projects: old-style (non-SDK) `.csproj` targeting **.NET Framework 4.7.2**, not an Azure Functions isolated-worker project at all. T042/T043 must replace both with real SDK-style, `net10.0` projects before any code lands — do not add code to the current scaffold as-is.
+**Current state.** `Notes.Shared` is real: SDK-style, `net10.0`, holding `TagParser`, `ChecklistParser`, `TaskIndex` and `InputShortcutParser`, with `Notes.Shared.Tests` executing the `fixtures/` corpus against them (T042). **`Notes.Functions` does not exist yet** — it was a stale non-SDK placeholder targeting .NET Framework 4.7.2, which contradicted the root isolated-worker constraint on sight, so it was deleted rather than carried. T043 creates it properly: `dotnet new` an isolated-worker Functions project on `net10.0`. Do not resurrect the old scaffold.
 
 ## ⚠️ The .NET side is hand-written — review and design only, no generated implementation code
 

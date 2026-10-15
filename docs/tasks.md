@@ -1430,8 +1430,8 @@ The long pole. Gated on the section 06 go/no-go.
   - ⚠️ **Diagrams are Mermaid, which Material fetches from unpkg at runtime.** They could not be visually confirmed locally: the preview pane doesn't composite, and Mermaid measures text via `getBBox()`, which needs real layout. The diagram source parses cleanly under `mermaid.parse`, and the prose around every diagram stands alone so a blocked CDN costs decoration rather than meaning. **Confirm in a real browser before relying on them.**
   - **CI watches `website/`, not `docs/`** — so editing the design doc no longer rebuilds the site. Strict-mode build on pull requests; deploy job gated on `main` so a fork can build but never publish.
   - **`CLAUDE.md` carries a standing rule to keep the site current** — which page to touch, the status table, the "Last updated" stamp, replace stubs wholesale rather than amend them, and keep the prose plain. Written there rather than on the site, because a maintenance TODO visible to an interviewer reads as neglect.
-  - **🔎 Noted, not fixed: `README.md` is stale** — it says notes "don't exist yet", which stopped being true around T018–T024.
-  - **🔎 Noted, not fixed: `docs/cli-launcher-hld.md` is byte-identical to `docs/design.md`** with no inbound links.
+  - **🔎 `README.md` was stale** — it said notes "don't exist yet", which stopped being true around T018–T024. Rewritten before going public (2026-10-15) into a per-area status block, so the first screen a reader sees matches the status table on the site rather than describing the project as it stood in August.
+  - **🔎 `docs/cli-launcher-hld.md` is the frozen original of `docs/design.md`**, not a byte-identical copy — they had already diverged when this was written and are now ~317 diff lines apart. Resolved before going public (2026-10-15) by stamping the HLD **Superseded** and naming `design.md` as the winner, rather than deleting it: the before-and-after is worth keeping.
   - **Verified**: `mkdocs build --strict` clean with anchor validation on; all four pages plus the overview render; nav, search, theme toggle and the custom stylesheet load.
 
 - [ ] **T089** — Publish benchmark table  

@@ -1,9 +1,12 @@
 # Azure backend
 
-!!! warning "Not started. Design is complete, the code is a scaffold."
+!!! warning "Partly built. The shared contract is real; the Functions app is not written yet."
 
-    `backend/Notes.Functions` and `backend/Notes.Shared` are empty project files. Everything below
-    is designed but not built. This page gets rewritten as it lands.
+    `backend/Notes.Shared` is built and covered by tests: the DTOs, tag parsing, checklist parsing,
+    due-date rules and the task index, all executing the same `fixtures/` corpus as the Android
+    suite. The Functions app and the Bicep infrastructure are designed but not written. Everything
+    below describing HTTP endpoints, Cosmos or sync is design, not code. This page gets rewritten
+    as it lands.
 
 A C# Azure Functions backend that stores notes in Cosmos DB and arbitrates sync between the Android
 launcher and the WPF desktop client.
