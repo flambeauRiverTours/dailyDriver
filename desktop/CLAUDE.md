@@ -2,26 +2,26 @@
 
 Native Windows app (.NET 10 + WPF, MVVM). Offline-first: SQLite via EF Core is the source of truth, a background `SyncService` reconciles with the backend, and the UI never awaits the network. This is the .NET job-hunt artifact — see root [`../CLAUDE.md`](../CLAUDE.md) for project-wide constraints and [`../docs/design.md`](../docs/design.md) §5 for the full design.
 
-## ⚠️ Claude's role here is design partner, code reviewer, and project manager — never a direct contributor
+## ⚠️ The .NET side is hand-written — review and design only, no generated implementation code
 
-**This is a deliberate, durable change from how `android/` was built.** Do not write, edit, or generate implementation code anywhere under `desktop/` or `backend/` — no `.cs`, `.xaml`, `.csproj` edits, no "let me just fix that," no diffs. (**Unit tests are the one exception — see below.**) When asked to help build something, respond with design options, an architectural review of code the user wrote, a critique, or a plan — never a patch. If asked directly to write or fix code, say so plainly and redirect to design/review instead of doing it anyway. Read-only exploration of the codebase (to review, to check consistency with the design doc, to answer "does this match §5?") is expected and encouraged; producing code is not.
+**A deliberate, durable change from how `android/` was built.** This is the .NET job-hunt artifact, so the production code here is written by hand, by the author. No tooling writes, edits or generates implementation code anywhere under `desktop/` or `backend/`: no `.cs`, `.xaml` or `.csproj` edits, no patches. (**Unit tests are the one exception — see below.**) Assistance on this side takes the form of design options, architectural review, critique, or a plan. Read-only exploration — reviewing, checking consistency against the design doc, answering "does this match §5?" — is expected and encouraged; producing code is not.
 
-This applies to `Notes.Desktop` here, and — **as of 2026-08-25, no longer "once that transition happens"** — to `Notes.Functions` and `Notes.Shared` under `backend/`, which carries [its own copy of this rule](../backend/CLAUDE.md). Note `Notes.Shared` lives in `backend/`, not here, despite being consumed by both. The constraint is about the .NET side of this project as a whole, not this folder specifically. It does not apply to `android/`, which keeps its existing direct-contributor workflow.
+This covers `Notes.Desktop` here, and — **as of 2026-08-25, no longer "once that transition happens"** — `Notes.Functions` and `Notes.Shared` under `backend/`, which carries [its own copy of this rule](../backend/CLAUDE.md). Note `Notes.Shared` lives in `backend/`, not here, despite being consumed by both. The rule is about the .NET side of this project as a whole, not this folder specifically. It does not apply to `android/`, which keeps its existing workflow.
 
 ### ✅ Standing exception: unit tests (added 2026-09-14)
 
-**Claude may write and edit test code directly** — `.cs` files under `Notes.Desktop.Tests`, and the test `.csproj` when a test genuinely needs a package or a target-framework change. No need to ask first.
+**Test code is outside the rule above** — `.cs` files under `Notes.Desktop.Tests`, and the test `.csproj` when a test genuinely needs a package or a target-framework change.
 
 The line is **test code, not testability changes to production code**. Specifically:
 
 - **Allowed:** test classes, `[Fact]`/`[Theory]` methods, fixture/DTO types that exist only to load a corpus, fakes and stubs, test-only helpers, `PackageReference`s the test project needs.
 - **Still off-limits:** anything under `Notes.Desktop` itself. That includes changes made *for* a test — widening a member's visibility, adding an `InternalsVisibleTo`, extracting an interface so something can be faked, splitting a class to make it constructible without WPF. Those are design changes with a test as their motivation, and they go through review like any other.
-- **When a test can't be written without one of those**, say so and propose the production change rather than making it. "This needs `X` to be `internal` rather than `private`" is exactly the kind of finding this arrangement exists to surface — a hard-to-test class is usually a design smell worth naming out loud, not routing around quietly.
+- **When a test can't be written without one of those**, the production change gets proposed rather than made. "This needs `X` to be `internal` rather than `private`" is exactly the kind of finding this arrangement exists to surface — a hard-to-test class is usually a design smell worth naming out loud, not routing around quietly.
 - Tests are still held to everything in **Testing** below: fixtures are the spec, merge/parser logic tested with no WPF or EF Core types, ViewModels tested through public properties and commands rather than the view.
 
 This exception is **`desktop/` only.** [`../backend/CLAUDE.md`](../backend/CLAUDE.md) carries the unmodified rule, so `Notes.Shared.Tests` and any `Notes.Functions` tests remain review-only until that file says otherwise.
 
-If the user explicitly asks for a further carve-out — pairing on one function, a spike to unblock them — that is theirs to grant in the moment; don't assume it from a prior conversation.
+A further carve-out — pairing on one function, a spike to unblock something — is the author's to grant in the moment, and is never assumed from a prior one.
 
 **Solution spans folders.** `Notes.Desktop` lives here; `Notes.Shared` (the contract — POCOs, DTOs, parsers) and `Notes.Functions` live in `../backend/`. **T042 landed a real `Notes.Shared` (`net10.0`) and `Notes.Desktop` references it again**, so the cross-folder reference T052 removed is restored and live: `AppDbContext` derives tags and tasks through `TagParser` and `TaskIndex` on every save. Flag any DTO or parsing rule redefined locally to avoid that reference — it is the single source of truth precisely so the two implementations cannot drift. Merge rules are **not** here: they moved to T070 to land with the sync-scenario corpus that gives them an oracle.
 

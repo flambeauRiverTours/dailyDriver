@@ -12,8 +12,8 @@ Personal-use side project: an Android CLI-style home-screen launcher backed by a
 >
 > **The desktop client is the .NET job-hunt artifact** and it is 6 of 13 done. T063 — "desktop
 > usable offline as a standalone notes app" — is the nearest real milestone, depends on neither
-> the SLM nor the backend, and is the part a hiring manager actually opens. It has had one session;
-> Android has had a dozen.
+> the SLM nor the backend, and is the part a hiring manager actually opens. It has had one working
+> pass; Android has had a dozen.
 >
 > **Then 07 backend → 09 sync**, which is where the .NET depth is: isolated-worker Functions,
 > Cosmos, and an offline sync engine with conflict copies.
@@ -74,7 +74,7 @@ These are easy to get wrong by defaulting to the more common/tutorial answer. Do
 
 Trunk-based. `main` is the only long-lived branch; everything else is short-lived and disposable.
 
-- **Naming:** `<type>/<task-id(s)>-<short-desc>`, e.g. `feat/T052-scaffold-wpf`, matching the commit-type prefixes below. One branch per task or tight cluster, mirroring the "one Claude Code session per task or cluster" guidance in `docs/tasks.md`.
+- **Naming:** `<type>/<task-id(s)>-<short-desc>`, e.g. `feat/T052-scaffold-wpf`, matching the commit-type prefixes below. One branch per task or tight cluster, mirroring the "one work session per task or cluster" guidance in `docs/tasks.md`.
 - **Short-lived means ~a week.** This is a side project, not a team sprint — don't let a branch outlive that without a reason.
 - **Merge via rebase or merge commit, never squash.** Squash-merging collapses every commit's task-ID reference into one, which defeats the traceability the commit convention exists for, and makes `git blame`/reversion coarser than it needs to be.
 - **`main` is protected:** PR required, 0 required approvals (solo repo — GitHub won't let you self-approve toward a required count), administrators included in the restriction (no direct pushes, even from the owner), force-push and deletion blocked. Required status checks are deferred until T123 stands up a PR-validation pipeline to check against.
@@ -96,4 +96,4 @@ e.g. `feat(android): T003 build app index from PackageManager`
 
 This matches `.github/pull_request_template.md`'s checklist, which is the other place this is written down — keep the two in step.
 
-**Corrected 2026-08-19.** This section used to read "Reference the task ID … e.g. `T098 · Create monorepo skeleton`" — the shape of the repo's *first* commit, from before the convention settled at T107 (`docs: T107 PR template + commit convention fix`). The example was never updated to match, so it contradicted the PR template for ~140 tasks and misled a later session into a run of non-conforming `Txxx · summary` commits. Those stay in history; don't rewrite them, and don't copy them either.
+**Corrected 2026-08-19.** This section used to read "Reference the task ID … e.g. `T098 · Create monorepo skeleton`" — the shape of the repo's *first* commit, from before the convention settled at T107 (`docs: T107 PR template + commit convention fix`). The example was never updated to match, so it contradicted the PR template for ~140 tasks and produced a run of non-conforming `Txxx · summary` commits. Those stay in history; don't rewrite them, and don't copy them either.
