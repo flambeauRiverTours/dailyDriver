@@ -30,7 +30,7 @@ One stable key, held in repository secrets, makes every release install over the
 
 ## One-time setup
 
-**You do this, not CI and not an assistant.** The keystore's passwords are the only thing standing
+**You do this by hand — not CI, and not any tooling.** The keystore's passwords are the only thing standing
 between someone else and the ability to publish an APK that Android will accept as an update to
 yours. Nobody needs them but you.
 

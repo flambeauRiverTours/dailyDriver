@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="./backend/Notes.Shared.Tests/Notes.Shared.Tests.csproj" />
+  <Project Path="./backend/Notes.Shared/Notes.Shared.csproj" />
+  <Project Path="./desktop/Notes.Desktop.Tests/Notes.Desktop.Tests.csproj" />
+  <Project Path="./desktop/Notes.Desktop/Notes.Desktop.csproj" />
+</Solution>

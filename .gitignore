@@ -34,8 +34,9 @@ dailydriver-command-log-*.jsonl
 # Model weights (T030). Hundreds of megabytes to gigabytes, and Gemma-licensed: the terms T094
 # examined attach redistribution obligations to anyone who passes them on, and a git history is
 # passing them on. Weights are downloaded at runtime by design (§4.5) and never bundled, so the
-# only way one reaches a remote is somebody committing it. "The repo is private" is not a defence
-# — the T014 command log was committed to this private repo and is still reachable at 2553b0c.
+# only way one reaches a remote is somebody committing it. "The repo is private" is not a defence:
+# a T014 command-log export was once committed here, and purging it meant rewriting history rather
+# than deleting a file. Treat anything that reaches a commit as published.
 # Note .task does NOT imply a zip bundle: the -web variants are raw TFLite flatbuffers, so match
 # on extension rather than on content.
 *.task

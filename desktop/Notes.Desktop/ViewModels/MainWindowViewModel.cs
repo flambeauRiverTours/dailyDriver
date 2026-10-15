@@ -128,7 +128,7 @@ namespace Notes.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                logger.LogError("List.InitializeCommand crash when called from OnEditorPropertyChanged with error {error}", ex.Message);
+                logger.LogError(ex, "List.InitializeCommand crash when called from OnEditorPropertyChanged with error {error}", ex.Message);
             }
         }
 

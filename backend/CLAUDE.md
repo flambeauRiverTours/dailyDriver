@@ -2,25 +2,25 @@
 
 C# Azure Functions, **isolated worker model**, .NET 10, HTTP-triggered, Cosmos DB (NoSQL, provisioned throughput, free tier) behind it. Single-user API on the public internet, authenticated via Entra ID JWTs. See root [`../CLAUDE.md`](../CLAUDE.md) for project-wide constraints (isolated worker, provisioned Cosmos, Markdown storage) and [`../docs/design.md`](../docs/design.md) §6 for the full design — this file does not repeat those, it applies them.
 
-**Current state — read before touching either .csproj.** `Notes.Functions` and `Notes.Shared` are stale placeholder projects: old-style (non-SDK) `.csproj` targeting **.NET Framework 4.7.2**, not an Azure Functions isolated-worker project at all. T042/T043 must replace both with real SDK-style, `net10.0` projects before any code lands — do not add code to the current scaffold as-is.
+**Current state.** `Notes.Shared` is real: SDK-style, `net10.0`, holding `TagParser`, `ChecklistParser`, `TaskIndex` and `InputShortcutParser`, with `Notes.Shared.Tests` executing the `fixtures/` corpus against them (T042). **`Notes.Functions` does not exist yet** — it was a stale non-SDK placeholder targeting .NET Framework 4.7.2, which contradicted the root isolated-worker constraint on sight, so it was deleted rather than carried. T043 creates it properly: `dotnet new` an isolated-worker Functions project on `net10.0`. Do not resurrect the old scaffold.
 
-## ⚠️ Claude's role here is design partner, code reviewer, and project manager — never a direct contributor
+## ⚠️ The .NET side is hand-written — review and design only, no generated implementation code
 
-**Same constraint as [`../desktop/CLAUDE.md`](../desktop/CLAUDE.md), and for the same reason — it covers the .NET side of this project as a whole, not one folder.** Do not write, edit, or generate implementation code anywhere under `backend/` — no `.cs`, `.csproj`, `.bicep` edits, no "let me just fix that," no diffs. When asked to help build something, respond with design options, an architectural review of code the user wrote, a critique, or a plan — never a patch. If asked directly to write or fix code, say so plainly and redirect to design/review instead of doing it anyway. Read-only exploration (to review, to check consistency with the design doc, to answer "does this match §6?") is expected and encouraged; producing code is not.
+**Same rule as [`../desktop/CLAUDE.md`](../desktop/CLAUDE.md), and for the same reason — it covers the .NET side of this project as a whole, not one folder.** No tooling writes, edits or generates implementation code anywhere under `backend/`: no `.cs`, `.csproj` or `.bicep` edits, no patches. Assistance takes the form of design options, architectural review, critique, or a plan. Read-only exploration — reviewing, checking against the design doc, answering "does this match §6?" — is expected and encouraged; producing code is not.
 
-This covers `Notes.Functions` **and `Notes.Shared`, which lives here rather than under `desktop/`** despite being consumed by both. It does not apply to `android/`, which keeps its existing direct-contributor workflow.
+This covers `Notes.Functions` **and `Notes.Shared`, which lives here rather than under `desktop/`** despite being consumed by both. It does not apply to `android/`, which keeps its existing workflow.
 
 ### ✅ Standing exception: unit tests (added 2026-09-14)
 
-**Mirrors [`../desktop/CLAUDE.md`](../desktop/CLAUDE.md)'s exception — see there for the full wording and reasoning.** Claude may write and edit test code directly: `.cs` files under `Notes.Shared.Tests` (and `Notes.Functions` tests when they exist), plus the test `.csproj` when a test genuinely needs a package or target-framework change.
+**Mirrors [`../desktop/CLAUDE.md`](../desktop/CLAUDE.md)'s exception — see there for the full wording and reasoning.** Test code is outside the rule above: `.cs` files under `Notes.Shared.Tests` (and `Notes.Functions` tests when they exist), plus the test `.csproj` when a test genuinely needs a package or target-framework change.
 
-The line is **test code, not testability changes to production code.** Fixture/DTO types, fakes, helpers and `PackageReference`s are fine; anything under `Notes.Shared` or `Notes.Functions` is not — including changes made *for* a test, such as widening visibility, adding `InternalsVisibleTo`, or extracting an interface to enable faking. When a test can't be written without one, say so and propose it rather than making it.
+The line is **test code, not testability changes to production code.** Fixture/DTO types, fakes, helpers and `PackageReference`s are fine; anything under `Notes.Shared` or `Notes.Functions` is not — including changes made *for* a test, such as widening visibility, adding `InternalsVisibleTo`, or extracting an interface to enable faking. When a test can't be written without one, the production change gets proposed rather than made.
 
 Tests remain held to everything in **Testing** below: the fixtures are the spec, and merge/DTO logic must be testable with no Functions-runtime or Cosmos SDK dependency.
 
-If the user explicitly asks for a further carve-out — pairing on one function, a spike to unblock them — that is theirs to grant in the moment; don't assume it from a prior conversation.
+A further carve-out — pairing on one function, a spike to unblock something — is the author's to grant in the moment, and is never assumed from a prior one.
 
-Docs are the exception, as on the desktop side: `docs/`, this file, and ADRs are Claude's to edit when asked.
+Docs are the exception, as on the desktop side: `docs/`, this file and the ADRs are editable on request.
 
 ## The schema to mirror — `Notes.Shared` lives here, so the fixtures bind here
 

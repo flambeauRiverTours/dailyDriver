@@ -1,7 +1,7 @@
 # CLI Launcher + Notes — Task List
 
-> **Operational source of truth for task state.** Claude Code reads this file; it cannot
-> see Todoist. Todoist mirrors this list as a dashboard — if the two disagree, **this file wins**.
+> **Operational source of truth for task state.** This file is what local tooling reads; it has no
+> view of Todoist. Todoist mirrors this list as a dashboard — if the two disagree, **this file wins**.
 
 Companion to `docs/design.md` (HLD v3). Task IDs are stable and referenced in commit
 messages, ADRs, and the design doc.
@@ -9,7 +9,7 @@ messages, ADRs, and the design doc.
 ## How to use this file
 
 - **Work top to bottom.** Sections are in intended execution order.
-- **One Claude Code session per task or tight cluster.** Start fresh per task rather than
+- **One work session per task or tight cluster.** Start fresh per task rather than
   running one marathon session per section — long sessions accumulate stale context.
 - **Check the box** (`- [ ]` → `- [x]`) when a task is done, in the same commit as the work.
 - **Respect `after:`** — it lists hard prerequisites. Nothing else is ordered.
@@ -60,7 +60,7 @@ These stop and think rather than build. Do not blow through them.
 ---
 
 
-## 01 · Repo & Claude Code
+## 01 · Repo & tooling
 
 **Do this first.** Cheap, high leverage, everything else depends on it.
 
@@ -69,7 +69,7 @@ These stop and think rather than build. Do not blow through them.
   - START HERE — ten tasks below depend on it. `android/` `desktop/` `backend/` `infra/` `docs/` `.github/`. Monorepo, not three repos, so the shared contract and fixture corpus live with everything that consumes them.
 - [x] **T099** — Root CLAUDE.md  
   `P0` `S` · after: T098
-  - Auto-loaded into every Claude Code session. Project summary; **CURRENT PHASE** (keep updated — highest-value line in the file); pointers to `docs/design.md` and `docs/tasks.md`; the hard constraints below; commit convention.
+  - Auto-loaded by local tooling at the start of every work session. Project summary; **CURRENT PHASE** (keep updated — highest-value line in the file); pointers to `docs/design.md` and `docs/tasks.md`; the hard constraints below; commit convention.
 - [x] **T100** — android/CLAUDE.md  
   `P0` `S` · after: T098
   - Kotlin/Compose conventions, Room patterns, T0–T3 tier rules, MediaPipe GPU-backend + LoRA constraints, target device.
@@ -81,10 +81,10 @@ These stop and think rather than build. Do not blow through them.
   - Isolated worker (state the 2026-11-10 deadline), Cosmos partition key + RU budget, rev assignment rules, Notes.Shared is the contract — do not duplicate DTOs.
 - [x] **T103** — Commit design doc + task list into docs/  
   `P0` `S` · after: T098
-  - `docs/design.md` and `docs/tasks.md`. Claude Code reads local files and cannot see Todoist. **This file is the operational source of truth; Todoist is the dashboard.**
+  - `docs/design.md` and `docs/tasks.md`. Local tooling reads files in the repo and has no view of Todoist. **This file is the operational source of truth; Todoist is the dashboard.**
 - [x] **T104** — .gitignore, .editorconfig, .gitattributes  
   `P1` `S` · after: T098
-  - `.editorconfig` matters more than usual — stops the IDE and Claude Code fighting over formatting across two languages.
+  - `.editorconfig` matters more than usual — stops the IDE and the command-line tooling fighting over formatting across two languages.
   - **Follow-up (process-efficiency pass, 2026-08-14):** `android/.idea/` was still tracked and kept drifting every Android Studio session (`deploymentTargetSelector.xml`, `gradle.xml` changed on nearly every commit in this project's history; `appInsightsSettings.xml`, `inspectionProfiles/` showed up untracked). Solo project, no value in sharing IDE state — added a blanket `.idea/` line to `android/.gitignore` and untracked the 10 files that were still committed, same `git rm -r --cached` approach as the `obj/`/`.vs/` cleanup this task already did for the .NET projects.
 - [x] **T105** — Directory.Build.props + Central Package Management  
   `P1` `S` · after: T098
@@ -498,7 +498,7 @@ Tiered cascade. **The SLM is not the front door.**
 
 - [ ] **T174** — Launch app shortcuts as a second matching level  
   `P2` `L` · after: T167, T017
-  - **⚠ BLOCKED ON THE PHONE, AND PARKED (2026-09-24).** Android is otherwise complete, so this is the only remaining item that would pull a session back to device work. The AOSP emulator publishes zero shortcuts, so it can **only** be developed against the S20 FE. Pick it up when there is a reason to be on the phone anyway.
+  - **⚠ BLOCKED ON THE PHONE, AND PARKED (2026-09-24).** Android is otherwise complete, so this is the only remaining item that would pull the project back to device work. The AOSP emulator publishes zero shortcuts, so it can **only** be developed against the S20 FE. Pick it up when there is a reason to be on the phone anyway.
   - **`:apps Messages Laura` opens the conversation with Laura**, rather than just Messages. Raised 2026-08-22.
   - **There is no generic launch-with-arguments in Android.** `getLaunchIntentForPackage` builds a `CATEGORY_LAUNCHER` intent with no argument slot, and nothing resembling `argv` exists. Do not go looking for one.
   - **The mechanism is `LauncherApps.getShortcuts()`** — the shortcuts an app publishes, the ones you get long-pressing its icon. Google Messages publishes one per recent conversation. Verified against `android.jar`: `getShortcuts(ShortcutQuery, UserHandle)`, `startShortcut(...)`, `hasShortcutHostPermission()`, and `ShortcutInfo.getShortLabel()/getLongLabel()`.
@@ -1232,7 +1232,7 @@ Deliberately **after** there is code to build. Work through it alongside AZ-400 
   - **The release job verifies the APK is signed before publishing.** Without that, a misconfigured secret yields `app-release-unsigned.apk`, the upload glob matches the wrong file or nothing, and the first symptom is "app not installed" on the phone.
   - **Tests run again at tag time** rather than trusting the branch was green, since a tag can be placed on any commit, including one that never went through a pull request.
   - **🔎 `.gitignore` had no keystore rules** — added `*.jks`, `*.keystore`, `*.jks.base64` and verified with `git check-ignore`. The releasing doc had claimed they were already ignored; they were not.
-  - ⚠️ **Needs one manual step:** create the keystore and add four repository secrets. Passwords are deliberately not something an assistant handles.
+  - ⚠️ **Needs one manual step:** create the keystore and add four repository secrets. The passwords are deliberately handled by the author alone and never by tooling.
   - **🐛 First release run: the signature *verification* failed, not the signing.** The APK existed and was correctly signed; `"$ANDROID_HOME"/build-tools/*/apksigner` matched several build-tools versions installed on the runner, so the first path ran as the binary and the rest were passed to it as arguments. apksigner reports that as `Unsupported command: <path>`, which reads like the APK is bad when the invocation is. Now selects the newest explicitly with `sort -V | tail -1` and echoes which one it used.
   - **The guard still did its job**, in a way: it stopped a release publishing on an unverified APK. It just blamed the wrong thing, which is worth remembering when reading its output.
 
@@ -1425,13 +1425,13 @@ The long pole. Gated on the section 06 go/no-go.
   - **Organised by project area** — Android, Desktop (.NET), Azure backend, ML pipeline. Four pages, one per area. An "Engineering practices" page covering CI, source control and documentation was written and then cut on review: it described process rather than the product, and process is what a CV and an interview already cover. The one genuinely load-bearing item on it, the cross-language fixture contract, moved into the Android page next to the parsing it constrains.
   - **Unbuilt areas are stubs that say so**, in a status admonition at the top of the page and in a status table on the overview. Three of the four areas are scaffolds. A portfolio site that describes designed-but-unwritten work in the present tense is worse than one that admits the gap: the gap is checkable from the repo in about thirty seconds.
   - **Status is never conveyed by colour alone** — each row carries a distinct glyph and the words "Working" / "Not started", so the table survives greyscale and colour-blind readers.
-  - **Plain-language pass.** The first draft read as machine-written: em-dashes everywhere, "not X, it's Y" antithesis, and an aphorism closing nearly every section. All three are gone, verified by grep rather than by eye, since proofreading your own prose for your own habits doesn't work. `CLAUDE.md` carries the constraint so the next session doesn't reintroduce it.
+  - **Plain-language pass.** The first draft leaned on three tics: em-dashes everywhere, "not X, it's Y" antithesis, and an aphorism closing nearly every section. All three are gone, verified by grep rather than by eye, since proofreading your own prose for your own habits doesn't work. `CLAUDE.md` carries the constraint so they don't creep back in.
   - **Anchor validation is on** (`validation.anchors`), so a cross-page link to a renamed heading fails the build under `--strict`. Confirmed by deliberately breaking a link and watching CI-equivalent strict mode abort, then restoring it — a check that has never been seen to fail is not yet a check.
   - ⚠️ **Diagrams are Mermaid, which Material fetches from unpkg at runtime.** They could not be visually confirmed locally: the preview pane doesn't composite, and Mermaid measures text via `getBBox()`, which needs real layout. The diagram source parses cleanly under `mermaid.parse`, and the prose around every diagram stands alone so a blocked CDN costs decoration rather than meaning. **Confirm in a real browser before relying on them.**
   - **CI watches `website/`, not `docs/`** — so editing the design doc no longer rebuilds the site. Strict-mode build on pull requests; deploy job gated on `main` so a fork can build but never publish.
   - **`CLAUDE.md` carries a standing rule to keep the site current** — which page to touch, the status table, the "Last updated" stamp, replace stubs wholesale rather than amend them, and keep the prose plain. Written there rather than on the site, because a maintenance TODO visible to an interviewer reads as neglect.
-  - **🔎 Noted, not fixed: `README.md` is stale** — it says notes "don't exist yet", which stopped being true around T018–T024.
-  - **🔎 Noted, not fixed: `docs/cli-launcher-hld.md` is byte-identical to `docs/design.md`** with no inbound links.
+  - **🔎 `README.md` was stale** — it said notes "don't exist yet", which stopped being true around T018–T024. Rewritten before going public (2026-10-15) into a per-area status block, so the first screen a reader sees matches the status table on the site rather than describing the project as it stood in August.
+  - **🔎 `docs/cli-launcher-hld.md` is the frozen original of `docs/design.md`**, not a byte-identical copy — they had already diverged when this was written and are now ~317 diff lines apart. Resolved before going public (2026-10-15) by stamping the HLD **Superseded** and naming `design.md` as the winner, rather than deleting it: the before-and-after is worth keeping.
   - **Verified**: `mkdocs build --strict` clean with anchor validation on; all four pages plus the overview render; nav, search, theme toggle and the custom stylesheet load.
 
 - [ ] **T089** — Publish benchmark table  
